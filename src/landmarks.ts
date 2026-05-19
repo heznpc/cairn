@@ -1,7 +1,10 @@
 import type { Landmark, LandmarkCategory } from "./types.js";
+import { fetchWithTimeout } from "./http.js";
 
 const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
 const USER_AGENT = "cairn-mcp/0.1 (+https://github.com/heznpc/cairn)";
+// Overpass query carries [timeout:25]; give the client 30s to read the body.
+const OVERPASS_TIMEOUT_MS = 30_000;
 
 const IMPORTANCE: Record<LandmarkCategory, number> = {
   station: 1.0,
@@ -43,7 +46,7 @@ export async function findLandmarks(
     out body;
   `.trim();
 
-  const res = await fetch(OVERPASS_URL, {
+  const res = await fetchWithTimeout(OVERPASS_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
@@ -51,6 +54,7 @@ export async function findLandmarks(
       Accept: "application/json",
     },
     body: `data=${encodeURIComponent(query)}`,
+    timeoutMs: OVERPASS_TIMEOUT_MS,
   });
 
   if (!res.ok) {

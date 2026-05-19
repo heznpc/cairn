@@ -1,4 +1,5 @@
 import type { GeocodingResult } from "./types.js";
+import { fetchWithTimeout, nominatimGate } from "./http.js";
 
 const NOMINATIM_BASE = "https://nominatim.openstreetmap.org/search";
 const USER_AGENT = "cairn-mcp/0.1 (+https://github.com/heznpc/cairn)";
@@ -10,11 +11,13 @@ export async function geocode(address: string): Promise<GeocodingResult> {
   url.searchParams.set("limit", "1");
   url.searchParams.set("addressdetails", "1");
 
-  const res = await fetch(url.toString(), {
+  await nominatimGate();
+  const res = await fetchWithTimeout(url.toString(), {
     headers: {
       "User-Agent": USER_AGENT,
       "Accept-Language": "ko,en;q=0.9,ja;q=0.8",
     },
+    timeoutMs: 8000,
   });
 
   if (!res.ok) {
