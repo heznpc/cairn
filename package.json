@@ -1,0 +1,62 @@
+{
+  "name": "cairn-mcp",
+  "version": "0.1.0",
+  "description": "Type an address, get a pictogram map. Korean-style 약도, auto-generated. MCP server + CLI.",
+  "type": "module",
+  "bin": {
+    "cairn": "./dist/cli.js",
+    "cairn-mcp": "./dist/server.js"
+  },
+  "main": "./dist/server.js",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "dev:server": "tsx watch src/server.ts",
+    "dev:cli": "tsx src/cli.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "map",
+    "pictogram",
+    "wayfinding",
+    "business-card",
+    "yakdo",
+    "약도",
+    "openstreetmap",
+    "svg",
+    "claude",
+    "anthropic"
+  ],
+  "author": "heznpc",
+  "license": "MIT",
+  "homepage": "https://github.com/heznpc/cairn",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/heznpc/cairn.git"
+  },
+  "bugs": {
+    "url": "https://github.com/heznpc/cairn/issues"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "tsx": "^4.16.0",
+    "typescript": "^5.5.0",
+    "vitest": "^1.6.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
