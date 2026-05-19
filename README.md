@@ -3,7 +3,7 @@
 > Type an address, get a pictogram map.
 > Korean-style 약도, auto-generated, anywhere in the world.
 
-[![npm](https://img.shields.io/npm/v/cairn-mcp.svg)](https://www.npmjs.com/package/cairn-mcp)
+[![npm](https://img.shields.io/npm/v/cairn-mcp.svg)](https://www.npmjs.com/package/cairn-mcp) *(coming soon)*
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 ---
@@ -23,6 +23,8 @@ Built for:
 - Any printed material that says "here's how to find me"
 
 ## Quick start
+
+> **Status:** v0.1 pre-release. Not yet on npm. Install from source: clone → `npm install && npm run build` → use `node dist/cli.js` for CLI, or wire `node /absolute/path/to/dist/server.js` into your MCP config. The `npx cairn-mcp` invocations below will work once v0.1.0 is published.
 
 ### As an MCP server (Claude Code, Cursor, Codex CLI)
 

@@ -8,3 +8,7 @@ coverage/
 *.tsbuildinfo
 out.svg
 *.local.svg
+
+# Private handoff notes — local only, not for public repo
+CLAUDE.md
+NOTES.md
