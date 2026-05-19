@@ -1,6 +1,7 @@
 import type { Landmark, LandmarkCategory } from "./types.js";
 
 const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
+const USER_AGENT = "cairn-mcp/0.1 (+https://github.com/heznpc/cairn)";
 
 const IMPORTANCE: Record<LandmarkCategory, number> = {
   station: 1.0,
@@ -44,7 +45,11 @@ export async function findLandmarks(
 
   const res = await fetch(OVERPASS_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "User-Agent": USER_AGENT,
+      Accept: "application/json",
+    },
     body: `data=${encodeURIComponent(query)}`,
   });
 
