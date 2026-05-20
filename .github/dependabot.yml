@@ -25,7 +25,8 @@ updates:
       # zod stays on v3 — MCP SDK pins it as peer.
       - dependency-name: zod
         update-types: ["version-update:semver-major"]
-      # @types/node tracks engines.node policy, not "latest". Bump manually.
+      # @types/node tracks engines.node, currently 22. Next bump (e.g. to 24)
+      # should be a coordinated change with engines.node — handle manually.
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
 
