@@ -30,8 +30,34 @@ const FindLandmarksArgs = z.object({
   radiusMeters: z.number().int().positive().optional(),
 });
 
-// Output schema for generate_map — lets host LLMs read layout structurally
-// instead of parsing the SVG string. See MCP 2025-06-18 spec §tools.outputSchema.
+// Output schemas let host LLMs read results structurally instead of parsing
+// the SVG / JSON text payload. See MCP 2025-06-18 spec §tools.outputSchema.
+const LANDMARK_CATEGORIES = [
+  "station",
+  "bus_stop",
+  "cafe",
+  "convenience",
+  "restaurant",
+  "school",
+  "hospital",
+  "park",
+  "landmark",
+  "building",
+] as const;
+
+const landmarkItemSchema = {
+  type: "object",
+  required: ["id", "name", "lat", "lon", "category", "importance"],
+  properties: {
+    id: { type: "string" },
+    name: { type: "string" },
+    lat: { type: "number" },
+    lon: { type: "number" },
+    category: { type: "string", enum: LANDMARK_CATEGORIES },
+    importance: { type: "number" },
+  },
+} as const;
+
 const generateMapOutputSchema = {
   type: "object",
   required: ["svg", "layout"],
@@ -53,21 +79,7 @@ const generateMapOutputSchema = {
             label: { type: "string" },
           },
         },
-        landmarks: {
-          type: "array",
-          items: {
-            type: "object",
-            required: ["id", "name", "lat", "lon", "category", "importance"],
-            properties: {
-              id: { type: "string" },
-              name: { type: "string" },
-              lat: { type: "number" },
-              lon: { type: "number" },
-              category: { type: "string" },
-              importance: { type: "number" },
-            },
-          },
-        },
+        landmarks: { type: "array", items: landmarkItemSchema },
         bbox: {
           type: "object",
           required: ["north", "south", "east", "west"],
@@ -97,32 +109,25 @@ const findLandmarksOutputSchema = {
   type: "object",
   required: ["landmarks"],
   properties: {
-    landmarks: {
-      type: "array",
-      items: {
-        type: "object",
-        required: ["id", "name", "lat", "lon", "category", "importance"],
-        properties: {
-          id: { type: "string" },
-          name: { type: "string" },
-          lat: { type: "number" },
-          lon: { type: "number" },
-          category: { type: "string" },
-          importance: { type: "number" },
-        },
-      },
-    },
+    landmarks: { type: "array", items: landmarkItemSchema },
   },
 } as const;
 
-// Tool annotations signal intent to MCP hosts (per 2025-06-18 spec).
-// All cairn tools are read-only side-effect-free and call external APIs.
 const safeAnnotations = {
   readOnlyHint: true,
   destructiveHint: false,
   idempotentHint: true,
-  openWorldHint: true, // we hit Nominatim / Overpass
+  openWorldHint: true, // hits Nominatim / Overpass
 } as const;
+
+// Shape every JSON-bodied tool reply identically: structured payload, plus the
+// same payload pretty-printed as text for clients that don't read structuredContent.
+function jsonResult<T>(structured: T) {
+  return {
+    content: [{ type: "text" as const, text: JSON.stringify(structured, null, 2) }],
+    structuredContent: structured,
+  };
+}
 
 const tools = [
   {
@@ -195,10 +200,9 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     if (name === "generate_map") {
       const input = GenerateMapArgs.parse(args);
       const { svg, layout } = await generateMap(input.address, input);
-      const structured = { svg, layout };
+      // Per MCP spec, populate both content and structuredContent when
+      // outputSchema is declared, so older clients still see the SVG.
       return {
-        // Keep text content for clients that don't yet read structuredContent
-        // (per MCP spec, both should be set when outputSchema is declared).
         content: [
           { type: "text", text: svg },
           {
@@ -208,32 +212,20 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
               `${layout.center.lat.toFixed(5)}, ${layout.center.lon.toFixed(5)}.`,
           },
         ],
-        structuredContent: structured,
+        structuredContent: { svg, layout },
       };
     }
 
     if (name === "geocode") {
       const input = GeocodeArgs.parse(args);
-      const result = await geocode(input.address);
-      const structured = {
-        lat: result.lat,
-        lon: result.lon,
-        displayName: result.displayName,
-      };
-      return {
-        content: [{ type: "text", text: JSON.stringify(structured, null, 2) }],
-        structuredContent: structured,
-      };
+      const { lat, lon, displayName } = await geocode(input.address);
+      return jsonResult({ lat, lon, displayName });
     }
 
     if (name === "find_landmarks") {
       const input = FindLandmarksArgs.parse(args);
-      const result = await findLandmarks(input.lat, input.lon, input.radiusMeters);
-      const structured = { landmarks: result };
-      return {
-        content: [{ type: "text", text: JSON.stringify(structured, null, 2) }],
-        structuredContent: structured,
-      };
+      const landmarks = await findLandmarks(input.lat, input.lon, input.radiusMeters);
+      return jsonResult({ landmarks });
     }
 
     throw new Error(`Unknown tool: ${name}`);
