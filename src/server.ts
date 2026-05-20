@@ -30,6 +30,100 @@ const FindLandmarksArgs = z.object({
   radiusMeters: z.number().int().positive().optional(),
 });
 
+// Output schema for generate_map — lets host LLMs read layout structurally
+// instead of parsing the SVG string. See MCP 2025-06-18 spec §tools.outputSchema.
+const generateMapOutputSchema = {
+  type: "object",
+  required: ["svg", "layout"],
+  properties: {
+    svg: {
+      type: "string",
+      description: "Rendered SVG markup, ready to embed or write to a file.",
+    },
+    layout: {
+      type: "object",
+      required: ["center", "landmarks", "bbox"],
+      properties: {
+        center: {
+          type: "object",
+          required: ["lat", "lon", "label"],
+          properties: {
+            lat: { type: "number" },
+            lon: { type: "number" },
+            label: { type: "string" },
+          },
+        },
+        landmarks: {
+          type: "array",
+          items: {
+            type: "object",
+            required: ["id", "name", "lat", "lon", "category", "importance"],
+            properties: {
+              id: { type: "string" },
+              name: { type: "string" },
+              lat: { type: "number" },
+              lon: { type: "number" },
+              category: { type: "string" },
+              importance: { type: "number" },
+            },
+          },
+        },
+        bbox: {
+          type: "object",
+          required: ["north", "south", "east", "west"],
+          properties: {
+            north: { type: "number" },
+            south: { type: "number" },
+            east: { type: "number" },
+            west: { type: "number" },
+          },
+        },
+      },
+    },
+  },
+} as const;
+
+const geocodeOutputSchema = {
+  type: "object",
+  required: ["lat", "lon", "displayName"],
+  properties: {
+    lat: { type: "number" },
+    lon: { type: "number" },
+    displayName: { type: "string" },
+  },
+} as const;
+
+const findLandmarksOutputSchema = {
+  type: "object",
+  required: ["landmarks"],
+  properties: {
+    landmarks: {
+      type: "array",
+      items: {
+        type: "object",
+        required: ["id", "name", "lat", "lon", "category", "importance"],
+        properties: {
+          id: { type: "string" },
+          name: { type: "string" },
+          lat: { type: "number" },
+          lon: { type: "number" },
+          category: { type: "string" },
+          importance: { type: "number" },
+        },
+      },
+    },
+  },
+} as const;
+
+// Tool annotations signal intent to MCP hosts (per 2025-06-18 spec).
+// All cairn tools are read-only side-effect-free and call external APIs.
+const safeAnnotations = {
+  readOnlyHint: true,
+  destructiveHint: false,
+  idempotentHint: true,
+  openWorldHint: true, // we hit Nominatim / Overpass
+} as const;
+
 const tools = [
   {
     name: "generate_map",
@@ -50,6 +144,8 @@ const tools = [
       },
       required: ["address"],
     },
+    outputSchema: generateMapOutputSchema,
+    annotations: safeAnnotations,
   },
   {
     name: "geocode",
@@ -63,6 +159,8 @@ const tools = [
       },
       required: ["address"],
     },
+    outputSchema: geocodeOutputSchema,
+    annotations: safeAnnotations,
   },
   {
     name: "find_landmarks",
@@ -78,6 +176,8 @@ const tools = [
       },
       required: ["lat", "lon"],
     },
+    outputSchema: findLandmarksOutputSchema,
+    annotations: safeAnnotations,
   },
 ];
 
@@ -95,7 +195,10 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     if (name === "generate_map") {
       const input = GenerateMapArgs.parse(args);
       const { svg, layout } = await generateMap(input.address, input);
+      const structured = { svg, layout };
       return {
+        // Keep text content for clients that don't yet read structuredContent
+        // (per MCP spec, both should be set when outputSchema is declared).
         content: [
           { type: "text", text: svg },
           {
@@ -105,19 +208,32 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
               `${layout.center.lat.toFixed(5)}, ${layout.center.lon.toFixed(5)}.`,
           },
         ],
+        structuredContent: structured,
       };
     }
 
     if (name === "geocode") {
       const input = GeocodeArgs.parse(args);
       const result = await geocode(input.address);
-      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+      const structured = {
+        lat: result.lat,
+        lon: result.lon,
+        displayName: result.displayName,
+      };
+      return {
+        content: [{ type: "text", text: JSON.stringify(structured, null, 2) }],
+        structuredContent: structured,
+      };
     }
 
     if (name === "find_landmarks") {
       const input = FindLandmarksArgs.parse(args);
       const result = await findLandmarks(input.lat, input.lon, input.radiusMeters);
-      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+      const structured = { landmarks: result };
+      return {
+        content: [{ type: "text", text: JSON.stringify(structured, null, 2) }],
+        structuredContent: structured,
+      };
     }
 
     throw new Error(`Unknown tool: ${name}`);
