@@ -20,10 +20,7 @@ const IMPORTANCE: Record<LandmarkCategory, number> = {
   building: 0.3,
 };
 
-// Defense in depth: validate the upstream Overpass payload shape at runtime.
-// Public Overpass instances are trusted today, but the schema is small enough
-// that the cost of validation is negligible and the failure mode (clear
-// error vs. silent prototype-pollution-shaped junk) is much better.
+// Validate Overpass payload shape — clear error beats silent malformed-object junk.
 const OverpassElementSchema = z.object({
   id: z.number(),
   lat: z.number(),

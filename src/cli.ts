@@ -83,7 +83,7 @@ async function main() {
     process.exit(1);
   }
 
-  const parseFlag = (raw: string | undefined, flag: string): number | undefined => {
+  const parseFlag = (flag: string, raw: string | undefined): number | undefined => {
     if (raw === undefined) return undefined;
     const n = parseInt(raw, 10);
     if (!Number.isFinite(n) || n <= 0) {
@@ -94,10 +94,10 @@ async function main() {
 
   const { svg, layout } = await generateMap(address, {
     label: opts.label,
-    radiusMeters: parseFlag(opts.radius, "--radius"),
-    limit: parseFlag(opts.limit, "--limit"),
-    width: parseFlag(opts.width, "--width"),
-    height: parseFlag(opts.height, "--height"),
+    radiusMeters: parseFlag("--radius", opts.radius),
+    limit: parseFlag("--limit", opts.limit),
+    width: parseFlag("--width", opts.width),
+    height: parseFlag("--height", opts.height),
   });
 
   if (opts.output) {
