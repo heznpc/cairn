@@ -83,12 +83,21 @@ async function main() {
     process.exit(1);
   }
 
+  const parseFlag = (raw: string | undefined, flag: string): number | undefined => {
+    if (raw === undefined) return undefined;
+    const n = parseInt(raw, 10);
+    if (!Number.isFinite(n) || n <= 0) {
+      throw new Error(`${flag} must be a positive integer (got: "${raw}")`);
+    }
+    return n;
+  };
+
   const { svg, layout } = await generateMap(address, {
     label: opts.label,
-    radiusMeters: opts.radius ? parseInt(opts.radius, 10) : undefined,
-    limit: opts.limit ? parseInt(opts.limit, 10) : undefined,
-    width: opts.width ? parseInt(opts.width, 10) : undefined,
-    height: opts.height ? parseInt(opts.height, 10) : undefined,
+    radiusMeters: parseFlag(opts.radius, "--radius"),
+    limit: parseFlag(opts.limit, "--limit"),
+    width: parseFlag(opts.width, "--width"),
+    height: parseFlag(opts.height, "--height"),
   });
 
   if (opts.output) {

@@ -3,6 +3,7 @@
 > Type an address, get a pictogram map.
 > Korean-style 약도, auto-generated, anywhere in the world.
 
+[![ci](https://github.com/heznpc/cairn/actions/workflows/ci.yml/badge.svg)](https://github.com/heznpc/cairn/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/cairn-mcp.svg)](https://www.npmjs.com/package/cairn-mcp) *(coming soon)*
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
@@ -46,6 +47,18 @@ Most maps are too accurate to be useful. Korean 약도 (yakdo) and Japanese 略�
 - **No server-side LLM calls.** The MCP server is a tool, not an agent: curation is deterministic, so it's debuggable, testable, and doesn't push token costs onto the user. Any LLM-powered refinement happens in the host process.
 - **Domain-neutral by design.** Business cards are the primary use case, but the render pipeline doesn't lock to that domain — wedding invitations, real estate listings, and event flyers all reuse the same primitives.
 - **Single-file MCP server style** (anvil / AirMCP pattern): minimal dependencies, single-responsibility modules, easy to audit end-to-end.
+
+## Privacy
+
+cairn sends the address you type to two OpenStreetMap services in order to
+do its job: [Nominatim](https://nominatim.openstreetmap.org/) for geocoding
+and [Overpass](https://overpass-api.de/) for landmark lookup. Both run on
+the OSM Foundation's public infrastructure and follow the OSMF [privacy
+policy](https://wiki.osmfoundation.org/wiki/Privacy_Policy). cairn itself
+stores nothing, has no telemetry, and reads no environment variables for
+credentials. If your address is sensitive, run a self-hosted Nominatim /
+Overpass instance and point cairn at it (custom-endpoint support is on the
+roadmap).
 
 ## Non-goals
 

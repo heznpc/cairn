@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { Landmark, LandmarkCategory } from "./types.js";
 import { fetchWithTimeout } from "./http.js";
 
@@ -18,6 +19,21 @@ const IMPORTANCE: Record<LandmarkCategory, number> = {
   bus_stop: 0.4,
   building: 0.3,
 };
+
+// Defense in depth: validate the upstream Overpass payload shape at runtime.
+// Public Overpass instances are trusted today, but the schema is small enough
+// that the cost of validation is negligible and the failure mode (clear
+// error vs. silent prototype-pollution-shaped junk) is much better.
+const OverpassElementSchema = z.object({
+  id: z.number(),
+  lat: z.number(),
+  lon: z.number(),
+  tags: z.record(z.string(), z.string()).optional(),
+});
+
+const OverpassResponseSchema = z.object({
+  elements: z.array(OverpassElementSchema),
+});
 
 /**
  * Find nearby points of interest using OpenStreetMap Overpass API.
@@ -61,17 +77,16 @@ export async function findLandmarks(
     throw new Error(`Overpass query failed: ${res.status} ${res.statusText}`);
   }
 
-  const data = (await res.json()) as {
-    elements: Array<{
-      id: number;
-      lat: number;
-      lon: number;
-      tags?: Record<string, string>;
-    }>;
-  };
+  const raw = await res.json();
+  const parsed = OverpassResponseSchema.safeParse(raw);
+  if (!parsed.success) {
+    throw new Error(
+      `Overpass returned an unexpected response shape: ${parsed.error.message}`,
+    );
+  }
 
   const landmarks: Landmark[] = [];
-  for (const el of data.elements) {
+  for (const el of parsed.data.elements) {
     if (!el.tags?.name) continue;
     const category = categorize(el.tags);
     landmarks.push({
