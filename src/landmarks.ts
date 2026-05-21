@@ -6,6 +6,10 @@ const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
 const USER_AGENT = "cairn-mcp/0.1 (+https://github.com/heznpc/cairn)";
 // Overpass query carries [timeout:25]; give the client 30s to read the body.
 const OVERPASS_TIMEOUT_MS = 30_000;
+// TODO(2nd-pass-audit-2026-05-21): Overpass has no rate-limit gate. Single-user
+// CLI/MCP traffic stays well inside the "reasonable use" policy; add a
+// nominatimGate-style serializer if multi-host concurrent traffic ever shows
+// up (e.g. cairn-mcp hosted on a shared MCP gateway).
 
 const IMPORTANCE: Record<LandmarkCategory, number> = {
   station: 1.0,

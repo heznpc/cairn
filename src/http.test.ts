@@ -1,42 +1,70 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { nominatimGate, _resetNominatimGate, fetchWithTimeout } from "./http.js";
 
-beforeEach(() => {
-  _resetNominatimGate();
-});
+// Helper: drain microtasks so `then(() => ...)` callbacks attached to an
+// already-resolved promise actually run. vi.advanceTimersByTimeAsync flushes
+// timers but each `setTimeout(resolve, ...)` only resolves the next link in
+// the chain; we still need to let .then callbacks fire before reading state.
+async function flushMicrotasks() {
+  await Promise.resolve();
+  await Promise.resolve();
+}
 
 describe("nominatimGate", () => {
-  it("lets the first caller through immediately", async () => {
-    const start = Date.now();
-    await nominatimGate();
-    expect(Date.now() - start).toBeLessThan(50);
+  beforeEach(() => {
+    _resetNominatimGate();
+    vi.useFakeTimers();
   });
 
-  it("serializes consecutive callers with ~1.1s spacing", async () => {
-    await nominatimGate(); // first call, immediate
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
-    const start = Date.now();
-    await nominatimGate(); // second call, must wait
-    const gap = Date.now() - start;
+  it("lets the first caller through immediately", async () => {
+    let resolved = false;
+    nominatimGate().then(() => {
+      resolved = true;
+    });
+    await flushMicrotasks();
+    expect(resolved).toBe(true);
+  });
 
-    expect(gap).toBeGreaterThanOrEqual(1000);
-    expect(gap).toBeLessThan(1500);
-  }, 5000);
+  it("blocks the second caller until the 1.1s gate window elapses", async () => {
+    await nominatimGate(); // first, immediate
 
-  it("serializes three callers in order with cumulative spacing", async () => {
-    const stamps: number[] = [];
-    const t0 = Date.now();
+    let secondResolved = false;
+    nominatimGate().then(() => {
+      secondResolved = true;
+    });
 
-    const p1 = nominatimGate().then(() => stamps.push(Date.now() - t0));
-    const p2 = nominatimGate().then(() => stamps.push(Date.now() - t0));
-    const p3 = nominatimGate().then(() => stamps.push(Date.now() - t0));
+    // Just shy of the window: still blocked.
+    await vi.advanceTimersByTimeAsync(1099);
+    await flushMicrotasks();
+    expect(secondResolved).toBe(false);
 
-    await Promise.all([p1, p2, p3]);
+    // Crossing the window resolves it.
+    await vi.advanceTimersByTimeAsync(1);
+    await flushMicrotasks();
+    expect(secondResolved).toBe(true);
+  });
 
-    expect(stamps[0]).toBeLessThan(50);
-    expect(stamps[1] - stamps[0]).toBeGreaterThanOrEqual(1000);
-    expect(stamps[2] - stamps[1]).toBeGreaterThanOrEqual(1000);
-  }, 6000);
+  it("serializes three callers, each waiting the full window for the previous", async () => {
+    const order: string[] = [];
+    nominatimGate().then(() => order.push("a"));
+    nominatimGate().then(() => order.push("b"));
+    nominatimGate().then(() => order.push("c"));
+
+    await flushMicrotasks();
+    expect(order).toEqual(["a"]);
+
+    await vi.advanceTimersByTimeAsync(1100);
+    await flushMicrotasks();
+    expect(order).toEqual(["a", "b"]);
+
+    await vi.advanceTimersByTimeAsync(1100);
+    await flushMicrotasks();
+    expect(order).toEqual(["a", "b", "c"]);
+  });
 });
 
 describe("fetchWithTimeout", () => {
