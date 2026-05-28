@@ -79,6 +79,53 @@ describe("dispatchTool — outputSchema ↔ structuredContent contract", () => {
     expect(ok, `schema errors: ${JSON.stringify(validate.errors)}`).toBe(true);
   });
 
+  it("generate_map content[1] summary is consistent with structuredContent.layout", async () => {
+    // Pre-2025-06-18 MCP clients read content[1] (the prose summary) instead
+    // of structuredContent. If a refactor lets the two drift — e.g. the text
+    // slices landmarks for brevity while structured keeps them all — those
+    // clients silently get wrong counts. Pin the contract.
+    const layout = {
+      center: { lat: 37.5, lon: 127.0, label: "여기" },
+      landmarks: [
+        { id: "1", name: "역삼역", lat: 37.5005, lon: 127.0005, category: "station" as const, importance: 1.0, tags: {} },
+        { id: "2", name: "스타벅스", lat: 37.4998, lon: 127.0008, category: "cafe" as const, importance: 0.5, tags: {} },
+        { id: "3", name: "CU", lat: 37.4999, lon: 127.0002, category: "convenience" as const, importance: 0.5, tags: {} },
+      ],
+      bbox: { north: 37.51, south: 37.49, east: 127.01, west: 126.99 },
+    };
+    vi.mocked(generateMap).mockResolvedValue({ svg: "<svg></svg>", layout });
+
+    const result = await dispatchTool("generate_map", { address: "x" });
+    expect(result.isError).toBeFalsy();
+    expect(result.content).toHaveLength(2);
+
+    const summary = result.content[1].text;
+    expect(summary).toContain(`${layout.landmarks.length} landmarks`);
+    expect(summary).toContain(layout.center.lat.toFixed(5));
+    expect(summary).toContain(layout.center.lon.toFixed(5));
+  });
+
+  it("geocode passes through Nominatim raw payload when present", async () => {
+    // Regression: an earlier version destructured only {lat, lon, displayName},
+    // dropping `raw` even though geocode.ts still requested addressdetails=1.
+    // host LLMs lose useful admin breakdown without this.
+    const raw = {
+      address: { city: "Seoul", country_code: "kr", road: "테헤란로" },
+    };
+    vi.mocked(geocode).mockResolvedValue({
+      lat: 37.5,
+      lon: 127.0,
+      displayName: "Seoul",
+      raw,
+    });
+
+    const result = await dispatchTool("geocode", { address: "Seoul" });
+    expect(result.isError).toBeFalsy();
+    expect(result.structuredContent).toMatchObject({ raw });
+    const validate = validatorFor("geocode");
+    expect(validate(result.structuredContent), JSON.stringify(validate.errors)).toBe(true);
+  });
+
   it("geocode structuredContent satisfies the declared outputSchema", async () => {
     vi.mocked(geocode).mockResolvedValue({
       lat: 37.5,

@@ -28,32 +28,48 @@ function parse(argv: string[]) {
   const positional: string[] = [];
   const opts: Record<string, string> = {};
 
+  // Take the next argv entry as the value for `flag`. Refuses when nothing
+  // follows (silent undefined would lie about the Record<string,string>
+  // type) and when the next entry starts with "-" (caller forgot the
+  // value; we'd swallow the next flag instead, e.g. `-o --label "x"`
+  // becoming opts.output="--label").
+  const takeValue = (flag: string, i: number): string => {
+    const v = argv[i];
+    if (v === undefined) {
+      throw new Error(`${flag} requires a value`);
+    }
+    if (v.startsWith("-")) {
+      throw new Error(`${flag} requires a value (got flag-like "${v}")`);
+    }
+    return v;
+  };
+
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     switch (a) {
       case "-o":
       case "--output":
-        opts.output = argv[++i];
+        opts.output = takeValue(a, ++i);
         break;
       case "-l":
       case "--label":
-        opts.label = argv[++i];
+        opts.label = takeValue(a, ++i);
         break;
       case "-r":
       case "--radius":
-        opts.radius = argv[++i];
+        opts.radius = takeValue(a, ++i);
         break;
       case "-n":
       case "--limit":
-        opts.limit = argv[++i];
+        opts.limit = takeValue(a, ++i);
         break;
       case "-w":
       case "--width":
-        opts.width = argv[++i];
+        opts.width = takeValue(a, ++i);
         break;
       case "-h":
       case "--height":
-        opts.height = argv[++i];
+        opts.height = takeValue(a, ++i);
         break;
       case "--help":
         opts.help = "true";
@@ -83,11 +99,13 @@ async function main() {
     process.exit(1);
   }
 
-  const parseFlag = (flag: string, raw: string | undefined): number | undefined => {
+  const parseFlag = (flag: string, raw: string | undefined, min = 1): number | undefined => {
     if (raw === undefined) return undefined;
-    const n = parseInt(raw, 10);
-    if (!Number.isFinite(n) || n <= 0) {
-      throw new Error(`${flag} must be a positive integer (got: "${raw}")`);
+    // Use Number() not parseInt(): parseInt("400px",10)===400 silently truncates
+    // typos like "1k" to 1. Number("400px")===NaN rejects the same input cleanly.
+    const n = Number(raw);
+    if (!Number.isInteger(n) || n < min) {
+      throw new Error(`${flag} must be an integer ≥ ${min} (got: "${raw}")`);
     }
     return n;
   };
@@ -96,8 +114,9 @@ async function main() {
     label: opts.label,
     radiusMeters: parseFlag("--radius", opts.radius),
     limit: parseFlag("--limit", opts.limit),
-    width: parseFlag("--width", opts.width),
-    height: parseFlag("--height", opts.height),
+    // width/height ≥ 100 — render.ts projection uses (width - 100) as denom.
+    width: parseFlag("--width", opts.width, 100),
+    height: parseFlag("--height", opts.height, 100),
   });
 
   if (opts.output) {

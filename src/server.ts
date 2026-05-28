@@ -28,15 +28,30 @@ const transport = new StdioServerTransport();
 // Exit cleanly when the host closes stdin / sends a signal. Without these,
 // the process keeps stdin paused and lingers as a zombie after Claude
 // Code / Cursor disconnects.
-const shutdown = (code = 0) => {
-  // Best-effort transport close; failure shouldn't block process exit.
-  transport.close().catch(() => undefined);
+//
+// Idempotency guard: SIGINT, SIGTERM, stdin "end", and server.onclose can all
+// fire for the same disconnect (server.onclose itself fires from inside
+// transport.close()). Without the guard we'd race multiple closes and
+// process.exit calls.
+//
+// Drain: we *await* transport.close() so any in-flight JSON-RPC response
+// finishes writing before the process exits. A 2s hard-stop covers the case
+// where the transport hangs (e.g. the peer pipe is already broken).
+const HARD_STOP_MS = 2000;
+let shuttingDown = false;
+const shutdown = async (code = 0) => {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  await Promise.race([
+    transport.close().catch(() => undefined),
+    new Promise<void>((resolve) => setTimeout(resolve, HARD_STOP_MS)),
+  ]);
   process.exit(code);
 };
-process.on("SIGINT", () => shutdown(0));
-process.on("SIGTERM", () => shutdown(0));
-process.stdin.on("end", () => shutdown(0));
-server.onclose = () => shutdown(0);
+process.on("SIGINT", () => void shutdown(0));
+process.on("SIGTERM", () => void shutdown(0));
+process.stdin.on("end", () => void shutdown(0));
+server.onclose = () => void shutdown(0);
 
 server.connect(transport).catch((err) => {
   console.error("Failed to start cairn MCP server:", err);
