@@ -13,16 +13,27 @@ const ICONS: Record<LandmarkCategory, string> = {
   building: "◼",
 };
 
+// Minimum canvas dimension — projection uses (width - 100) and (height - 100)
+// as the plotting span (50px margin on each side). At width=100 the span is
+// zero, below that it's negative and coordinates flip. handlers.ts and cli.ts
+// inputSchemas enforce 100 at the entry points; this clamp is defense in
+// depth for direct pipeline.ts callers (tests, future internal users) and
+// guarantees a strictly-positive plotting span.
+const MIN_DIM = 100;
+const MIN_SPAN = 1;
+
 export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
-  const width = opts.width ?? 600;
-  const height = opts.height ?? 400;
+  const width = Math.max(opts.width ?? 600, MIN_DIM);
+  const height = Math.max(opts.height ?? 400, MIN_DIM);
+  const spanX = Math.max(width - 100, MIN_SPAN);
+  const spanY = Math.max(height - 100, MIN_SPAN);
   const { bbox, center, landmarks } = layout;
 
   const project = (lat: number, lon: number): [number, number] => {
     const denomLon = bbox.east - bbox.west || 1e-6;
     const denomLat = bbox.north - bbox.south || 1e-6;
-    const x = ((lon - bbox.west) / denomLon) * (width - 100) + 50;
-    const y = ((bbox.north - lat) / denomLat) * (height - 100) + 50;
+    const x = ((lon - bbox.west) / denomLon) * spanX + 50;
+    const y = ((bbox.north - lat) / denomLat) * spanY + 50;
     return [x, y];
   };
 

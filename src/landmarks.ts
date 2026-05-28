@@ -1,15 +1,11 @@
 import { z } from "zod";
 import type { Landmark, LandmarkCategory } from "./types.js";
-import { fetchWithTimeout } from "./http.js";
+import { fetchWithTimeout, overpassGate } from "./http.js";
 
 const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
 const USER_AGENT = "cairn-mcp/0.1 (+https://github.com/heznpc/cairn)";
 // Overpass query carries [timeout:25]; give the client 30s to read the body.
 const OVERPASS_TIMEOUT_MS = 30_000;
-// TODO(2nd-pass-audit-2026-05-21): Overpass has no rate-limit gate. Single-user
-// CLI/MCP traffic stays well inside the "reasonable use" policy; add a
-// nominatimGate-style serializer if multi-host concurrent traffic ever shows
-// up (e.g. cairn-mcp hosted on a shared MCP gateway).
 
 const IMPORTANCE: Record<LandmarkCategory, number> = {
   station: 1.0,
@@ -63,6 +59,7 @@ export async function findLandmarks(
     out body;
   `.trim();
 
+  await overpassGate();
   const res = await fetchWithTimeout(OVERPASS_URL, {
     method: "POST",
     headers: {
@@ -79,25 +76,34 @@ export async function findLandmarks(
   }
 
   const raw = await res.json();
-  const parsed = OverpassResponseSchema.safeParse(raw);
-  if (!parsed.success) {
+  // Per-element tolerance: validate the envelope shape (`elements` is an
+  // array) loosely, then validate each element individually with safeParse
+  // and SKIP malformed ones. The earlier strict-batch parse would fail the
+  // whole call if any single element drifted from the schema (e.g. a mirror
+  // encoding ids as strings, or a future way/relation match with null
+  // lat/lon). One anomalous element should not kill the batch.
+  const envelope = z.object({ elements: z.array(z.unknown()) }).safeParse(raw);
+  if (!envelope.success) {
     throw new Error(
-      `Overpass returned an unexpected response shape: ${parsed.error.message}`,
+      `Overpass returned an unexpected response shape: ${envelope.error.message}`,
     );
   }
 
   const landmarks: Landmark[] = [];
-  for (const el of parsed.data.elements) {
-    if (!el.tags?.name) continue;
-    const category = categorize(el.tags);
+  for (const el of envelope.data.elements) {
+    const elParsed = OverpassElementSchema.safeParse(el);
+    if (!elParsed.success) continue; // skip drifted element, keep the rest
+    const e = elParsed.data;
+    if (!e.tags?.name) continue;
+    const category = categorize(e.tags);
     landmarks.push({
-      id: String(el.id),
-      name: el.tags.name,
-      lat: el.lat,
-      lon: el.lon,
+      id: String(e.id),
+      name: e.tags.name,
+      lat: e.lat,
+      lon: e.lon,
       category,
       importance: IMPORTANCE[category] ?? 0.3,
-      tags: el.tags,
+      tags: e.tags,
     });
   }
   return landmarks;

@@ -6,14 +6,17 @@ import type { LandmarkCategory } from "./types.js";
 
 // ---------- Input schemas (zod) ----------
 
+// `language` is intentionally NOT exposed: render.ts has no localization yet,
+// and advertising a flag that's silently dropped breaks the host-LLM contract.
+// Re-add once render.ts honors it. See NOTES.md.
 const GenerateMapArgs = z.object({
   address: z.string().describe("Street address or place name"),
   label: z.string().optional().describe('Label for the destination (default: "여기")'),
-  radiusMeters: z.number().int().positive().optional().describe("Landmark search radius (default 400)"),
-  limit: z.number().int().positive().optional().describe("Max landmarks to include (default 5)"),
-  width: z.number().int().positive().optional(),
-  height: z.number().int().positive().optional(),
-  language: z.enum(["ko", "en", "ja"]).optional(),
+  radiusMeters: z.number().int().min(1).optional().describe("Landmark search radius (default 400)"),
+  limit: z.number().int().min(1).optional().describe("Max landmarks to include (default 5)"),
+  // width/height ≥ 100 — render.ts projection uses (width - 100) as denominator.
+  width: z.number().int().min(100).optional(),
+  height: z.number().int().min(100).optional(),
 });
 
 const GeocodeArgs = z.object({
@@ -23,7 +26,7 @@ const GeocodeArgs = z.object({
 const FindLandmarksArgs = z.object({
   lat: z.number(),
   lon: z.number(),
-  radiusMeters: z.number().int().positive().optional(),
+  radiusMeters: z.number().int().min(1).optional(),
 });
 
 // ---------- Output schemas (JSON Schema for MCP outputSchema) ----------
@@ -129,6 +132,10 @@ const geocodeOutputSchema = {
     lat: { type: "number" },
     lon: { type: "number" },
     displayName: { type: "string" },
+    // Raw Nominatim payload (addressdetails=1 is already requested by geocode.ts).
+    // Shape varies — host LLMs use this for follow-up reasoning
+    // (city / country_code / road / suburb). Schema is intentionally permissive.
+    raw: { type: "object" },
   },
 } as const;
 
@@ -141,10 +148,13 @@ const findLandmarksOutputSchema = {
   },
 } as const;
 
+// `idempotentHint` is deliberately omitted (defaults to false per MCP spec).
+// Nominatim/Overpass return time-varying POI data — two calls months apart
+// can legitimately differ as OSM is edited, and a destination business may
+// move. Asserting idempotency would let hosts cache stale results.
 const safeAnnotations = {
   readOnlyHint: true,
   destructiveHint: false,
-  idempotentHint: true,
   openWorldHint: true, // hits Nominatim / Overpass
 } as const;
 
@@ -162,11 +172,10 @@ export const tools = [
       properties: {
         address: { type: "string", description: "Street address or place name" },
         label: { type: "string", description: 'Destination label (default: "여기")' },
-        radiusMeters: { type: "integer", description: "Landmark search radius (default 400)" },
-        limit: { type: "integer", description: "Max landmarks (default 5)" },
-        width: { type: "integer", description: "SVG width in px (default 600)" },
-        height: { type: "integer", description: "SVG height in px (default 400)" },
-        language: { type: "string", enum: ["ko", "en", "ja"] },
+        radiusMeters: { type: "integer", minimum: 1, description: "Landmark search radius (default 400)" },
+        limit: { type: "integer", minimum: 1, description: "Max landmarks (default 5)" },
+        width: { type: "integer", minimum: 100, description: "SVG width in px (default 600, min 100)" },
+        height: { type: "integer", minimum: 100, description: "SVG height in px (default 400, min 100)" },
       },
       required: ["address"],
     },
@@ -196,7 +205,7 @@ export const tools = [
       properties: {
         lat: { type: "number" },
         lon: { type: "number" },
-        radiusMeters: { type: "integer", description: "Default 400" },
+        radiusMeters: { type: "integer", minimum: 1, description: "Default 400" },
       },
       required: ["lat", "lon"],
     },
@@ -261,8 +270,13 @@ export async function dispatchTool(
 
     if (name === "geocode") {
       const input = GeocodeArgs.parse(args);
-      const { lat, lon, displayName } = await geocode(input.address);
-      return jsonResult({ lat, lon, displayName });
+      const { lat, lon, displayName, raw } = await geocode(input.address);
+      // `raw` is the Nominatim payload (addressdetails=1) — host LLMs use it
+      // for follow-up reasoning (city, country_code, road, suburb). Only
+      // included when it's a record-shaped object so the schema check passes.
+      const body: Record<string, unknown> = { lat, lon, displayName };
+      if (raw && typeof raw === "object") body.raw = raw;
+      return jsonResult(body);
     }
 
     if (name === "find_landmarks") {

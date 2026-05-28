@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { nominatimGate, _resetNominatimGate, fetchWithTimeout } from "./http.js";
+import {
+  nominatimGate,
+  _resetNominatimGate,
+  _resetOverpassGate,
+  fetchWithTimeout,
+} from "./http.js";
 
 // Helper: drain microtasks so `then(() => ...)` callbacks attached to an
 // already-resolved promise actually run. vi.advanceTimersByTimeAsync flushes
@@ -11,10 +16,20 @@ async function flushMicrotasks() {
 }
 
 // Module-top reset: every test, every describe, starts with a clean
-// nominatimChain. Without this, fake-timer state from one describe can
-// leave the chain pointing at a forever-pending promise for the next.
+// nominatimChain / overpassChain. Without this, fake-timer state from one
+// describe can leave a chain pointing at a forever-pending promise for the
+// next.
 beforeEach(() => {
   _resetNominatimGate();
+  _resetOverpassGate();
+});
+
+// Restore any vi.spyOn from a failed assertion path. Without this, a thrown
+// `expect(...).rejects.toThrow(...)` skips the per-test mockRestore() and
+// leaks the fetch stub into subsequent tests, producing cascading failures
+// that mask the original bug.
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe("nominatimGate", () => {
@@ -104,5 +119,28 @@ describe("fetchWithTimeout", () => {
     expect(await res.text()).toBe("ok");
 
     fetchSpy.mockRestore();
+  });
+
+  it("honors a pre-aborted external signal (addEventListener fires only on transition)", async () => {
+    // Regression: addEventListener("abort", ...) does NOT fire when the
+    // signal is already aborted at attach time. Without the explicit
+    // `if (externalSignal.aborted) controller.abort()` guard, fetch would
+    // run to completion ignoring caller-side cancellation.
+    let fetchInvokedWithAbortedSignal = false;
+    vi.spyOn(globalThis, "fetch").mockImplementation((_url, init) => {
+      fetchInvokedWithAbortedSignal = !!init?.signal?.aborted;
+      // Mirror real fetch: if signal is already aborted, reject immediately.
+      if (init?.signal?.aborted) {
+        return Promise.reject(new DOMException("Aborted", "AbortError"));
+      }
+      return Promise.resolve(new Response("late", { status: 200 }));
+    });
+
+    const ac = new AbortController();
+    ac.abort();
+    await expect(
+      fetchWithTimeout("https://example.test/x", { signal: ac.signal }),
+    ).rejects.toThrow();
+    expect(fetchInvokedWithAbortedSignal).toBe(true);
   });
 });

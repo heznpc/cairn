@@ -34,6 +34,59 @@ versions follow [Semantic Versioning](https://semver.org/).
 - `cli.ts` numeric flags (`--radius`, `--limit`, `--width`, `--height`)
   now reject `NaN` with a clear error instead of silently passing it
   down to the pipeline.
+- `find_landmarks` MCP wire format wraps results as `{landmarks: [...]}`
+  rather than a bare array. Pre-refactor consumers parsing
+  `JSON.parse(content[0].text)[0]` must read
+  `JSON.parse(content[0].text).landmarks[0]`. Documented here because
+  no public consumers exist yet (pre-npm-release).
+
+### Fixed
+- `fetchWithTimeout` now honors an already-aborted external signal at
+  call entry — `addEventListener("abort", ...)` only fires on
+  transition, so a pre-aborted `signal:` was silently ignored and the
+  fetch ran to completion.
+- `geocode` MCP tool passes through Nominatim's `raw` payload
+  (city / country_code / road / suburb breakdown) that `geocode.ts`
+  was already requesting via `addressdetails=1`. The earlier handler
+  dropped it, depriving host LLMs of useful follow-up reasoning data.
+- `generate_map` MCP tool no longer advertises a `language` parameter:
+  `render.ts` does not localize labels and the flag was silently
+  discarded. Re-introduced once render-side localization exists.
+- `cli.ts` argv parser refuses flags that swallow another flag as
+  their value (`cairn x -o --label y` previously wrote a file literally
+  named `--label`) and refuses missing-value cases instead of producing
+  `undefined`.
+- `cli.ts` `parseFlag` uses `Number()` + `Number.isInteger()` instead
+  of `parseInt()` — `parseInt("400px", 10) === 400` silently truncated
+  malformed input like `1k` to `1`.
+- `server.ts` shutdown awaits `transport.close()` (with a 2s hard-stop)
+  and guards against re-entrant triggers, so in-flight JSON-RPC
+  responses finish writing before the process exits.
+- `landmarks.ts` Overpass parser is per-element tolerant: one
+  malformed element is skipped, not allowed to fail the whole batch.
+- `landmarks.ts` calls now go through a new `overpassGate` (1s minimum
+  spacing) so bursty `find_landmarks` curation loops from a single
+  host LLM cannot 429 the public Overpass instance.
+- MCP tool input schemas declare `minimum: 1` on positive integer
+  flags and `minimum: 100` on `width` / `height` — earlier the
+  inputSchema drifted from zod-side `.positive()` enforcement, letting
+  a non-zod host pass zero or negative values.
+- `render.ts` clamps width/height to ≥ 100 and the projection span to
+  ≥ 1 px so direct pipeline callers cannot produce `Infinity`
+  coordinates with degenerate canvas sizes.
+- `idempotentHint` removed from MCP tool annotations: Nominatim and
+  Overpass return time-varying POI data, so the flag could let hosts
+  cache stale results across the OSM edit lifecycle.
+- `http.test.ts` restores spies in an `afterEach` so a failing
+  `rejects.toThrow(...)` no longer leaks the fetch stub into the next
+  test and produces cascading misleading failures.
+
+### Known limitations
+- Rate-limit gates (`nominatimGate`, `overpassGate`) are per-Node-
+  process. Parallel CLI invocations (`cairn addr1 & cairn addr2`)
+  bypass them. Acceptable for single-process CLI/MCP use; a future
+  shared-host deployment would need a filesystem lock or out-of-
+  process semaphore.
 
 ## [0.1.0] — unreleased
 
@@ -45,7 +98,7 @@ Initial public version. Not yet on npm.
 - CLI (`cairn`) with file output and label override.
 - Deterministic landmark curation (importance × distance × category
   diversity).
-- Pictogram SVG renderer with Korean / English / Japanese label
-  support.
+- Pictogram SVG renderer (Korean-defaulted labels; per-language
+  localization planned, see NOTES.md).
 - 18 unit tests covering curation, rendering, and the Nominatim
   rate-limit gate.

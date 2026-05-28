@@ -37,5 +37,7 @@ export interface RenderOptions {
   width?: number;
   height?: number;
   style?: "minimal" | "iconographic";
+  // NOTE: `language` is reserved for future localization. render.ts does NOT
+  // honor it yet; handlers.ts does NOT expose it to MCP hosts. See NOTES.md.
   language?: "ko" | "en" | "ja";
 }
