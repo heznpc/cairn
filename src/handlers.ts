@@ -57,9 +57,14 @@ const _categoryNoneExtra: AssertNever<_Extra> = true;
 void _categoryNoneMissing;
 void _categoryNoneExtra;
 
+// `additionalProperties: false` everywhere so the Ajv contract tests fail loud
+// when the runtime payload (Landmark type, MapLayout, etc.) drifts from the
+// declared schema. Without it, Ajv defaults to permissive and undeclared
+// fields ship silently to hosts.
 const landmarkItemSchema = {
   type: "object",
   required: ["id", "name", "lat", "lon", "category", "importance"],
+  additionalProperties: false,
   properties: {
     id: { type: "string" },
     name: { type: "string" },
@@ -67,12 +72,18 @@ const landmarkItemSchema = {
     lon: { type: "number" },
     category: { type: "string", enum: LANDMARK_CATEGORIES },
     importance: { type: "number" },
+    // OSM tag bag. Values are strings on the wire; we mirror that.
+    tags: {
+      type: "object",
+      additionalProperties: { type: "string" },
+    },
   },
 } as const;
 
 const generateMapOutputSchema = {
   type: "object",
   required: ["svg", "layout"],
+  additionalProperties: false,
   properties: {
     svg: {
       type: "string",
@@ -81,10 +92,12 @@ const generateMapOutputSchema = {
     layout: {
       type: "object",
       required: ["center", "landmarks", "bbox"],
+      additionalProperties: false,
       properties: {
         center: {
           type: "object",
           required: ["lat", "lon", "label"],
+          additionalProperties: false,
           properties: {
             lat: { type: "number" },
             lon: { type: "number" },
@@ -95,6 +108,7 @@ const generateMapOutputSchema = {
         bbox: {
           type: "object",
           required: ["north", "south", "east", "west"],
+          additionalProperties: false,
           properties: {
             north: { type: "number" },
             south: { type: "number" },
@@ -110,6 +124,7 @@ const generateMapOutputSchema = {
 const geocodeOutputSchema = {
   type: "object",
   required: ["lat", "lon", "displayName"],
+  additionalProperties: false,
   properties: {
     lat: { type: "number" },
     lon: { type: "number" },
@@ -120,6 +135,7 @@ const geocodeOutputSchema = {
 const findLandmarksOutputSchema = {
   type: "object",
   required: ["landmarks"],
+  additionalProperties: false,
   properties: {
     landmarks: { type: "array", items: landmarkItemSchema },
   },
@@ -191,17 +207,32 @@ export const tools = [
 
 // ---------- Dispatcher ----------
 
+// MCP spec requires structuredContent to be a JSON object (record-shaped),
+// not a primitive or array. Reflect that at the type level so a future
+// `jsonResult(42)` or `jsonResult(landmarksArray)` won't compile.
 export interface DispatchResult {
   content: Array<{ type: "text"; text: string }>;
-  structuredContent?: unknown;
+  structuredContent?: Record<string, unknown>;
   isError?: boolean;
 }
 
-function jsonResult<T>(structured: T): DispatchResult {
+function jsonResult<T extends Record<string, unknown>>(structured: T): DispatchResult {
   return {
     content: [{ type: "text", text: JSON.stringify(structured, null, 2) }],
     structuredContent: structured,
   };
+}
+
+// Surface zod issues as `path: message; path: message` instead of the
+// multi-line stringified `err.message` JSON blob — that blob is what host
+// LLMs see otherwise, and it's not actionable.
+function formatError(err: unknown): string {
+  if (err instanceof z.ZodError) {
+    return err.issues
+      .map((i) => `${i.path.join(".") || "<root>"}: ${i.message}`)
+      .join("; ");
+  }
+  return err instanceof Error ? err.message : String(err);
 }
 
 export async function dispatchTool(
@@ -242,10 +273,9 @@ export async function dispatchTool(
 
     throw new Error(`Unknown tool: ${name}`);
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
     return {
       isError: true,
-      content: [{ type: "text", text: `cairn error: ${message}` }],
+      content: [{ type: "text", text: `cairn error: ${formatError(err)}` }],
     };
   }
 }
