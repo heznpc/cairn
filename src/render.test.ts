@@ -116,6 +116,24 @@ describe("renderSVG — projection", () => {
     expect(Number(m![2])).toBeCloseTo(300, 5);
   });
 
+  it("survives a degenerate (zero-span) bbox via the 1e-6 fallback in render.ts", () => {
+    // Production hits this when a layout has one landmark co-located with the
+    // destination (single-POI rendering), or when padLat/padLon cancel out.
+    // The earlier 0.02° bbox tests never reach the `|| 1e-6` fallback, so a
+    // regression that removes it would NaN every coordinate without notice.
+    const collapsed = {
+      center: { lat: 37.5, lon: 127.0, label: "C" },
+      landmarks: [],
+      bbox: { north: 37.5, south: 37.5, east: 127.0, west: 127.0 },
+    };
+    const svg = renderSVG(collapsed);
+    const m = svg.match(CENTER_RE);
+    expect(m, "center marker missing on degenerate bbox").not.toBeNull();
+    expect(Number.isFinite(Number(m![1])), "cx must be finite").toBe(true);
+    expect(Number.isFinite(Number(m![2])), "cy must be finite").toBe(true);
+    expect(svg).not.toMatch(/NaN/);
+  });
+
   it("places north-of-center above and east-of-center to the right (SVG y is flipped)", () => {
     const north = {
       id: "n",

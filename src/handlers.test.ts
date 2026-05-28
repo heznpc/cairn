@@ -113,10 +113,12 @@ describe("dispatchTool — outputSchema ↔ structuredContent contract", () => {
     expect(validate(result.structuredContent), JSON.stringify(validate.errors)).toBe(true);
   });
 
-  it("find_landmarks accepts every category that categorize() can produce", async () => {
-    // Cross-file invariant: LandmarkCategory ↔ outputSchema enum. If a new
-    // category is added to types.ts without updating handlers.ts, this test
-    // and the compile-time exhaustiveness check should both fail.
+  it("outputSchema enum accepts every LandmarkCategory value", async () => {
+    // Schema-side coverage only: this proves the enum in landmarkItemSchema
+    // covers every LandmarkCategory string. The categorize()-side coverage
+    // (every branch returns a LandmarkCategory) is enforced statically by
+    // the return-type annotation on categorize() plus the AssertNever
+    // check in handlers.ts. The two together close the loop.
     vi.mocked(findLandmarks).mockResolvedValue(
       (["station","bus_stop","cafe","convenience","restaurant","school","hospital","park","landmark","building"] as const).map((c, i) => ({
         id: String(i),
@@ -132,6 +134,41 @@ describe("dispatchTool — outputSchema ↔ structuredContent contract", () => {
     const result = await dispatchTool("find_landmarks", { lat: 37.5, lon: 127.0 });
     const validate = validatorFor("find_landmarks");
     expect(validate(result.structuredContent), JSON.stringify(validate.errors)).toBe(true);
+  });
+
+  it("outputSchema enum rejects a category not in LandmarkCategory", () => {
+    // Negative case: if a future refactor silently drops the `enum:` constraint,
+    // Ajv would start accepting anything-string and this test fails.
+    const validate = validatorFor("find_landmarks");
+    const ok = validate({
+      landmarks: [
+        {
+          id: "0",
+          name: "fake",
+          lat: 37.5,
+          lon: 127.0,
+          category: "NOT_A_REAL_CATEGORY",
+          importance: 0.5,
+          tags: {},
+        },
+      ],
+    });
+    expect(ok).toBe(false);
+    expect(validate.errors?.some((e) => e.keyword === "enum")).toBe(true);
+  });
+
+  it("outputSchema rejects undeclared top-level properties", () => {
+    // additionalProperties:false guard. If schema drift in MapLayout adds a
+    // new field that the schema doesn't declare, Ajv must reject it.
+    const validate = validatorFor("geocode");
+    const ok = validate({
+      lat: 37.5,
+      lon: 127.0,
+      displayName: "Seoul",
+      bogus: "should-be-rejected",
+    });
+    expect(ok).toBe(false);
+    expect(validate.errors?.some((e) => e.keyword === "additionalProperties")).toBe(true);
   });
 });
 

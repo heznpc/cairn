@@ -10,9 +10,15 @@ async function flushMicrotasks() {
   await Promise.resolve();
 }
 
+// Module-top reset: every test, every describe, starts with a clean
+// nominatimChain. Without this, fake-timer state from one describe can
+// leave the chain pointing at a forever-pending promise for the next.
+beforeEach(() => {
+  _resetNominatimGate();
+});
+
 describe("nominatimGate", () => {
   beforeEach(() => {
-    _resetNominatimGate();
     vi.useFakeTimers();
   });
 
