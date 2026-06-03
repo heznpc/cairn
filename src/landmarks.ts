@@ -1,11 +1,6 @@
 import { z } from "zod";
 import type { Landmark, LandmarkCategory } from "./types.js";
-import { fetchWithTimeout, overpassGate } from "./http.js";
-
-const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
-const USER_AGENT = "cairn-mcp/0.1 (+https://github.com/heznpc/cairn)";
-// Overpass query carries [timeout:25]; give the client 30s to read the body.
-const OVERPASS_TIMEOUT_MS = 30_000;
+import { overpassFetch, OVERPASS_TIMEOUT_MS } from "./overpass.js";
 
 const IMPORTANCE: Record<LandmarkCategory, number> = {
   station: 1.0,
@@ -20,16 +15,14 @@ const IMPORTANCE: Record<LandmarkCategory, number> = {
   building: 0.3,
 };
 
-// Validate Overpass payload shape — clear error beats silent malformed-object junk.
-const OverpassElementSchema = z.object({
+// Validate each Overpass element individually — clear skip beats silent
+// malformed-object junk. A single drifted element is dropped, not allowed to
+// fail the whole batch.
+const OverpassNodeSchema = z.object({
   id: z.number(),
   lat: z.number(),
   lon: z.number(),
   tags: z.record(z.string(), z.string()).optional(),
-});
-
-const OverpassResponseSchema = z.object({
-  elements: z.array(OverpassElementSchema),
 });
 
 /**
@@ -59,41 +52,13 @@ export async function findLandmarks(
     out body;
   `.trim();
 
-  await overpassGate();
-  const res = await fetchWithTimeout(OVERPASS_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      "User-Agent": USER_AGENT,
-      Accept: "application/json",
-    },
-    body: `data=${encodeURIComponent(query)}`,
-    timeoutMs: OVERPASS_TIMEOUT_MS,
-  });
-
-  if (!res.ok) {
-    throw new Error(`Overpass query failed: ${res.status} ${res.statusText}`);
-  }
-
-  const raw = await res.json();
-  // Per-element tolerance: validate the envelope shape (`elements` is an
-  // array) loosely, then validate each element individually with safeParse
-  // and SKIP malformed ones. The earlier strict-batch parse would fail the
-  // whole call if any single element drifted from the schema (e.g. a mirror
-  // encoding ids as strings, or a future way/relation match with null
-  // lat/lon). One anomalous element should not kill the batch.
-  const envelope = z.object({ elements: z.array(z.unknown()) }).safeParse(raw);
-  if (!envelope.success) {
-    throw new Error(
-      `Overpass returned an unexpected response shape: ${envelope.error.message}`,
-    );
-  }
+  const elements = await overpassFetch(query, OVERPASS_TIMEOUT_MS);
 
   const landmarks: Landmark[] = [];
-  for (const el of envelope.data.elements) {
-    const elParsed = OverpassElementSchema.safeParse(el);
-    if (!elParsed.success) continue; // skip drifted element, keep the rest
-    const e = elParsed.data;
+  for (const el of elements) {
+    const parsed = OverpassNodeSchema.safeParse(el);
+    if (!parsed.success) continue; // skip drifted element, keep the rest
+    const e = parsed.data;
     if (!e.tags?.name) continue;
     const category = categorize(e.tags);
     landmarks.push({

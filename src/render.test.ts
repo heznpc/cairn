@@ -24,6 +24,7 @@ const layout: MapLayout = {
       tags: {},
     },
   ],
+  roads: [],
   bbox: {
     north: 37.5013,
     south: 37.4988,
@@ -92,10 +93,14 @@ describe("renderSVG — projection", () => {
   // (lat=37.5, lon=127.0) must land at (cx=300, cy=200).
   const bbox = { north: 37.51, south: 37.49, east: 127.01, west: 126.99 };
 
-  function projectionLayout(landmarks: MapLayout["landmarks"] = []) {
+  function projectionLayout(
+    landmarks: MapLayout["landmarks"] = [],
+    roads: MapLayout["roads"] = [],
+  ): MapLayout {
     return {
       center: { lat: 37.5, lon: 127.0, label: "C" },
       landmarks,
+      roads,
       bbox,
     };
   }
@@ -121,9 +126,10 @@ describe("renderSVG — projection", () => {
     // destination (single-POI rendering), or when padLat/padLon cancel out.
     // The earlier 0.02° bbox tests never reach the `|| 1e-6` fallback, so a
     // regression that removes it would NaN every coordinate without notice.
-    const collapsed = {
+    const collapsed: MapLayout = {
       center: { lat: 37.5, lon: 127.0, label: "C" },
       landmarks: [],
+      roads: [],
       bbox: { north: 37.5, south: 37.5, east: 127.0, west: 127.0 },
     };
     const svg = renderSVG(collapsed);
@@ -169,5 +175,95 @@ describe("renderSVG — projection", () => {
     // East landmark: same y as center (200), larger x than center.
     expect(ex).toBeGreaterThan(300);
     expect(ey).toBeCloseTo(200, 5);
+  });
+});
+
+describe("renderSVG — roads", () => {
+  const bbox = { north: 37.51, south: 37.49, east: 127.01, west: 126.99 };
+
+  function layoutWithRoads(roads: MapLayout["roads"]): MapLayout {
+    return {
+      center: { lat: 37.5, lon: 127.0, label: "C" },
+      landmarks: [],
+      roads,
+      bbox,
+    };
+  }
+
+  const primaryRoad = {
+    id: "r1",
+    name: "테헤란로",
+    class: "primary" as const,
+    points: [
+      { lat: 37.495, lon: 126.995 },
+      { lat: 37.5, lon: 127.0 },
+      { lat: 37.505, lon: 127.005 },
+    ],
+  };
+
+  it("renders a road as an SVG path with a stroke", () => {
+    const svg = renderSVG(layoutWithRoads([primaryRoad]));
+    const paths = svg.match(/<path\b/g) ?? [];
+    expect(paths).toHaveLength(1);
+    expect(svg).toMatch(/<path d="M[\d.]+,[\d.]+ L[\d.]+,[\d.]+/);
+    expect(svg).toContain('stroke-linecap="round"');
+  });
+
+  it("labels a named primary road exactly once", () => {
+    const svg = renderSVG(layoutWithRoads([primaryRoad]));
+    const occurrences = svg.split("테헤란로").length - 1;
+    expect(occurrences).toBe(1);
+  });
+
+  it("does not label residential roads", () => {
+    const residential = {
+      id: "r2",
+      name: "골목길",
+      class: "residential" as const,
+      points: [
+        { lat: 37.499, lon: 126.999 },
+        { lat: 37.501, lon: 127.001 },
+      ],
+    };
+    const svg = renderSVG(layoutWithRoads([residential]));
+    // The road is drawn (a path) but its name is not labeled.
+    expect(svg).toMatch(/<path\b/);
+    expect(svg).not.toContain("골목길");
+  });
+
+  it("labels a split road (same name, many segments) only once, at the longest", () => {
+    const short = {
+      id: "s",
+      name: "강남대로",
+      class: "secondary" as const,
+      points: [
+        { lat: 37.4999, lon: 126.9999 },
+        { lat: 37.5001, lon: 127.0001 },
+      ],
+    };
+    const long = {
+      id: "l",
+      name: "강남대로",
+      class: "secondary" as const,
+      points: [
+        { lat: 37.491, lon: 126.991 },
+        { lat: 37.509, lon: 127.009 },
+      ],
+    };
+    const svg = renderSVG(layoutWithRoads([short, long]));
+    // Two paths drawn, one label.
+    expect(svg.match(/<path\b/g)).toHaveLength(2);
+    expect(svg.split("강남대로").length - 1).toBe(1);
+  });
+
+  it("skips roads with fewer than 2 points", () => {
+    const degenerate = {
+      id: "d",
+      name: "점",
+      class: "primary" as const,
+      points: [{ lat: 37.5, lon: 127.0 }],
+    };
+    const svg = renderSVG(layoutWithRoads([degenerate]));
+    expect(svg).not.toMatch(/<path\b/);
   });
 });

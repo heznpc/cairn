@@ -21,21 +21,23 @@ Most maps are too accurate to be useful. Korean 약도 (yakdo) and Japanese 略�
 
 ## Currently implemented
 
-- **3 MCP tools** over stdio: `generate_map` (one-shot address → SVG), `geocode` (address → coords via Nominatim), `find_landmarks` (coords → POI list via Overpass).
+- **4 MCP tools** over stdio: `generate_map` (one-shot address → SVG), `geocode` (address → coords via Nominatim), `find_landmarks` (coords → POI list via Overpass), `find_roads` (coords → simplified road polylines via Overpass).
 - **Zero-API-key path.** OSM Nominatim + Overpass only. No Mapbox / Google keys, no account, no quota signup.
+- **Road skeleton** in [src/roads.ts](src/roads.ts) — fetches nearby roads, classifies them by importance tier (primary / secondary / tertiary / residential), and simplifies each polyline with Douglas-Peucker ([src/geometry.ts](src/geometry.ts)). This is what turns the output from a scatter of points into an actual 약도: a few roads you navigate along, with the major ones labeled.
 - **Deterministic curation heuristic** in [src/curate.ts](src/curate.ts) — weights importance (transit > civic > shop), targets a ~150 m sweet-spot distance, enforces category diversity, caps at the requested `limit` (default 5).
-- **Pictogram SVG renderer** with per-category icons and Korean/English/Japanese labels.
-- **CLI** with file output and label override:
+- **Pictogram SVG renderer** — road bands under per-category landmark icons, deduped road-name labels, pass-through text labels (renders the label text you supply, in any script; no built-in label localization — see `CHANGELOG.md`).
+- **CLI** with file output, label override, and a `--no-roads` toggle:
   ```bash
   node dist/cli.js "서울 강남구 테헤란로 152" -o office.svg --label "스튜디오"
+  node dist/cli.js "Shibuya Crossing, Tokyo" -o shibuya.svg --no-roads
   ```
-- **HTTP rate-limiting and timeouts** on outbound calls — 1 req/s to Nominatim per its usage policy.
-- **Tests**: 18 passing (vitest, run on every push).
+- **HTTP rate-limiting and timeouts** on outbound calls — 1 req/s to Nominatim, 1 req/s to Overpass, per their usage policies.
+- **Tests**: 57 passing (vitest, run on every push).
 
 ## Planned
 
 - Publish v0.1.0 to npm so the `npx cairn-mcp` invocations below work.
-- Pictogram component library + force-directed layout + road simplification (Track A — the real visual differentiator).
+- Pictogram component library + force-directed label layout (Track A — building on the road skeleton just landed).
 - Wedding invitation template variant (Track C — addressable-market expansion).
 - Optional Mapbox / Google geocoder adapters (opt-in only; the default stays zero-key).
 - Figma plugin export.
@@ -43,7 +45,7 @@ Most maps are too accurate to be useful. Korean 약도 (yakdo) and Japanese 略�
 ## Design intent
 
 - **Fewer landmarks by design.** A good cairn is one stone stacked carefully, not a quarry. Every extra element costs cognitive load, so the default heuristic picks fewer landmarks than you'd expect — and that's the point.
-- **Granular and high-level tools, side by side.** `generate_map` is convenient; `geocode` + `find_landmarks` exist so a host LLM can compose smarter pipelines than any single one-shot ever could.
+- **Granular and high-level tools, side by side.** `generate_map` is convenient; `geocode` + `find_landmarks` + `find_roads` exist so a host LLM can compose smarter pipelines than any single one-shot ever could.
 - **No server-side LLM calls.** The MCP server is a tool, not an agent: curation is deterministic, so it's debuggable, testable, and doesn't push token costs onto the user. Any LLM-powered refinement happens in the host process.
 - **Domain-neutral by design.** Business cards are the primary use case, but the render pipeline doesn't lock to that domain — wedding invitations, real estate listings, and event flyers all reuse the same primitives.
 - **Single-file MCP server style** (anvil / AirMCP pattern): minimal dependencies, single-responsibility modules, easy to audit end-to-end.
@@ -99,19 +101,21 @@ npx cairn-mcp "1600 Amphitheatre Pkwy, Mountain View" --label "Office"
 
 1. **Geocode** the address (Nominatim — no API key).
 2. **Find landmarks** within a configurable radius (Overpass): transit stations, schools, parks, recognizable shops, distinctive buildings.
-3. **Curate** the most useful 4–6 with the heuristic above.
-4. **Render** a pictogram SVG with simplified positions, icons, and labels.
-5. **Output** vector SVG, ready for print or digital embed.
+3. **Find roads** in the same area (Overpass), classify them by importance tier, and simplify each polyline (Douglas-Peucker).
+4. **Curate** the most useful 4–6 landmarks with the heuristic above.
+5. **Render** a pictogram SVG: road skeleton underneath, landmark icons and labels on top, destination marked.
+6. **Output** vector SVG, ready for print or digital embed.
 
 ## MCP tools
 
 | Tool | What it does |
 |---|---|
-| `generate_map` | One-shot: address → SVG |
+| `generate_map` | One-shot: address → SVG (set `roads: false` to skip the skeleton) |
 | `geocode` | Address → coordinates |
 | `find_landmarks` | Coordinates → nearby points of interest |
+| `find_roads` | Coordinates → simplified road polylines, classified by tier |
 
-Granular tools let an LLM compose smarter pipelines — for example, "find landmarks, pick the three most recognizable for a Korean reader, render with those as icons."
+Granular tools let an LLM compose smarter pipelines — for example, "find landmarks and roads, keep the two biggest roads and the three most recognizable landmarks, render with those."
 
 ## Why "cairn"?
 

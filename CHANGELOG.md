@@ -7,8 +7,29 @@ versions follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Road skeleton (Track A).** cairn now draws the roads you navigate by,
+  not just a scatter of landmark points — the change that makes the output
+  read as an actual 약도.
+  - `src/roads.ts` — `findRoads()` queries Overpass for nearby ways
+    (`out geom;`), classifies each into an importance tier
+    (primary / secondary / tertiary / residential / path), and simplifies
+    the polyline. `roadsFromElements()` is the pure, unit-tested parser.
+  - `src/geometry.ts` — Douglas-Peucker polyline simplification with an
+    equirectangular (cos-lat) correction so the tolerance is isotropic in
+    real distance at city latitudes.
+  - New `find_roads` MCP tool (granular, like `find_landmarks`) and a
+    `roads` field on `generate_map`'s `layout` output.
+  - `generate_map` accepts `roads: false` (and the CLI `--no-roads`) to
+    skip the extra Overpass round-trip and render landmarks only.
+  - Renderer draws road bands under the landmarks (width/colour by tier)
+    and labels each top-tier road once, at its longest segment's midpoint.
+- `src/overpass.ts` — shared Overpass client (gate + timeout + envelope
+  validation) used by both `landmarks.ts` and `roads.ts`.
+- Second rate-limit gate (`overpassGate`, 1 req/s) so the now-two Overpass
+  calls per `generate_map`, and bursty `find_landmarks` / `find_roads`
+  loops, stay within the public instance's reasonable-use policy.
 - `outputSchema` + `structuredContent` on the `generate_map` MCP tool —
-  host LLMs can now read `layout` (center, bbox, landmarks) as
+  host LLMs can now read `layout` (center, bbox, landmarks, roads) as
   structured JSON instead of parsing the SVG string.
 - Tool safety annotations: `readOnlyHint: true`, `openWorldHint: true`
   on every tool.
