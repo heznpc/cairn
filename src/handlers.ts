@@ -2,7 +2,8 @@ import { z } from "zod";
 import { generateMap } from "./pipeline.js";
 import { geocode } from "./geocode.js";
 import { findLandmarks } from "./landmarks.js";
-import type { LandmarkCategory } from "./types.js";
+import { findRoads } from "./roads.js";
+import type { LandmarkCategory, RoadClass } from "./types.js";
 
 // ---------- Input schemas (zod) ----------
 
@@ -17,6 +18,10 @@ const GenerateMapArgs = z.object({
   // width/height ≥ 100 — render.ts projection uses (width - 100) as denominator.
   width: z.number().int().min(100).optional(),
   height: z.number().int().min(100).optional(),
+  roads: z
+    .boolean()
+    .optional()
+    .describe("Draw the road skeleton (default true). Set false to skip the extra Overpass round-trip."),
 });
 
 const GeocodeArgs = z.object({
@@ -24,6 +29,12 @@ const GeocodeArgs = z.object({
 });
 
 const FindLandmarksArgs = z.object({
+  lat: z.number(),
+  lon: z.number(),
+  radiusMeters: z.number().int().min(1).optional(),
+});
+
+const FindRoadsArgs = z.object({
   lat: z.number(),
   lon: z.number(),
   radiusMeters: z.number().int().min(1).optional(),
@@ -60,6 +71,23 @@ const _categoryNoneExtra: AssertNever<_Extra> = true;
 void _categoryNoneMissing;
 void _categoryNoneExtra;
 
+const ROAD_CLASSES = [
+  "primary",
+  "secondary",
+  "tertiary",
+  "residential",
+  "path",
+] as const;
+
+// Same drift guard as LANDMARK_CATEGORIES: keep ROAD_CLASSES and RoadClass
+// exactly in sync, fail compilation if either side gains a value.
+type _RoadMissing = Exclude<RoadClass, (typeof ROAD_CLASSES)[number]>;
+type _RoadExtra = Exclude<(typeof ROAD_CLASSES)[number], RoadClass>;
+const _roadNoneMissing: AssertNever<_RoadMissing> = true;
+const _roadNoneExtra: AssertNever<_RoadExtra> = true;
+void _roadNoneMissing;
+void _roadNoneExtra;
+
 // `additionalProperties: false` everywhere so the Ajv contract tests fail loud
 // when the runtime payload (Landmark type, MapLayout, etc.) drifts from the
 // declared schema. Without it, Ajv defaults to permissive and undeclared
@@ -83,6 +111,29 @@ const landmarkItemSchema = {
   },
 } as const;
 
+const roadItemSchema = {
+  type: "object",
+  required: ["id", "class", "points"],
+  additionalProperties: false,
+  properties: {
+    id: { type: "string" },
+    name: { type: "string" },
+    class: { type: "string", enum: ROAD_CLASSES },
+    points: {
+      type: "array",
+      items: {
+        type: "object",
+        required: ["lat", "lon"],
+        additionalProperties: false,
+        properties: {
+          lat: { type: "number" },
+          lon: { type: "number" },
+        },
+      },
+    },
+  },
+} as const;
+
 const generateMapOutputSchema = {
   type: "object",
   required: ["svg", "layout"],
@@ -94,7 +145,7 @@ const generateMapOutputSchema = {
     },
     layout: {
       type: "object",
-      required: ["center", "landmarks", "bbox"],
+      required: ["center", "landmarks", "roads", "bbox"],
       additionalProperties: false,
       properties: {
         center: {
@@ -108,6 +159,7 @@ const generateMapOutputSchema = {
           },
         },
         landmarks: { type: "array", items: landmarkItemSchema },
+        roads: { type: "array", items: roadItemSchema },
         bbox: {
           type: "object",
           required: ["north", "south", "east", "west"],
@@ -148,6 +200,15 @@ const findLandmarksOutputSchema = {
   },
 } as const;
 
+const findRoadsOutputSchema = {
+  type: "object",
+  required: ["roads"],
+  additionalProperties: false,
+  properties: {
+    roads: { type: "array", items: roadItemSchema },
+  },
+} as const;
+
 // `idempotentHint` is deliberately omitted (defaults to false per MCP spec).
 // Nominatim/Overpass return time-varying POI data — two calls months apart
 // can legitimately differ as OSM is edited, and a destination business may
@@ -176,6 +237,7 @@ export const tools = [
         limit: { type: "integer", minimum: 1, description: "Max landmarks (default 5)" },
         width: { type: "integer", minimum: 100, description: "SVG width in px (default 600, min 100)" },
         height: { type: "integer", minimum: 100, description: "SVG height in px (default 400, min 100)" },
+        roads: { type: "boolean", description: "Draw the road skeleton (default true)" },
       },
       required: ["address"],
     },
@@ -210,6 +272,25 @@ export const tools = [
       required: ["lat", "lon"],
     },
     outputSchema: findLandmarksOutputSchema,
+    annotations: safeAnnotations,
+  },
+  {
+    name: "find_roads",
+    description:
+      "Find nearby roads (the wayfinding skeleton) for given coordinates via " +
+      "OpenStreetMap Overpass. Returns simplified polylines classified by " +
+      "importance tier (primary / secondary / tertiary / residential) — host " +
+      "LLM can pick which roads matter for a sketch.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        lat: { type: "number" },
+        lon: { type: "number" },
+        radiusMeters: { type: "integer", minimum: 1, description: "Default 480" },
+      },
+      required: ["lat", "lon"],
+    },
+    outputSchema: findRoadsOutputSchema,
     annotations: safeAnnotations,
   },
 ];
@@ -283,6 +364,12 @@ export async function dispatchTool(
       const input = FindLandmarksArgs.parse(args);
       const landmarks = await findLandmarks(input.lat, input.lon, input.radiusMeters);
       return jsonResult({ landmarks });
+    }
+
+    if (name === "find_roads") {
+      const input = FindRoadsArgs.parse(args);
+      const roads = await findRoads(input.lat, input.lon, input.radiusMeters);
+      return jsonResult({ roads });
     }
 
     throw new Error(`Unknown tool: ${name}`);

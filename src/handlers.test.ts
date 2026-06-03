@@ -8,6 +8,9 @@ vi.mock("./geocode.js", () => ({
 vi.mock("./landmarks.js", () => ({
   findLandmarks: vi.fn(),
 }));
+vi.mock("./roads.js", () => ({
+  findRoads: vi.fn(),
+}));
 vi.mock("./pipeline.js", () => ({
   generateMap: vi.fn(),
 }));
@@ -15,6 +18,7 @@ vi.mock("./pipeline.js", () => ({
 import { tools, dispatchTool } from "./handlers.js";
 import { geocode } from "./geocode.js";
 import { findLandmarks } from "./landmarks.js";
+import { findRoads } from "./roads.js";
 import { generateMap } from "./pipeline.js";
 
 const ajv = new Ajv({ strict: false, allErrors: true });
@@ -31,9 +35,9 @@ beforeEach(() => {
 });
 
 describe("tool registry", () => {
-  it("exposes exactly the three documented tools", () => {
+  it("exposes exactly the four documented tools", () => {
     expect(tools.map((t) => t.name).sort()).toEqual(
-      ["find_landmarks", "generate_map", "geocode"].sort(),
+      ["find_landmarks", "find_roads", "generate_map", "geocode"].sort(),
     );
   });
 
@@ -65,6 +69,17 @@ describe("dispatchTool — outputSchema ↔ structuredContent contract", () => {
             tags: {},
           },
         ],
+        roads: [
+          {
+            id: "r1",
+            name: "테헤란로",
+            class: "primary",
+            points: [
+              { lat: 37.5, lon: 127.0 },
+              { lat: 37.5005, lon: 127.0005 },
+            ],
+          },
+        ],
         bbox: { north: 37.51, south: 37.49, east: 127.01, west: 126.99 },
       },
     });
@@ -91,6 +106,7 @@ describe("dispatchTool — outputSchema ↔ structuredContent contract", () => {
         { id: "2", name: "스타벅스", lat: 37.4998, lon: 127.0008, category: "cafe" as const, importance: 0.5, tags: {} },
         { id: "3", name: "CU", lat: 37.4999, lon: 127.0002, category: "convenience" as const, importance: 0.5, tags: {} },
       ],
+      roads: [],
       bbox: { north: 37.51, south: 37.49, east: 127.01, west: 126.99 },
     };
     vi.mocked(generateMap).mockResolvedValue({ svg: "<svg></svg>", layout });
@@ -158,6 +174,53 @@ describe("dispatchTool — outputSchema ↔ structuredContent contract", () => {
     expect(result.isError).toBeFalsy();
     const validate = validatorFor("find_landmarks");
     expect(validate(result.structuredContent), JSON.stringify(validate.errors)).toBe(true);
+  });
+
+  it("find_roads structuredContent satisfies the declared outputSchema", async () => {
+    vi.mocked(findRoads).mockResolvedValue([
+      {
+        id: "r1",
+        name: "테헤란로",
+        class: "primary",
+        points: [
+          { lat: 37.5, lon: 127.0 },
+          { lat: 37.5005, lon: 127.0005 },
+        ],
+      },
+      {
+        id: "r2",
+        // unnamed road — `name` omitted entirely
+        class: "residential",
+        points: [
+          { lat: 37.4998, lon: 126.9998 },
+          { lat: 37.4999, lon: 126.9999 },
+        ],
+      },
+    ]);
+
+    const result = await dispatchTool("find_roads", { lat: 37.5, lon: 127.0 });
+
+    expect(result.isError).toBeFalsy();
+    const validate = validatorFor("find_roads");
+    expect(validate(result.structuredContent), JSON.stringify(validate.errors)).toBe(true);
+  });
+
+  it("find_roads outputSchema rejects a class not in RoadClass", () => {
+    const validate = validatorFor("find_roads");
+    const ok = validate({
+      roads: [
+        {
+          id: "x",
+          class: "HIGHWAY_OF_THE_GODS",
+          points: [
+            { lat: 37.5, lon: 127.0 },
+            { lat: 37.5, lon: 127.1 },
+          ],
+        },
+      ],
+    });
+    expect(ok).toBe(false);
+    expect(validate.errors?.some((e) => e.keyword === "enum")).toBe(true);
   });
 
   it("outputSchema enum accepts every LandmarkCategory value", async () => {

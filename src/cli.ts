@@ -14,8 +14,9 @@ OPTIONS
   -l, --label <text>      Label for the destination (default: "여기")
   -r, --radius <meters>   Landmark search radius (default: 400)
   -n, --limit <count>     Max landmarks to include (default: 5)
-  -w, --width <px>        SVG width (default: 600)
-  -h, --height <px>       SVG height (default: 400)
+  -w, --width <px>        SVG width (default: 600, min 100)
+  -h, --height <px>       SVG height (default: 400, min 100)
+      --no-roads          Skip the road skeleton (landmarks only)
       --help              Show this help
 
 EXAMPLES
@@ -71,6 +72,9 @@ function parse(argv: string[]) {
       case "--height":
         opts.height = takeValue(a, ++i);
         break;
+      case "--no-roads":
+        opts.noRoads = "true";
+        break;
       case "--help":
         opts.help = "true";
         break;
@@ -117,12 +121,13 @@ async function main() {
     // width/height ≥ 100 — render.ts projection uses (width - 100) as denom.
     width: parseFlag("--width", opts.width, 100),
     height: parseFlag("--height", opts.height, 100),
+    roads: opts.noRoads === "true" ? false : undefined,
   });
 
   if (opts.output) {
     writeFileSync(opts.output, svg, "utf8");
     console.error(
-      `✓ ${opts.output}  (${layout.landmarks.length} landmarks · center: ${layout.center.lat.toFixed(5)}, ${layout.center.lon.toFixed(5)})`,
+      `✓ ${opts.output}  (${layout.landmarks.length} landmarks · ${layout.roads.length} roads · center: ${layout.center.lat.toFixed(5)}, ${layout.center.lon.toFixed(5)})`,
     );
   } else {
     process.stdout.write(svg);
