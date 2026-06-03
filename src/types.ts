@@ -27,9 +27,27 @@ export interface Landmark {
   tags: Record<string, string>;
 }
 
+// Road importance tiers, collapsed from OSM's many `highway=*` values.
+// Width / colour in the renderer key off this, not the raw OSM tag.
+export type RoadClass =
+  | "primary" // motorway, trunk, primary — the big roads you navigate by
+  | "secondary"
+  | "tertiary"
+  | "residential" // residential, unclassified, living_street
+  | "path"; // anything else that slipped through
+
+export interface Road {
+  id: string;
+  name?: string; // many roads are unnamed in OSM
+  class: RoadClass;
+  // Simplified polyline in geographic coordinates (Douglas-Peucker applied).
+  points: Array<{ lat: number; lon: number }>;
+}
+
 export interface MapLayout {
   center: { lat: number; lon: number; label: string };
   landmarks: Landmark[];
+  roads: Road[];
   bbox: { north: number; south: number; east: number; west: number };
 }
 
