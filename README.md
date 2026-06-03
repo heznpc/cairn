@@ -24,7 +24,7 @@ Most maps are too accurate to be useful. Korean 약도 (yakdo) and Japanese 略�
 - **3 MCP tools** over stdio: `generate_map` (one-shot address → SVG), `geocode` (address → coords via Nominatim), `find_landmarks` (coords → POI list via Overpass).
 - **Zero-API-key path.** OSM Nominatim + Overpass only. No Mapbox / Google keys, no account, no quota signup.
 - **Deterministic curation heuristic** in [src/curate.ts](src/curate.ts) — weights importance (transit > civic > shop), targets a ~150 m sweet-spot distance, enforces category diversity, caps at the requested `limit` (default 5).
-- **Pictogram SVG renderer** with per-category icons and Korean/English/Japanese labels.
+- **Pictogram SVG renderer** with per-category icons and pass-through text labels (renders the label text you supply, in any script; no built-in label localization — see `CHANGELOG.md`).
 - **CLI** with file output and label override:
   ```bash
   node dist/cli.js "서울 강남구 테헤란로 152" -o office.svg --label "스튜디오"
