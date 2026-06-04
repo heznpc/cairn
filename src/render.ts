@@ -92,9 +92,10 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
   }
 
   // Road name labels — one per unique name (Overpass splits a road into many
-  // same-named way segments), placed at the midpoint of its longest projected
-  // segment. Only top-tier roads, to keep the frame legible.
-  for (const [name, pos] of roadLabelPositions(roads, project)) {
+  // same-named way segments), placed at the geometric midpoint of the longest
+  // *in-viewBox* run of each road. Only top-tier roads, to keep the frame
+  // legible.
+  for (const [name, pos] of roadLabelPositions(roads, project, width, height)) {
     lines.push(
       `<text x="${pos.x.toFixed(1)}" y="${pos.y.toFixed(1)}" text-anchor="middle" font-size="10" fill="#a89f8c" font-weight="500">${escapeXml(name)}</text>`,
     );
@@ -138,35 +139,108 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
 /**
  * Pick a single label position per unique road name.
  *
- * Overpass returns one logical road as many same-named way segments; labeling
- * each repeats "테헤란로" all over the frame. We keep, per name, the segment
- * with the longest projected length and label its midpoint — the longest piece
- * is the most legible place to put the name. Only top-tier roads are eligible.
+ * Overpass `out geom;` returns the *full* geometry of each way, which routinely
+ * runs kilometres past the destination's bbox. The previous implementation
+ * placed labels at the middle index of the longest segment, which silently
+ * landed them outside the viewBox when the way extended past it (e.g. a
+ * "테헤란로" label at x=-533 on a 600px frame — SVG clips strokes but not
+ * text, so the label just disappeared).
+ *
+ * Fix: clip every segment between consecutive way nodes to the inset viewBox
+ * (Liang–Barsky), keep the longest clipped sub-segment per road name, and
+ * label its midpoint. Roads whose entire geometry projects outside the frame
+ * produce no label — but the strokes still draw and SVG clips them. Node-only
+ * filtering (the earlier attempt at this fix) was too coarse: a way like
+ * Teheran-ro can pass straight through the bbox while none of its OSM nodes
+ * happen to fall inside, and that approach dropped the label entirely.
  */
+const LABEL_INSET_PX = 30;
+
+/**
+ * Liang–Barsky line-segment clipping against the rectangle [minX,minY,maxX,maxY].
+ * Returns the clipped endpoints, or null if the segment misses the rectangle.
+ */
+function clipSegment(
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+  minX: number,
+  minY: number,
+  maxX: number,
+  maxY: number,
+): [[number, number], [number, number]] | null {
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  const p = [-dx, dx, -dy, dy];
+  const q = [x0 - minX, maxX - x0, y0 - minY, maxY - y0];
+  let tEnter = 0;
+  let tExit = 1;
+  for (let i = 0; i < 4; i++) {
+    if (p[i] === 0) {
+      if (q[i] < 0) return null; // parallel to this edge AND on the outside
+      continue;
+    }
+    const t = q[i] / p[i];
+    if (p[i] < 0) {
+      if (t > tExit) return null;
+      if (t > tEnter) tEnter = t;
+    } else {
+      if (t < tEnter) return null;
+      if (t < tExit) tExit = t;
+    }
+  }
+  return [
+    [x0 + tEnter * dx, y0 + tEnter * dy],
+    [x0 + tExit * dx, y0 + tExit * dy],
+  ];
+}
+
 function roadLabelPositions(
   roads: MapLayout["roads"],
   project: (lat: number, lon: number) => [number, number],
+  width: number,
+  height: number,
 ): Map<string, { x: number; y: number }> {
   const best = new Map<string, { x: number; y: number; len: number }>();
+  const minX = LABEL_INSET_PX;
+  const maxX = width - LABEL_INSET_PX;
+  const minY = LABEL_INSET_PX;
+  const maxY = height - LABEL_INSET_PX;
 
   for (const road of roads) {
     if (!road.name || !LABELED_ROAD_CLASSES.has(road.class)) continue;
     if (road.points.length < 2) continue;
 
     const projected = road.points.map((p) => project(p.lat, p.lon));
-    let len = 0;
+
+    let bestLen = 0;
+    let bestMid: [number, number] | null = null;
     for (let i = 1; i < projected.length; i++) {
-      len += Math.hypot(
-        projected[i][0] - projected[i - 1][0],
-        projected[i][1] - projected[i - 1][1],
+      const clipped = clipSegment(
+        projected[i - 1][0],
+        projected[i - 1][1],
+        projected[i][0],
+        projected[i][1],
+        minX,
+        minY,
+        maxX,
+        maxY,
       );
+      if (!clipped) continue;
+      const [[x0, y0], [x1, y1]] = clipped;
+      const len = Math.hypot(x1 - x0, y1 - y0);
+      if (len > bestLen) {
+        bestLen = len;
+        bestMid = [(x0 + x1) / 2, (y0 + y1) / 2];
+      }
     }
 
-    const prev = best.get(road.name);
-    if (prev && prev.len >= len) continue;
+    if (!bestMid) continue; // entire road off-frame — no legible label site
 
-    const mid = projected[Math.floor(projected.length / 2)];
-    best.set(road.name, { x: mid[0], y: mid[1], len });
+    const prev = best.get(road.name);
+    if (prev && prev.len >= bestLen) continue;
+    best.set(road.name, { x: bestMid[0], y: bestMid[1], len: bestLen });
   }
 
   const out = new Map<string, { x: number; y: number }>();

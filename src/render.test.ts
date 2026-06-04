@@ -266,4 +266,75 @@ describe("renderSVG — roads", () => {
     const svg = renderSVG(layoutWithRoads([degenerate]));
     expect(svg).not.toMatch(/<path\b/);
   });
+
+  // Regression: Overpass `out geom;` returns the *full* geometry of a way, so a
+  // single road can extend kilometres past the bbox. The previous renderer
+  // placed labels at the middle index of the longest segment, which landed
+  // them outside the viewBox (e.g. "테헤란로" at x=-533 on a 600px frame). SVG
+  // clips strokes but not text, so the label silently disappeared.
+  it("clamps a road label to the viewBox even when most of the way is offscreen", () => {
+    // bbox 126.99..127.01, 37.49..37.51 — way nodes span lon 126.95..127.05,
+    // i.e. 4× the bbox width on each side.
+    const sprawling = {
+      id: "way",
+      name: "테헤란로",
+      class: "primary" as const,
+      points: [
+        { lat: 37.5, lon: 126.95 }, // way west, far outside bbox → projected x ≪ 0
+        { lat: 37.5, lon: 126.99 }, // bbox western edge
+        { lat: 37.5, lon: 127.0 }, // bbox center
+        { lat: 37.5, lon: 127.01 }, // bbox eastern edge
+        { lat: 37.5, lon: 127.05 }, // way east, far outside bbox → projected x ≫ width
+      ],
+    };
+    const svg = renderSVG(layoutWithRoads([sprawling]));
+    const m = svg.match(
+      /<text x="([-\d.]+)" y="([-\d.]+)"[^>]*font-size="10"[^>]*>테헤란로/,
+    );
+    expect(m, "road label missing").not.toBeNull();
+    const lx = Number(m![1]);
+    const ly = Number(m![2]);
+    expect(lx, "label x must be within viewBox").toBeGreaterThanOrEqual(0);
+    expect(lx, "label x must be within viewBox").toBeLessThanOrEqual(600);
+    expect(ly, "label y must be within viewBox").toBeGreaterThanOrEqual(0);
+    expect(ly, "label y must be within viewBox").toBeLessThanOrEqual(400);
+  });
+
+  it("omits the label entirely when no part of the road is inside the viewBox", () => {
+    // Both nodes project far outside the 600x400 frame.
+    const allOffscreen = {
+      id: "ghost",
+      name: "유령로",
+      class: "primary" as const,
+      points: [
+        { lat: 37.5, lon: 126.90 }, // way west: x ≈ -2200
+        { lat: 37.5, lon: 126.95 }, // still way west: x ≈ -950
+      ],
+    };
+    const svg = renderSVG(layoutWithRoads([allOffscreen]));
+    // The polyline path is still emitted (SVG clips it harmlessly), but no label.
+    expect(svg).toMatch(/<path\b/);
+    expect(svg).not.toContain("유령로");
+  });
+
+  it("places a primary road label at the geometric midpoint of its in-viewBox run", () => {
+    // Single road centered on the destination, fully in-viewBox: midpoint by
+    // arclength should sit at the viewBox centre (300, 200).
+    const centered = {
+      id: "c",
+      name: "중앙로",
+      class: "primary" as const,
+      points: [
+        { lat: 37.5, lon: 126.992 },
+        { lat: 37.5, lon: 127.008 },
+      ],
+    };
+    const svg = renderSVG(layoutWithRoads([centered]));
+    const m = svg.match(
+      /<text x="([\d.]+)" y="([\d.]+)"[^>]*font-size="10"[^>]*>중앙로/,
+    );
+    expect(m).not.toBeNull();
+    expect(Number(m![1])).toBeCloseTo(300, 0);
+    expect(Number(m![2])).toBeCloseTo(200, 0);
+  });
 });

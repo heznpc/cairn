@@ -105,10 +105,15 @@ async function main() {
 
   const parseFlag = (flag: string, raw: string | undefined, min = 1): number | undefined => {
     if (raw === undefined) return undefined;
-    // Use Number() not parseInt(): parseInt("400px",10)===400 silently truncates
-    // typos like "1k" to 1. Number("400px")===NaN rejects the same input cleanly.
+    // Reject anything but unsigned decimal digits before going to Number().
+    // parseInt("400px",10)===400 truncates typos like "1k" silently.
+    // Number("0x100")===256 and Number("1e3")===1000 both pass Number.isInteger.
+    // A strict digit regex catches all three.
+    if (!/^[0-9]+$/.test(raw)) {
+      throw new Error(`${flag} must be an integer ≥ ${min} (got: "${raw}")`);
+    }
     const n = Number(raw);
-    if (!Number.isInteger(n) || n < min) {
+    if (n < min) {
       throw new Error(`${flag} must be an integer ≥ ${min} (got: "${raw}")`);
     }
     return n;
