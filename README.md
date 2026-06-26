@@ -25,7 +25,7 @@ Most maps are too accurate to be useful. Korean 약도 (yakdo) and Japanese 略�
 - **Zero-API-key path.** OSM Nominatim + Overpass only. No Mapbox / Google keys, no account, no quota signup.
 - **Road skeleton** in [src/roads.ts](src/roads.ts) — fetches nearby roads, classifies them by importance tier (primary / secondary / tertiary / residential), and simplifies each polyline with Douglas-Peucker ([src/geometry.ts](src/geometry.ts)). This is what turns the output from a scatter of points into an actual 약도: a few roads you navigate along, with the major ones labeled.
 - **Deterministic curation heuristic** in [src/curate.ts](src/curate.ts) — weights importance (transit > civic > shop), targets a ~150 m sweet-spot distance, enforces category diversity, caps at the requested `limit` (default 5).
-- **Pictogram SVG renderer** — road bands under per-category landmark icons, deduped road-name labels, pass-through text labels (renders the label text you supply, in any script; no built-in label localization — see `CHANGELOG.md`).
+- **Pictogram SVG renderer** — curated road bands, compact landmark badges, deduped road-name labels, and destination callouts tuned for print-style 약도 output.
 - **CLI** with file output, label override, and a `--no-roads` toggle:
   ```bash
   node dist/cli.js "서울 강남구 테헤란로 152" -o office.svg --label "스튜디오"
@@ -33,7 +33,7 @@ Most maps are too accurate to be useful. Korean 약도 (yakdo) and Japanese 略�
   ```
 - **Bounded inputs** on public tool/CLI parameters — search radii max out at 5 km and SVG canvas dimensions at 4000 px to keep public OSM services and the single-process renderer healthy.
 - **HTTP rate-limiting and timeouts** on outbound calls — 1.1s minimum spacing to Nominatim, 1 req/s to Overpass, per their usage policies.
-- **Tests**: 134 passing (vitest, run on every push).
+- **Tests**: 136 passing (vitest, run on every push).
 
 ## Planned
 

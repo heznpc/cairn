@@ -58,6 +58,10 @@ versions follow [Semantic Versioning](https://semver.org/).
 - Public numeric inputs are now bounded at the trust boundary:
   `radiusMeters <= 5000` and SVG `width` / `height <= 4000`, with the
   renderer also clamping direct internal calls defensively.
+- SVG rendering now favors a more print-like 약도 style: dense Overpass road
+  sets are reduced to a small road skeleton, road strokes use a cased
+  diagram line style, landmark labels are shortened, and the destination
+  callout chooses a less-colliding side when possible.
 - `find_landmarks` MCP wire format wraps results as `{landmarks: [...]}`
   rather than a bare array. Pre-refactor consumers parsing
   `JSON.parse(content[0].text)[0]` must read
@@ -127,5 +131,5 @@ Initial public version. Not yet on npm.
   diversity).
 - Pictogram SVG renderer (Korean-defaulted labels; per-language
   localization planned).
-- 134 unit tests covering curation, rendering, geocoding, and the Nominatim
+- 136 unit tests covering curation, rendering, geocoding, and the Nominatim
   rate-limit gate.

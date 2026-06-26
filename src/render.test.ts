@@ -33,6 +33,10 @@ const layout: MapLayout = {
   },
 };
 
+function roadCorePathCount(svg: string): number {
+  return svg.match(/data-road-layer="core"/g)?.length ?? 0;
+}
+
 describe("renderSVG", () => {
   it("produces a well-formed SVG document", () => {
     const svg = renderSVG(layout);
@@ -96,7 +100,7 @@ describe("renderSVG", () => {
 describe("renderSVG — projection", () => {
   // Center marker uses r="11", landmarks use r="16" — that's how we distinguish.
   const CENTER_RE = /<circle\s+cx="([\d.]+)"\s+cy="([\d.]+)"\s+r="11"/;
-  const LANDMARK_RE = /<circle\s+cx="([\d.]+)"\s+cy="([\d.]+)"\s+r="16"/g;
+  const LANDMARK_RE = /<circle\s+cx="([\d.]+)"\s+cy="([\d.]+)"\s+r="17"/g;
 
   // 0.02° bbox in each axis, destination at the exact center.
   // With default width=600 / height=400 and the 50px margin baked into render.ts,
@@ -213,9 +217,8 @@ describe("renderSVG — roads", () => {
 
   it("renders a road as an SVG path with a stroke", () => {
     const svg = renderSVG(layoutWithRoads([primaryRoad]));
-    const paths = svg.match(/<path\b/g) ?? [];
-    expect(paths).toHaveLength(1);
-    expect(svg).toMatch(/<path d="M[\d.]+,[\d.]+ L[\d.]+,[\d.]+/);
+    expect(roadCorePathCount(svg)).toBe(1);
+    expect(svg).toMatch(/<path data-road-layer="core" d="M[\d.]+,[\d.]+ L[\d.]+,[\d.]+/);
     expect(svg).toContain('stroke-linecap="round"');
   });
 
@@ -237,7 +240,7 @@ describe("renderSVG — roads", () => {
     };
     const svg = renderSVG(layoutWithRoads([residential]));
     // The road is drawn (a path) but its name is not labeled.
-    expect(svg).toMatch(/<path\b/);
+    expect(roadCorePathCount(svg)).toBe(1);
     expect(svg).not.toContain("골목길");
   });
 
@@ -262,7 +265,7 @@ describe("renderSVG — roads", () => {
     };
     const svg = renderSVG(layoutWithRoads([short, long]));
     // Two paths drawn, one label.
-    expect(svg.match(/<path\b/g)).toHaveLength(2);
+    expect(roadCorePathCount(svg)).toBe(2);
     expect(svg.split("강남대로").length - 1).toBe(1);
   });
 
@@ -274,7 +277,7 @@ describe("renderSVG — roads", () => {
       points: [{ lat: 37.5, lon: 127.0 }],
     };
     const svg = renderSVG(layoutWithRoads([degenerate]));
-    expect(svg).not.toMatch(/<path\b/);
+    expect(roadCorePathCount(svg)).toBe(0);
   });
 
   // Regression: Overpass `out geom;` returns the *full* geometry of a way, so a
@@ -323,7 +326,7 @@ describe("renderSVG — roads", () => {
     };
     const svg = renderSVG(layoutWithRoads([allOffscreen]));
     // The polyline path is still emitted (SVG clips it harmlessly), but no label.
-    expect(svg).toMatch(/<path\b/);
+    expect(roadCorePathCount(svg)).toBe(1);
     expect(svg).not.toContain("유령로");
   });
 
@@ -346,5 +349,42 @@ describe("renderSVG — roads", () => {
     expect(m).not.toBeNull();
     expect(Number(m![1])).toBeCloseTo(300, 0);
     expect(Number(m![2])).toBeCloseTo(200, 0);
+  });
+
+  it("filters dense Overpass road sets down to a readable yakdo skeleton", () => {
+    const roads = Array.from({ length: 30 }, (_, i) => ({
+      id: `r${i}`,
+      name: i % 3 === 0 ? "테헤란로" : `골목${i}`,
+      class: i % 5 === 0 ? "primary" as const : "residential" as const,
+      points: [
+        { lat: 37.49 + i * 0.0003, lon: 126.99 },
+        { lat: 37.49 + i * 0.0003, lon: 127.01 },
+      ],
+    }));
+
+    const svg = renderSVG(layoutWithRoads(roads));
+
+    expect(roadCorePathCount(svg)).toBeLessThanOrEqual(10);
+  });
+
+  it("shortens long landmark labels for print-style maps", () => {
+    const longName = "서울대학교병원헬스케어시스템강남센터";
+    const svg = renderSVG({
+      ...layoutWithRoads([]),
+      landmarks: [
+        {
+          id: "h",
+          name: longName,
+          lat: 37.5,
+          lon: 127.0,
+          category: "hospital",
+          importance: 0.7,
+          tags: {},
+        },
+      ],
+    });
+
+    expect(svg).toContain("서울대학교병원헬스케…");
+    expect(svg).not.toContain(longName);
   });
 });
