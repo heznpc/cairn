@@ -55,6 +55,9 @@ versions follow [Semantic Versioning](https://semver.org/).
 - `cli.ts` numeric flags (`--radius`, `--limit`, `--width`, `--height`)
   now reject `NaN` with a clear error instead of silently passing it
   down to the pipeline.
+- Public numeric inputs are now bounded at the trust boundary:
+  `radiusMeters <= 5000` and SVG `width` / `height <= 4000`, with the
+  renderer also clamping direct internal calls defensively.
 - `find_landmarks` MCP wire format wraps results as `{landmarks: [...]}`
   rather than a bare array. Pre-refactor consumers parsing
   `JSON.parse(content[0].text)[0]` must read
@@ -70,6 +73,9 @@ versions follow [Semantic Versioning](https://semver.org/).
   (city / country_code / road / suburb breakdown) that `geocode.ts`
   was already requesting via `addressdetails=1`. The earlier handler
   dropped it, depriving host LLMs of useful follow-up reasoning data.
+- `geocode.ts` now validates Nominatim response shape and rejects
+  non-finite or out-of-range coordinates instead of returning `NaN`
+  as a successful coordinate.
 - `generate_map` MCP tool no longer advertises a `language` parameter:
   `render.ts` does not localize labels and the flag was silently
   discarded. Re-introduced once render-side localization exists.
@@ -120,6 +126,6 @@ Initial public version. Not yet on npm.
 - Deterministic landmark curation (importance × distance × category
   diversity).
 - Pictogram SVG renderer (Korean-defaulted labels; per-language
-  localization planned, see NOTES.md).
-- 18 unit tests covering curation, rendering, and the Nominatim
+  localization planned).
+- 134 unit tests covering curation, rendering, geocoding, and the Nominatim
   rate-limit gate.

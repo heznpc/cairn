@@ -68,6 +68,16 @@ describe("renderSVG", () => {
     expect(svg).toContain('viewBox="0 0 800 500"');
   });
 
+  it("clamps direct-call canvas dimensions to the supported range", () => {
+    const svg = renderSVG(layout, { width: 1_000_000, height: 1_000_000 });
+    expect(svg).toContain('viewBox="0 0 4000 4000"');
+  });
+
+  it("uses fallback dimensions for non-finite direct-call dimensions", () => {
+    const svg = renderSVG(layout, { width: Infinity, height: NaN });
+    expect(svg).toContain('viewBox="0 0 600 400"');
+  });
+
   it("handles empty landmarks gracefully", () => {
     const svg = renderSVG({ ...layout, landmarks: [] });
     expect(svg).toContain("<svg");

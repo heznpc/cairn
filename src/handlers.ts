@@ -3,21 +3,31 @@ import { generateMap } from "./pipeline.js";
 import { geocode } from "./geocode.js";
 import { findLandmarks } from "./landmarks.js";
 import { findRoads } from "./roads.js";
+import {
+  MAX_CANVAS_DIMENSION_PX,
+  MAX_RADIUS_METERS,
+  MIN_CANVAS_DIMENSION_PX,
+} from "./limits.js";
 import type { LandmarkCategory, RoadClass } from "./types.js";
 
 // ---------- Input schemas (zod) ----------
 
 // `language` is intentionally NOT exposed: render.ts has no localization yet,
 // and advertising a flag that's silently dropped breaks the host-LLM contract.
-// Re-add once render.ts honors it. See NOTES.md.
+// Re-add once render.ts honors it.
+const RadiusArg = z.number().int().min(1).max(MAX_RADIUS_METERS);
+const CanvasDimensionArg = z.number().int().min(MIN_CANVAS_DIMENSION_PX).max(MAX_CANVAS_DIMENSION_PX);
+const LatitudeArg = z.number().finite().min(-90).max(90);
+const LongitudeArg = z.number().finite().min(-180).max(180);
+
 const GenerateMapArgs = z.object({
   address: z.string().describe("Street address or place name"),
   label: z.string().optional().describe('Label for the destination (default: "여기")'),
-  radiusMeters: z.number().int().min(1).optional().describe("Landmark search radius (default 400)"),
+  radiusMeters: RadiusArg.optional().describe("Landmark search radius (default 400, max 5000)"),
   limit: z.number().int().min(1).optional().describe("Max landmarks to include (default 5)"),
   // width/height ≥ 100 — render.ts projection uses (width - 100) as denominator.
-  width: z.number().int().min(100).optional(),
-  height: z.number().int().min(100).optional(),
+  width: CanvasDimensionArg.optional(),
+  height: CanvasDimensionArg.optional(),
   roads: z
     .boolean()
     .optional()
@@ -29,15 +39,15 @@ const GeocodeArgs = z.object({
 });
 
 const FindLandmarksArgs = z.object({
-  lat: z.number(),
-  lon: z.number(),
-  radiusMeters: z.number().int().min(1).optional(),
+  lat: LatitudeArg,
+  lon: LongitudeArg,
+  radiusMeters: RadiusArg.optional(),
 });
 
 const FindRoadsArgs = z.object({
-  lat: z.number(),
-  lon: z.number(),
-  radiusMeters: z.number().int().min(1).optional(),
+  lat: LatitudeArg,
+  lon: LongitudeArg,
+  radiusMeters: RadiusArg.optional(),
 });
 
 // ---------- Output schemas (JSON Schema for MCP outputSchema) ----------
@@ -153,8 +163,8 @@ const generateMapOutputSchema = {
           required: ["lat", "lon", "label"],
           additionalProperties: false,
           properties: {
-            lat: { type: "number" },
-            lon: { type: "number" },
+            lat: { type: "number", minimum: -90, maximum: 90 },
+            lon: { type: "number", minimum: -180, maximum: 180 },
             label: { type: "string" },
           },
         },
@@ -181,8 +191,8 @@ const geocodeOutputSchema = {
   required: ["lat", "lon", "displayName"],
   additionalProperties: false,
   properties: {
-    lat: { type: "number" },
-    lon: { type: "number" },
+    lat: { type: "number", minimum: -90, maximum: 90 },
+    lon: { type: "number", minimum: -180, maximum: 180 },
     displayName: { type: "string" },
     // Raw Nominatim payload (addressdetails=1 is already requested by geocode.ts).
     // Shape varies — host LLMs use this for follow-up reasoning
@@ -233,10 +243,10 @@ export const tools = [
       properties: {
         address: { type: "string", description: "Street address or place name" },
         label: { type: "string", description: 'Destination label (default: "여기")' },
-        radiusMeters: { type: "integer", minimum: 1, description: "Landmark search radius (default 400)" },
+        radiusMeters: { type: "integer", minimum: 1, maximum: MAX_RADIUS_METERS, description: "Landmark search radius (default 400, max 5000)" },
         limit: { type: "integer", minimum: 1, description: "Max landmarks (default 5)" },
-        width: { type: "integer", minimum: 100, description: "SVG width in px (default 600, min 100)" },
-        height: { type: "integer", minimum: 100, description: "SVG height in px (default 400, min 100)" },
+        width: { type: "integer", minimum: MIN_CANVAS_DIMENSION_PX, maximum: MAX_CANVAS_DIMENSION_PX, description: "SVG width in px (default 600, 100-4000)" },
+        height: { type: "integer", minimum: MIN_CANVAS_DIMENSION_PX, maximum: MAX_CANVAS_DIMENSION_PX, description: "SVG height in px (default 400, 100-4000)" },
         roads: { type: "boolean", description: "Draw the road skeleton (default true)" },
       },
       required: ["address"],
@@ -265,9 +275,9 @@ export const tools = [
     inputSchema: {
       type: "object",
       properties: {
-        lat: { type: "number" },
-        lon: { type: "number" },
-        radiusMeters: { type: "integer", minimum: 1, description: "Default 400" },
+        lat: { type: "number", minimum: -90, maximum: 90 },
+        lon: { type: "number", minimum: -180, maximum: 180 },
+        radiusMeters: { type: "integer", minimum: 1, maximum: MAX_RADIUS_METERS, description: "Default 400, max 5000" },
       },
       required: ["lat", "lon"],
     },
@@ -284,9 +294,9 @@ export const tools = [
     inputSchema: {
       type: "object",
       properties: {
-        lat: { type: "number" },
-        lon: { type: "number" },
-        radiusMeters: { type: "integer", minimum: 1, description: "Default 480" },
+        lat: { type: "number", minimum: -90, maximum: 90 },
+        lon: { type: "number", minimum: -180, maximum: 180 },
+        radiusMeters: { type: "integer", minimum: 1, maximum: MAX_RADIUS_METERS, description: "Default 480, max 5000" },
       },
       required: ["lat", "lon"],
     },

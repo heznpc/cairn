@@ -31,8 +31,9 @@ Most maps are too accurate to be useful. Korean 약도 (yakdo) and Japanese 略�
   node dist/cli.js "서울 강남구 테헤란로 152" -o office.svg --label "스튜디오"
   node dist/cli.js "Shibuya Crossing, Tokyo" -o shibuya.svg --no-roads
   ```
-- **HTTP rate-limiting and timeouts** on outbound calls — 1 req/s to Nominatim, 1 req/s to Overpass, per their usage policies.
-- **Tests**: 57 passing (vitest, run on every push).
+- **Bounded inputs** on public tool/CLI parameters — search radii max out at 5 km and SVG canvas dimensions at 4000 px to keep public OSM services and the single-process renderer healthy.
+- **HTTP rate-limiting and timeouts** on outbound calls — 1.1s minimum spacing to Nominatim, 1 req/s to Overpass, per their usage policies.
+- **Tests**: 134 passing (vitest, run on every push).
 
 ## Planned
 
@@ -93,8 +94,8 @@ Then ask the assistant:
 ### As a CLI
 
 ```bash
-npx cairn-mcp "서울 강남구 테헤란로 152" -o office.svg
-npx cairn-mcp "1600 Amphitheatre Pkwy, Mountain View" --label "Office"
+npx -p cairn-mcp cairn "서울 강남구 테헤란로 152" -o office.svg
+npx -p cairn-mcp cairn "1600 Amphitheatre Pkwy, Mountain View" --label "Office"
 ```
 
 ## How it works

@@ -1,6 +1,11 @@
 #!/usr/bin/env node
 import { writeFileSync } from "node:fs";
 import { generateMap } from "./pipeline.js";
+import {
+  MAX_CANVAS_DIMENSION_PX,
+  MAX_RADIUS_METERS,
+  MIN_CANVAS_DIMENSION_PX,
+} from "./limits.js";
 
 const HELP = `
 cairn — pictogram map generator
@@ -12,10 +17,10 @@ USAGE
 OPTIONS
   -o, --output <file>     Write SVG to file (default: stdout)
   -l, --label <text>      Label for the destination (default: "여기")
-  -r, --radius <meters>   Landmark search radius (default: 400)
+  -r, --radius <meters>   Landmark search radius (default: 400, max ${MAX_RADIUS_METERS})
   -n, --limit <count>     Max landmarks to include (default: 5)
-  -w, --width <px>        SVG width (default: 600, min 100)
-  -h, --height <px>       SVG height (default: 400, min 100)
+  -w, --width <px>        SVG width (default: 600, ${MIN_CANVAS_DIMENSION_PX}-${MAX_CANVAS_DIMENSION_PX})
+  -h, --height <px>       SVG height (default: 400, ${MIN_CANVAS_DIMENSION_PX}-${MAX_CANVAS_DIMENSION_PX})
       --no-roads          Skip the road skeleton (landmarks only)
       --help              Show this help
 
@@ -103,7 +108,12 @@ async function main() {
     process.exit(1);
   }
 
-  const parseFlag = (flag: string, raw: string | undefined, min = 1): number | undefined => {
+  const parseFlag = (
+    flag: string,
+    raw: string | undefined,
+    min = 1,
+    max?: number,
+  ): number | undefined => {
     if (raw === undefined) return undefined;
     // Reject anything but unsigned decimal digits before going to Number().
     // parseInt("400px",10)===400 truncates typos like "1k" silently.
@@ -116,16 +126,19 @@ async function main() {
     if (n < min) {
       throw new Error(`${flag} must be an integer ≥ ${min} (got: "${raw}")`);
     }
+    if (max !== undefined && n > max) {
+      throw new Error(`${flag} must be an integer ≤ ${max} (got: "${raw}")`);
+    }
     return n;
   };
 
   const { svg, layout } = await generateMap(address, {
     label: opts.label,
-    radiusMeters: parseFlag("--radius", opts.radius),
+    radiusMeters: parseFlag("--radius", opts.radius, 1, MAX_RADIUS_METERS),
     limit: parseFlag("--limit", opts.limit),
     // width/height ≥ 100 — render.ts projection uses (width - 100) as denom.
-    width: parseFlag("--width", opts.width, 100),
-    height: parseFlag("--height", opts.height, 100),
+    width: parseFlag("--width", opts.width, MIN_CANVAS_DIMENSION_PX, MAX_CANVAS_DIMENSION_PX),
+    height: parseFlag("--height", opts.height, MIN_CANVAS_DIMENSION_PX, MAX_CANVAS_DIMENSION_PX),
     roads: opts.noRoads === "true" ? false : undefined,
   });
 
