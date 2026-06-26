@@ -1,0 +1,3 @@
+export const MIN_CANVAS_DIMENSION_PX = 100;
+export const MAX_CANVAS_DIMENSION_PX = 4000;
+export const MAX_RADIUS_METERS = 5000;

@@ -1,8 +1,34 @@
+import { z } from "zod";
 import type { GeocodingResult } from "./types.js";
 import { fetchWithTimeout, nominatimGate } from "./http.js";
 
 const NOMINATIM_BASE = "https://nominatim.openstreetmap.org/search";
 const USER_AGENT = "cairn-mcp/0.1 (+https://github.com/heznpc/cairn)";
+
+const NominatimResultSchema = z.object({
+  lat: z.string(),
+  lon: z.string(),
+  display_name: z.string(),
+}).passthrough();
+
+const NominatimResultsSchema = z.array(NominatimResultSchema);
+
+function parseCoordinate(
+  label: "lat" | "lon",
+  raw: string,
+  min: number,
+  max: number,
+): number {
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) {
+    throw new Error(`Nominatim returned an empty ${label}`);
+  }
+  const value = Number(trimmed);
+  if (!Number.isFinite(value) || value < min || value > max) {
+    throw new Error(`Nominatim returned an invalid ${label}: ${raw}`);
+  }
+  return value;
+}
 
 export async function geocode(address: string): Promise<GeocodingResult> {
   const url = new URL(NOMINATIM_BASE);
@@ -24,11 +50,14 @@ export async function geocode(address: string): Promise<GeocodingResult> {
     throw new Error(`Geocoding failed: ${res.status} ${res.statusText}`);
   }
 
-  const results = (await res.json()) as Array<{
-    lat: string;
-    lon: string;
-    display_name: string;
-  }>;
+  const raw = await res.json();
+  const parsed = NominatimResultsSchema.safeParse(raw);
+  if (!parsed.success) {
+    throw new Error(
+      `Nominatim returned an unexpected response shape: ${parsed.error.message}`,
+    );
+  }
+  const results = parsed.data;
 
   if (results.length === 0) {
     throw new Error(`No geocoding results for: "${address}"`);
@@ -36,8 +65,8 @@ export async function geocode(address: string): Promise<GeocodingResult> {
 
   const hit = results[0];
   return {
-    lat: parseFloat(hit.lat),
-    lon: parseFloat(hit.lon),
+    lat: parseCoordinate("lat", hit.lat, -90, 90),
+    lon: parseCoordinate("lon", hit.lon, -180, 180),
     displayName: hit.display_name,
     raw: hit,
   };

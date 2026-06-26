@@ -9,7 +9,7 @@
  * invocations (`cairn addr1 & cairn addr2`) each get their own chain and
  * bypass the gate. This is acceptable for the v0.x CLI/MCP single-process
  * use case; a future shared-host deployment would need a filesystem lock
- * or an out-of-process semaphore. Surfaced in CLAUDE.md / NOTES.md.
+ * or an out-of-process semaphore.
  */
 
 const NOMINATIM_MIN_INTERVAL_MS = 1100; // OSM 1 req/s policy + 100ms margin

@@ -30,6 +30,12 @@ function validatorFor(toolName: string) {
   return ajv.compile(tool.outputSchema);
 }
 
+function toolFor(toolName: string) {
+  const tool = tools.find((t) => t.name === toolName);
+  if (!tool) throw new Error(`tool not found: ${toolName}`);
+  return tool;
+}
+
 beforeEach(() => {
   vi.resetAllMocks();
 });
@@ -49,6 +55,18 @@ describe("tool registry", () => {
         openWorldHint: true,
       });
     }
+  });
+
+  it("declares maximums for expensive numeric inputs", () => {
+    const generateMapProps = toolFor("generate_map").inputSchema.properties;
+    expect(generateMapProps.radiusMeters).toMatchObject({ maximum: 5000 });
+    expect(generateMapProps.width).toMatchObject({ maximum: 4000 });
+    expect(generateMapProps.height).toMatchObject({ maximum: 4000 });
+
+    expect(toolFor("find_landmarks").inputSchema.properties.radiusMeters)
+      .toMatchObject({ maximum: 5000 });
+    expect(toolFor("find_roads").inputSchema.properties.radiusMeters)
+      .toMatchObject({ maximum: 5000 });
   });
 });
 
@@ -154,6 +172,14 @@ describe("dispatchTool — outputSchema ↔ structuredContent contract", () => {
     expect(result.isError).toBeFalsy();
     const validate = validatorFor("geocode");
     expect(validate(result.structuredContent), JSON.stringify(validate.errors)).toBe(true);
+  });
+
+  it("geocode outputSchema rejects non-finite or out-of-range coordinates", () => {
+    const validate = validatorFor("geocode");
+
+    expect(validate({ lat: NaN, lon: 127.0, displayName: "bad" })).toBe(false);
+    expect(validate({ lat: 91, lon: 127.0, displayName: "bad" })).toBe(false);
+    expect(validate({ lat: 37.5, lon: Infinity, displayName: "bad" })).toBe(false);
   });
 
   it("find_landmarks structuredContent satisfies the declared outputSchema", async () => {
@@ -297,6 +323,46 @@ describe("dispatchTool — error paths", () => {
     expect(result.content[0].text).toMatch(/cairn error/);
     // pipeline must NOT have been called when input validation rejects.
     expect(generateMap).not.toHaveBeenCalled();
+  });
+
+  it("rejects oversized generate_map dimensions before calling the pipeline", async () => {
+    const result = await dispatchTool("generate_map", {
+      address: "Seoul",
+      width: 4001,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toMatch(/less than or equal to 4000/);
+    expect(generateMap).not.toHaveBeenCalled();
+  });
+
+  it("rejects oversized Overpass radii before calling network tools", async () => {
+    const landmarks = await dispatchTool("find_landmarks", {
+      lat: 37.5,
+      lon: 127.0,
+      radiusMeters: 5001,
+    });
+    const roads = await dispatchTool("find_roads", {
+      lat: 37.5,
+      lon: 127.0,
+      radiusMeters: 5001,
+    });
+
+    expect(landmarks.isError).toBe(true);
+    expect(roads.isError).toBe(true);
+    expect(findLandmarks).not.toHaveBeenCalled();
+    expect(findRoads).not.toHaveBeenCalled();
+  });
+
+  it("rejects invalid coordinates before calling network tools", async () => {
+    const result = await dispatchTool("find_landmarks", {
+      lat: 91,
+      lon: 127.0,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toMatch(/less than or equal to 90/);
+    expect(findLandmarks).not.toHaveBeenCalled();
   });
 
   it("downstream throw becomes isError, not an unhandled rejection", async () => {

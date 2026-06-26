@@ -76,7 +76,7 @@ describe("curate", () => {
   it("caps at 2 per category even if it means missing `limit`", () => {
     // Diversity is load-bearing: 10 buildings with limit=3 still yields only 2,
     // because the 2-per-category cap is preferred over filling the limit with
-    // homogeneous picks. See NOTES.md / curate.ts docstring.
+    // homogeneous picks.
     const all = Array.from({ length: 10 }, (_, i) =>
       lm(`x${i}`, "building", 0.3, 100 + i * 20),
     );

@@ -1,4 +1,8 @@
 import type { LandmarkCategory, MapLayout, RenderOptions, RoadClass } from "./types.js";
+import {
+  MAX_CANVAS_DIMENSION_PX,
+  MIN_CANVAS_DIMENSION_PX,
+} from "./limits.js";
 
 const ICONS: Record<LandmarkCategory, string> = {
   station: "Ⓜ",
@@ -33,12 +37,19 @@ const LABELED_ROAD_CLASSES = new Set<RoadClass>(["primary", "secondary"]);
 // inputSchemas enforce 100 at the entry points; this clamp is defense in
 // depth for direct pipeline.ts callers (tests, future internal users) and
 // guarantees a strictly-positive plotting span.
-const MIN_DIM = 100;
 const MIN_SPAN = 1;
 
+function safeDimension(value: number | undefined, fallback: number): number {
+  if (!Number.isFinite(value)) return fallback;
+  return Math.min(
+    Math.max(value ?? fallback, MIN_CANVAS_DIMENSION_PX),
+    MAX_CANVAS_DIMENSION_PX,
+  );
+}
+
 export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
-  const width = Math.max(opts.width ?? 600, MIN_DIM);
-  const height = Math.max(opts.height ?? 400, MIN_DIM);
+  const width = safeDimension(opts.width, 600);
+  const height = safeDimension(opts.height, 400);
   const spanX = Math.max(width - 100, MIN_SPAN);
   const spanY = Math.max(height - 100, MIN_SPAN);
   const { bbox, center, landmarks } = layout;
