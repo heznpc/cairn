@@ -33,7 +33,7 @@ Most maps are too accurate to be useful. Korean 약도 (yakdo) and Japanese 略�
   ```
 - **Bounded inputs** on public tool/CLI parameters — search radii max out at 5 km and SVG canvas dimensions at 4000 px to keep public OSM services and the single-process renderer healthy.
 - **HTTP rate-limiting and timeouts** on outbound calls — 1.1s minimum spacing to Nominatim, 1 req/s to Overpass, per their usage policies.
-- **Tests**: 136 passing (vitest, run on every push).
+- **Tests**: 142 passing (vitest, run on every push).
 
 ## Planned
 

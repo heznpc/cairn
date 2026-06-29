@@ -19,6 +19,8 @@ export interface GenerateMapResult {
   layout: MapLayout;
 }
 
+export const ROAD_SEARCH_RADIUS_MULTIPLIER = 1.2;
+
 export async function generateMap(
   address: string,
   opts: GenerateMapInput = {},
@@ -38,7 +40,7 @@ export async function generateMap(
   const roads =
     opts.roads === false
       ? []
-      : await findRoads(geo.lat, geo.lon, Math.round(radius * 1.2));
+      : await findRoads(geo.lat, geo.lon, Math.round(radius * ROAD_SEARCH_RADIUS_MULTIPLIER));
 
   // bbox is computed from the destination + landmarks only, NOT roads: a road
   // way can run kilometres past the area, and including it would zoom the map

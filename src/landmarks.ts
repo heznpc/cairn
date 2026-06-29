@@ -15,6 +15,8 @@ const IMPORTANCE: Record<LandmarkCategory, number> = {
   building: 0.3,
 };
 
+export const STATION_SEARCH_RADIUS_MULTIPLIER = 1.5;
+
 // Validate each Overpass element individually — clear skip beats silent
 // malformed-object junk. A single drifted element is dropped, not allowed to
 // fail the whole batch.
@@ -35,7 +37,7 @@ export async function findLandmarks(
   lon: number,
   radiusMeters = 400,
 ): Promise<Landmark[]> {
-  const stationRadius = Math.round(radiusMeters * 1.5);
+  const stationRadius = Math.round(radiusMeters * STATION_SEARCH_RADIUS_MULTIPLIER);
 
   const query = `
     [out:json][timeout:25];

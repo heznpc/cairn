@@ -1,0 +1,94 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+vi.mock("./overpass.js", () => ({
+  OVERPASS_TIMEOUT_MS: 30_000,
+  overpassFetch: vi.fn(),
+}));
+
+import { overpassFetch } from "./overpass.js";
+import { findLandmarks, STATION_SEARCH_RADIUS_MULTIPLIER } from "./landmarks.js";
+
+function node(id: number, tags?: Record<string, string>) {
+  return { id, lat: 37.5 + id * 0.0001, lon: 127.0 + id * 0.0001, tags };
+}
+
+const mockedOverpassFetch = vi.mocked(overpassFetch);
+
+beforeEach(() => {
+  mockedOverpassFetch.mockReset();
+});
+
+describe("findLandmarks", () => {
+  it("expands only the station search radius by the named multiplier", async () => {
+    mockedOverpassFetch.mockResolvedValue([]);
+
+    await findLandmarks(37.5, 127, 400);
+
+    const [query, timeoutMs] = mockedOverpassFetch.mock.calls[0];
+    expect(query).toContain(
+      `node["public_transport"="station"](around:${Math.round(400 * STATION_SEARCH_RADIUS_MULTIPLIER)},37.5,127);`,
+    );
+    expect(query).toContain(
+      `node["amenity"~"^(cafe|restaurant|school|university|hospital)$"](around:400,37.5,127);`,
+    );
+    expect(timeoutMs).toBe(30_000);
+  });
+
+  it("maps supported OSM tags to stable landmark categories and importance", async () => {
+    mockedOverpassFetch.mockResolvedValue([
+      node(1, { name: "Station", public_transport: "station" }),
+      node(2, { name: "Bus", highway: "bus_stop" }),
+      node(3, { name: "Cafe", amenity: "cafe" }),
+      node(4, { name: "Store", shop: "convenience" }),
+      node(5, { name: "Restaurant", amenity: "restaurant" }),
+      node(6, { name: "School", amenity: "university" }),
+      node(7, { name: "Hospital", amenity: "hospital" }),
+      node(8, { name: "Park", leisure: "park" }),
+      node(9, { name: "Monument", historic: "monument" }),
+      node(10, { name: "Office", office: "yes" }),
+    ]);
+
+    const landmarks = await findLandmarks(37.5, 127, 400);
+    const byId = Object.fromEntries(landmarks.map((l) => [l.id, l]));
+
+    expect(byId["1"]).toMatchObject({ category: "station", importance: 1.0 });
+    expect(byId["2"]).toMatchObject({ category: "bus_stop", importance: 0.4 });
+    expect(byId["3"]).toMatchObject({ category: "cafe", importance: 0.5 });
+    expect(byId["4"]).toMatchObject({ category: "convenience", importance: 0.5 });
+    expect(byId["5"]).toMatchObject({ category: "restaurant", importance: 0.45 });
+    expect(byId["6"]).toMatchObject({ category: "school", importance: 0.7 });
+    expect(byId["7"]).toMatchObject({ category: "hospital", importance: 0.7 });
+    expect(byId["8"]).toMatchObject({ category: "park", importance: 0.65 });
+    expect(byId["9"]).toMatchObject({ category: "landmark", importance: 0.85 });
+    expect(byId["10"]).toMatchObject({ category: "building", importance: 0.3 });
+  });
+
+  it("keeps the intended priority for multi-tag landmarks", async () => {
+    mockedOverpassFetch.mockResolvedValue([
+      node(1, { name: "Station Cafe", public_transport: "station", amenity: "cafe" }),
+      node(2, { name: "Bus Cafe", highway: "bus_stop", amenity: "cafe" }),
+      node(3, { name: "Convenience Restaurant", shop: "convenience", amenity: "restaurant" }),
+    ]);
+
+    const landmarks = await findLandmarks(37.5, 127, 400);
+
+    expect(landmarks.map((l) => l.category)).toEqual([
+      "station",
+      "bus_stop",
+      "convenience",
+    ]);
+  });
+
+  it("skips anonymous or malformed elements without dropping the whole batch", async () => {
+    mockedOverpassFetch.mockResolvedValue([
+      node(1, { amenity: "cafe" }),
+      { id: "bad", lat: 37.5, lon: 127.0, tags: { name: "Bad" } },
+      node(2, { name: "Good Cafe", amenity: "cafe" }),
+    ]);
+
+    const landmarks = await findLandmarks(37.5, 127, 400);
+
+    expect(landmarks).toHaveLength(1);
+    expect(landmarks[0]).toMatchObject({ id: "2", name: "Good Cafe", category: "cafe" });
+  });
+});
