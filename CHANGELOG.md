@@ -58,6 +58,9 @@ versions follow [Semantic Versioning](https://semver.org/).
 - Public numeric inputs are now bounded at the trust boundary:
   `radiusMeters <= 5000` and SVG `width` / `height <= 4000`, with the
   renderer also clamping direct internal calls defensively.
+- Landmark and road radius expansion heuristics are now named constants
+  with regression coverage, so the station-search and road-skeleton
+  multipliers stay intentional.
 - SVG rendering now favors a more print-like 약도 style: dense Overpass road
   sets are reduced to a small road skeleton, road strokes use a cased
   diagram line style, landmark labels are shortened, and the destination
