@@ -62,6 +62,9 @@ describe("tool registry", () => {
     expect(generateMapProps.radiusMeters).toMatchObject({ maximum: 5000 });
     expect(generateMapProps.width).toMatchObject({ maximum: 4000 });
     expect(generateMapProps.height).toMatchObject({ maximum: 4000 });
+    expect(generateMapProps.layout).toMatchObject({
+      enum: ["diagram", "geographic"],
+    });
 
     expect(toolFor("find_landmarks").inputSchema.properties.radiusMeters)
       .toMatchObject({ maximum: 5000 });
@@ -333,6 +336,17 @@ describe("dispatchTool — error paths", () => {
 
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toMatch(/less than or equal to 4000/);
+    expect(generateMap).not.toHaveBeenCalled();
+  });
+
+  it("rejects unknown generate_map layout modes before calling the pipeline", async () => {
+    const result = await dispatchTool("generate_map", {
+      address: "Seoul",
+      layout: "satellite",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toMatch(/layout/);
     expect(generateMap).not.toHaveBeenCalled();
   });
 

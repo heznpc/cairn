@@ -68,4 +68,13 @@ describe("generateMap", () => {
     expect(mockedFindRoads).not.toHaveBeenCalled();
     expect(result.layout.roads).toEqual([]);
   });
+
+  it("passes the render layout option through to renderSVG", async () => {
+    await generateMap("서울 강남구 테헤란로 152", { layout: "geographic" });
+
+    expect(mockedRenderSVG).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ layout: "geographic" }),
+    );
+  });
 });

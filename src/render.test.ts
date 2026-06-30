@@ -367,6 +367,22 @@ describe("renderSVG — roads", () => {
     expect(roadCorePathCount(svg)).toBeLessThanOrEqual(10);
   });
 
+  it("preserves dense road geometry in geographic layout mode", () => {
+    const roads = Array.from({ length: 30 }, (_, i) => ({
+      id: `r${i}`,
+      name: `도로${i}`,
+      class: "residential" as const,
+      points: [
+        { lat: 37.49 + i * 0.0003, lon: 126.99 },
+        { lat: 37.49 + i * 0.0003, lon: 127.01 },
+      ],
+    }));
+
+    const svg = renderSVG(layoutWithRoads(roads), { layout: "geographic" });
+
+    expect(roadCorePathCount(svg)).toBe(30);
+  });
+
   it("shortens long landmark labels for print-style maps", () => {
     const longName = "서울대학교병원헬스케어시스템강남센터";
     const svg = renderSVG({

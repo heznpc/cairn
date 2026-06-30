@@ -51,10 +51,14 @@ export interface MapLayout {
   bbox: { north: number; south: number; east: number; west: number };
 }
 
+export type RenderLayoutMode = "diagram" | "geographic";
+
 export interface RenderOptions {
   width?: number;
   height?: number;
-  style?: "minimal" | "iconographic";
+  // "diagram" (default) keeps only navigational structure; "geographic"
+  // preserves the raw road geometry more closely for inspection/debugging.
+  layout?: RenderLayoutMode;
   // NOTE: `language` is reserved for future localization. render.ts does NOT
   // honor it yet; handlers.ts does NOT expose it to MCP hosts.
   language?: "ko" | "en" | "ja";

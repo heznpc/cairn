@@ -7,6 +7,9 @@ versions follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- `generate_map` and the CLI now accept `layout: "diagram" | "geographic"`.
+  `diagram` remains the default 약도 layout; `geographic` preserves raw road
+  geometry more closely for inspection/debugging.
 - **Road skeleton (Track A).** cairn now draws the roads you navigate by,
   not just a scatter of landmark points — the change that makes the output
   read as an actual 약도.
@@ -124,9 +127,9 @@ versions follow [Semantic Versioning](https://semver.org/).
   shared-host deployment would need a filesystem lock or out-of-
   process semaphore.
 
-## [0.1.0] — unreleased
+## [0.1.0] — 2026-06-30
 
-Initial public version prepared for npm under `@yakdo/cairn`.
+Initial public version published to npm under `@yakdo/cairn`.
 
 ### Added
 - MCP server (`cairn-mcp` binary) over stdio with three tools:
@@ -136,5 +139,5 @@ Initial public version prepared for npm under `@yakdo/cairn`.
   diversity).
 - Pictogram SVG renderer (Korean-defaulted labels; per-language
   localization planned).
-- 136 unit tests covering curation, rendering, geocoding, and the Nominatim
+- 142 unit tests covering curation, rendering, geocoding, and the Nominatim
   rate-limit gate.

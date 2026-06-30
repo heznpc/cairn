@@ -8,7 +8,7 @@ import {
   MAX_RADIUS_METERS,
   MIN_CANVAS_DIMENSION_PX,
 } from "./limits.js";
-import type { LandmarkCategory, RoadClass } from "./types.js";
+import type { LandmarkCategory, RenderLayoutMode, RoadClass } from "./types.js";
 
 // ---------- Input schemas (zod) ----------
 
@@ -19,6 +19,8 @@ const RadiusArg = z.number().int().min(1).max(MAX_RADIUS_METERS);
 const CanvasDimensionArg = z.number().int().min(MIN_CANVAS_DIMENSION_PX).max(MAX_CANVAS_DIMENSION_PX);
 const LatitudeArg = z.number().finite().min(-90).max(90);
 const LongitudeArg = z.number().finite().min(-180).max(180);
+const RENDER_LAYOUTS = ["diagram", "geographic"] as const satisfies readonly RenderLayoutMode[];
+const RenderLayoutArg = z.enum(RENDER_LAYOUTS);
 
 const GenerateMapArgs = z.object({
   address: z.string().describe("Street address or place name"),
@@ -28,6 +30,7 @@ const GenerateMapArgs = z.object({
   // width/height ≥ 100 — render.ts projection uses (width - 100) as denominator.
   width: CanvasDimensionArg.optional(),
   height: CanvasDimensionArg.optional(),
+  layout: RenderLayoutArg.optional().describe('Render layout mode (default "diagram")'),
   roads: z
     .boolean()
     .optional()
@@ -247,6 +250,11 @@ export const tools = [
         limit: { type: "integer", minimum: 1, description: "Max landmarks (default 5)" },
         width: { type: "integer", minimum: MIN_CANVAS_DIMENSION_PX, maximum: MAX_CANVAS_DIMENSION_PX, description: "SVG width in px (default 600, 100-4000)" },
         height: { type: "integer", minimum: MIN_CANVAS_DIMENSION_PX, maximum: MAX_CANVAS_DIMENSION_PX, description: "SVG height in px (default 400, 100-4000)" },
+        layout: {
+          type: "string",
+          enum: RENDER_LAYOUTS,
+          description: 'Render layout mode: "diagram" keeps navigational structure (default), "geographic" preserves raw road geometry more closely',
+        },
         roads: { type: "boolean", description: "Draw the road skeleton (default true)" },
       },
       required: ["address"],

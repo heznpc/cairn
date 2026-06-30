@@ -21,6 +21,7 @@ OPTIONS
   -n, --limit <count>     Max landmarks to include (default: 5)
   -w, --width <px>        SVG width (default: 600, ${MIN_CANVAS_DIMENSION_PX}-${MAX_CANVAS_DIMENSION_PX})
   -h, --height <px>       SVG height (default: 400, ${MIN_CANVAS_DIMENSION_PX}-${MAX_CANVAS_DIMENSION_PX})
+      --layout <mode>     Render layout: diagram or geographic (default: diagram)
       --no-roads          Skip the road skeleton (landmarks only)
       --help              Show this help
 
@@ -77,6 +78,9 @@ function parse(argv: string[]) {
       case "--height":
         opts.height = takeValue(a, ++i);
         break;
+      case "--layout":
+        opts.layout = takeValue(a, ++i);
+        break;
       case "--no-roads":
         opts.noRoads = "true";
         break;
@@ -132,6 +136,14 @@ async function main() {
     return n;
   };
 
+  const parseLayout = (raw: string | undefined) => {
+    if (raw === undefined) return undefined;
+    if (raw !== "diagram" && raw !== "geographic") {
+      throw new Error(`--layout must be "diagram" or "geographic" (got: "${raw}")`);
+    }
+    return raw;
+  };
+
   const { svg, layout } = await generateMap(address, {
     label: opts.label,
     radiusMeters: parseFlag("--radius", opts.radius, 1, MAX_RADIUS_METERS),
@@ -139,6 +151,7 @@ async function main() {
     // width/height ≥ 100 — render.ts projection uses (width - 100) as denom.
     width: parseFlag("--width", opts.width, MIN_CANVAS_DIMENSION_PX, MAX_CANVAS_DIMENSION_PX),
     height: parseFlag("--height", opts.height, MIN_CANVAS_DIMENSION_PX, MAX_CANVAS_DIMENSION_PX),
+    layout: parseLayout(opts.layout),
     roads: opts.noRoads === "true" ? false : undefined,
   });
 

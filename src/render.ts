@@ -71,6 +71,7 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
   const spanY = Math.max(height - 100, MIN_SPAN);
   const { bbox, center, landmarks } = layout;
   const roads = layout.roads ?? [];
+  const renderLayout = opts.layout ?? "diagram";
 
   const project = (lat: number, lon: number): [number, number] => {
     const denomLon = bbox.east - bbox.west || 1e-6;
@@ -81,7 +82,10 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
   };
 
   const [cx, cy] = project(center.lat, center.lon);
-  const displayRoads = selectDisplayRoads(roads, project, width, height);
+  const displayRoads =
+    renderLayout === "geographic"
+      ? roads.filter((road) => road.points.length >= 2)
+      : selectDisplayRoads(roads, project, width, height);
 
   const lines: string[] = [];
   lines.push(
