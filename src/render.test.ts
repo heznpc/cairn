@@ -41,6 +41,10 @@ function roadCorePathData(svg: string): string[] {
   return [...svg.matchAll(/<path data-road-layer="core" d="([^"]+)"/g)].map((m) => m[1]);
 }
 
+function filledTextOccurrences(svg: string, label: string): number {
+  return [...svg.matchAll(new RegExp(`<text [^>]*fill="(?!none)[^"]*"[^>]*>${label}`, "g"))].length;
+}
+
 describe("renderSVG", () => {
   it("produces a well-formed SVG document", () => {
     const svg = renderSVG(layout);
@@ -72,6 +76,13 @@ describe("renderSVG", () => {
     const svg = renderSVG(layout);
     const circles = svg.match(/<circle\b/g) ?? [];
     expect(circles).toHaveLength(layout.landmarks.length + 1);
+  });
+
+  it("uses print-style labels instead of UI connector lines and label pills", () => {
+    const svg = renderSVG(layout);
+    expect(svg).not.toContain('stroke-dasharray="4,5"');
+    expect(svg).not.toContain('fill="#fffdf8" stroke="#e3ddd0"');
+    expect(svg).toContain('stroke="#fffef9" stroke-width="4"');
   });
 
   it("draws a final approach arrow in diagram mode", () => {
@@ -126,8 +137,8 @@ describe("renderSVG", () => {
 // SVG coordinates.
 
 describe("renderSVG — projection", () => {
-  // Center marker uses r="11", landmarks use r="16" — that's how we distinguish.
-  const CENTER_RE = /<circle\s+cx="([\d.]+)"\s+cy="([\d.]+)"\s+r="11"/;
+  // Center marker uses r="10", landmarks use r="17" — that's how we distinguish.
+  const CENTER_RE = /<circle\s+cx="([\d.]+)"\s+cy="([\d.]+)"\s+r="10"/;
   const LANDMARK_RE = /<circle\s+cx="([\d.]+)"\s+cy="([\d.]+)"\s+r="17"/g;
 
   // 0.02° bbox in each axis, destination at the exact center.
@@ -272,8 +283,7 @@ describe("renderSVG — roads", () => {
 
   it("labels a named primary road exactly once", () => {
     const svg = renderSVG(layoutWithRoads([primaryRoad]));
-    const occurrences = svg.split("테헤란로").length - 1;
-    expect(occurrences).toBe(1);
+    expect(filledTextOccurrences(svg, "테헤란로")).toBe(1);
   });
 
   it("does not label residential roads", () => {
@@ -315,7 +325,7 @@ describe("renderSVG — roads", () => {
     // Diagram mode drops the tiny duplicate segment as visual noise, while
     // keeping the long labeled spine.
     expect(roadCorePathCount(svg)).toBe(1);
-    expect(svg.split("강남대로").length - 1).toBe(1);
+    expect(filledTextOccurrences(svg, "강남대로")).toBe(1);
   });
 
   it("skips roads with fewer than 2 points", () => {

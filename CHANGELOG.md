@@ -55,6 +55,9 @@ versions follow [Semantic Versioning](https://semver.org/).
 - Privacy disclosure: addresses are sent to OpenStreetMap servers.
 
 ### Changed
+- SVG output now uses a quieter print-style treatment: muted landmark ink,
+  no dashed landmark-to-destination connector lines, haloed text instead of
+  rounded label pills, and a square destination label.
 - `diagram` mode now clips roads to the canvas, straightens each selected OSM
   way into a clean schematic spine, drops short visual stubs, dedupes nearby
   parallel roads, and excludes residential/path roads from dense road sets.

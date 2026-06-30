@@ -4,21 +4,30 @@ import {
   MIN_CANVAS_DIMENSION_PX,
 } from "./limits.js";
 
-const MARKER_STYLE: Record<LandmarkCategory, { color: string }> = {
-  station: { color: "#3f6ea8" },
-  station_exit: { color: "#2f7c72" },
-  bus_stop: { color: "#4b7f89" },
-  cafe: { color: "#8a7159" },
-  convenience: { color: "#5b7c48" },
-  restaurant: { color: "#9a6a41" },
-  school: { color: "#6e6ea8" },
-  hospital: { color: "#9f4b4b" },
-  park: { color: "#5d8a5a" },
-  landmark: { color: "#8a6e3f" },
-  building: { color: "#666" },
+const PAPER = "#fffef9";
+const PAPER_EDGE = "#e5ded2";
+const LABEL_HALO = PAPER;
+const INK = "#25221d";
+const MUTED_INK = "#5f5a52";
+const TRANSIT_INK = "#216f86";
+const EXIT_INK = "#207665";
+const DESTINATION = "#d63b31";
+
+const MARKER_STYLE: Record<LandmarkCategory, { color: string; emphasis?: boolean }> = {
+  station: { color: TRANSIT_INK, emphasis: true },
+  station_exit: { color: EXIT_INK, emphasis: true },
+  bus_stop: { color: MUTED_INK },
+  cafe: { color: MUTED_INK },
+  convenience: { color: MUTED_INK },
+  restaurant: { color: MUTED_INK },
+  school: { color: MUTED_INK },
+  hospital: { color: MUTED_INK },
+  park: { color: MUTED_INK },
+  landmark: { color: MUTED_INK },
+  building: { color: MUTED_INK },
 };
 
-const FALLBACK_MARKER = { color: "#666" };
+const FALLBACK_MARKER = { color: MUTED_INK };
 
 const ROAD_RANK: Record<RoadClass, number> = {
   primary: 5,
@@ -43,11 +52,11 @@ const APPROACH_RANK: Record<LandmarkCategory, number> = {
 };
 
 const ROAD_STYLE: Record<RoadClass, { width: number; color: string }> = {
-  primary: { width: 11, color: "#beb8aa" },
-  secondary: { width: 8, color: "#cbc6b9" },
-  tertiary: { width: 5.5, color: "#d8d3c7" },
-  residential: { width: 4, color: "#e4dfd2" },
-  path: { width: 3, color: "#ebe6da" },
+  primary: { width: 10, color: "#b7b1a6" },
+  secondary: { width: 7.5, color: "#ccc6ba" },
+  tertiary: { width: 4.5, color: "#ded8cc" },
+  residential: { width: 3.5, color: "#e8e1d6" },
+  path: { width: 2.8, color: "#ede7dc" },
 };
 
 // A printed 약도 should feel curated, not like an OSM tile. Small synthetic
@@ -157,15 +166,15 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Apple SD Gothic Neo', sans-serif">`,
   );
   lines.push(
-    `<defs><marker id="cairn-approach-arrowhead" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1,1 L9,5 L1,9 Z" fill="#d94b35"/></marker></defs>`,
+    `<defs><marker id="cairn-approach-arrowhead" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1,1 L9,5 L1,9 Z" fill="${DESTINATION}"/></marker></defs>`,
   );
   lines.push(`<metadata>Map data © OpenStreetMap contributors, ODbL.</metadata>`);
-  lines.push(`<rect width="${width}" height="${height}" fill="#fbfaf4"/>`);
+  lines.push(`<rect width="${width}" height="${height}" fill="${PAPER}"/>`);
 
   // Paper-like frame. This replaces the map-tile grid: the design should read
   // as a diagram that happens to be spatial, not as a zoomed-out web map.
   lines.push(
-    `<rect x="14" y="14" width="${width - 28}" height="${height - 28}" fill="none" stroke="#eee8dc" stroke-width="1"/>`,
+    `<rect x="14" y="14" width="${width - 28}" height="${height - 28}" fill="none" stroke="${PAPER_EDGE}" stroke-width="1"/>`,
   );
 
   // Road skeleton — curated to a few axes, then drawn with a white casing and
@@ -175,7 +184,7 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
     if (!d) continue;
     const style = ROAD_STYLE[road.class] ?? ROAD_STYLE.path;
     lines.push(
-      `<path data-road-layer="casing" d="${d}" fill="none" stroke="#fffdf7" stroke-width="${style.width + 5}" stroke-linecap="round" stroke-linejoin="round"/>`,
+      `<path data-road-layer="casing" d="${d}" fill="none" stroke="${PAPER}" stroke-width="${style.width + 5}" stroke-linecap="round" stroke-linejoin="round"/>`,
     );
     lines.push(
       `<path data-road-layer="core" d="${d}" fill="none" stroke="${style.color}" stroke-width="${style.width}" stroke-linecap="round" stroke-linejoin="round"/>`,
@@ -185,30 +194,17 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
   // Road name labels — one per unique name, placed on the longest in-frame run.
   for (const [name, pos] of roadLabelPositions(displayRoads, project, width, height)) {
     const label = truncateLabel(name, ROAD_LABEL_MAX);
-    const labelWidth = textBoxWidth(label, 10, 22);
-    lines.push(
-      `<rect x="${(pos.x - labelWidth / 2).toFixed(1)}" y="${(pos.y - 10).toFixed(1)}" width="${labelWidth}" height="17" fill="#fbfaf4" opacity="0.86"/>`,
-    );
-    lines.push(
-      `<text x="${pos.x.toFixed(1)}" y="${pos.y.toFixed(1)}" text-anchor="middle" font-size="10" fill="#9e9788" font-weight="600">${escapeXml(label)}</text>`,
-    );
-  }
-
-  // Connector lines (landmark -> center), drawn first so markers sit on top.
-  for (const { x: lx, y: ly } of projectedLandmarks) {
-    lines.push(
-      `<line x1="${lx.toFixed(1)}" y1="${ly.toFixed(1)}" x2="${cx.toFixed(1)}" y2="${cy.toFixed(1)}" stroke="#d7cfbf" stroke-width="1.25" stroke-dasharray="4,5"/>`,
-    );
+    lines.push(labelText(label, pos.x, pos.y, 10, "#8a857c", 600));
   }
 
   if (approach) {
     const segment = trimSegment(approach.x, approach.y, cx, cy, 27, 21);
     if (segment) {
       lines.push(
-        `<path data-approach-arrow="casing" d="M${segment.x1.toFixed(1)},${segment.y1.toFixed(1)} L${segment.x2.toFixed(1)},${segment.y2.toFixed(1)}" fill="none" stroke="#fffdf7" stroke-width="11" stroke-linecap="round"/>`,
+        `<path data-approach-arrow="casing" d="M${segment.x1.toFixed(1)},${segment.y1.toFixed(1)} L${segment.x2.toFixed(1)},${segment.y2.toFixed(1)}" fill="none" stroke="${PAPER}" stroke-width="10" stroke-linecap="round"/>`,
       );
       lines.push(
-        `<path data-approach-arrow="core" d="M${segment.x1.toFixed(1)},${segment.y1.toFixed(1)} L${segment.x2.toFixed(1)},${segment.y2.toFixed(1)}" fill="none" stroke="#d94b35" stroke-width="5" stroke-linecap="round" marker-end="url(#cairn-approach-arrowhead)"/>`,
+        `<path data-approach-arrow="core" d="M${segment.x1.toFixed(1)},${segment.y1.toFixed(1)} L${segment.x2.toFixed(1)},${segment.y2.toFixed(1)}" fill="none" stroke="${DESTINATION}" stroke-width="4.5" stroke-linecap="round" marker-end="url(#cairn-approach-arrowhead)"/>`,
       );
     }
   }
@@ -219,32 +215,27 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
     const marker = MARKER_STYLE[lm.category] ?? FALLBACK_MARKER;
     const labelBox = landmarkLabelBoxes[index];
     lines.push(
-      `<circle cx="${lx}" cy="${ly}" r="17" fill="#fff" stroke="${marker.color}" stroke-width="2.2"/>`,
+      `<circle cx="${lx}" cy="${ly}" r="17" fill="${PAPER}" stroke="${marker.color}" stroke-width="${marker.emphasis ? 2 : 1.25}"/>`,
     );
     lines.push(landmarkIcon(lm.category, lx, ly, marker.color));
-    lines.push(
-      `<rect x="${labelBox.x.toFixed(1)}" y="${labelBox.y.toFixed(1)}" width="${labelBox.width}" height="${labelBox.height}" rx="2" fill="#fffdf8" stroke="#e3ddd0" stroke-width="0.8"/>`,
-    );
-    lines.push(
-      `<text x="${(labelBox.x + labelBox.width / 2).toFixed(1)}" y="${(labelBox.y + 13).toFixed(1)}" text-anchor="middle" font-size="11" fill="#333" font-weight="500">${escapeXml(label)}</text>`,
-    );
+    lines.push(labelText(label, labelBox.x + labelBox.width / 2, labelBox.y + 13, 11, INK, 500));
   }
 
   // Center marker (destination)
   lines.push(
-    `<circle cx="${cx}" cy="${cy}" r="11" fill="#d63838" stroke="#fff" stroke-width="3"/>`,
+    `<circle cx="${cx}" cy="${cy}" r="10" fill="${DESTINATION}" stroke="${PAPER}" stroke-width="3"/>`,
   );
   lines.push(
-    `<line data-destination-tail="true" x1="${centerCallout.anchorX.toFixed(1)}" y1="${centerCallout.anchorY.toFixed(1)}" x2="${cx.toFixed(1)}" y2="${cy.toFixed(1)}" stroke="#d63838" stroke-width="2.5" stroke-linecap="round"/>`,
+    `<line data-destination-tail="true" x1="${centerCallout.anchorX.toFixed(1)}" y1="${centerCallout.anchorY.toFixed(1)}" x2="${cx.toFixed(1)}" y2="${cy.toFixed(1)}" stroke="${DESTINATION}" stroke-width="2.5" stroke-linecap="round"/>`,
   );
   lines.push(
-    `<rect x="${centerCallout.x.toFixed(1)}" y="${centerCallout.y.toFixed(1)}" width="${centerCallout.width}" height="${centerCallout.height}" rx="3" fill="#d63838"/>`,
+    `<rect x="${centerCallout.x.toFixed(1)}" y="${centerCallout.y.toFixed(1)}" width="${centerCallout.width}" height="${centerCallout.height}" fill="${DESTINATION}"/>`,
   );
   lines.push(
     `<text x="${(centerCallout.x + centerCallout.width / 2).toFixed(1)}" y="${(centerCallout.y + 17).toFixed(1)}" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">${escapeXml(centerLabel)}</text>`,
   );
   lines.push(
-    `<text data-attribution="osm" x="${(width - 18).toFixed(1)}" y="${(height - 8).toFixed(1)}" text-anchor="end" font-size="8" fill="#aaa396">© OpenStreetMap contributors</text>`,
+    `<text data-attribution="osm" x="${(width - 18).toFixed(1)}" y="${(height - 8).toFixed(1)}" text-anchor="end" font-size="8" fill="#aaa59d">© OpenStreetMap contributors</text>`,
   );
 
   lines.push(`</svg>`);
@@ -278,6 +269,22 @@ function landmarkIcon(category: LandmarkCategory, x: number, y: number, color: s
     case "building":
       return `<g ${common} stroke-width="1.6"><rect x="${p(x - 7)}" y="${p(y - 9)}" width="14" height="18" rx="1.5"/><path d="M${p(x - 3)},${p(y - 4)} H${p(x - 1)} M${p(x + 3)},${p(y - 4)} H${p(x + 5)} M${p(x - 3)},${p(y + 1)} H${p(x - 1)} M${p(x + 3)},${p(y + 1)} H${p(x + 5)} M${p(x)},${p(y + 9)} V${p(y + 4)}"/></g>`;
   }
+}
+
+function labelText(
+  label: string,
+  x: number,
+  y: number,
+  fontSize: number,
+  fill: string,
+  fontWeight: number,
+): string {
+  const escaped = escapeXml(label);
+  const attrs = `x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="middle" font-size="${fontSize}" font-weight="${fontWeight}"`;
+  return [
+    `<text ${attrs} fill="none" stroke="${LABEL_HALO}" stroke-width="4" stroke-linejoin="round">${escaped}</text>`,
+    `<text ${attrs} fill="${fill}">${escaped}</text>`,
+  ].join("\n");
 }
 
 interface ProjectedLandmark {
