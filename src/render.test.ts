@@ -37,6 +37,10 @@ function roadCorePathCount(svg: string): number {
   return svg.match(/data-road-layer="core"/g)?.length ?? 0;
 }
 
+function roadCorePathData(svg: string): string[] {
+  return [...svg.matchAll(/<path data-road-layer="core" d="([^"]+)"/g)].map((m) => m[1]);
+}
+
 describe("renderSVG", () => {
   it("produces a well-formed SVG document", () => {
     const svg = renderSVG(layout);
@@ -246,6 +250,26 @@ describe("renderSVG — roads", () => {
     expect(svg).toContain('stroke-linecap="round"');
   });
 
+  it("straightens kinked OSM road geometry into a clean diagram spine", () => {
+    const kinked = {
+      id: "kink",
+      name: "구불로",
+      class: "primary" as const,
+      points: [
+        { lat: 37.5, lon: 126.992 },
+        { lat: 37.503, lon: 126.997 },
+        { lat: 37.497, lon: 127.003 },
+        { lat: 37.5, lon: 127.008 },
+      ],
+    };
+
+    const svg = renderSVG(layoutWithRoads([kinked]));
+    const [d] = roadCorePathData(svg);
+
+    expect(d).toMatch(/^M[\d.]+,[\d.]+ L[\d.]+,[\d.]+$/);
+    expect(d.split(" L")).toHaveLength(2);
+  });
+
   it("labels a named primary road exactly once", () => {
     const svg = renderSVG(layoutWithRoads([primaryRoad]));
     const occurrences = svg.split("테헤란로").length - 1;
@@ -288,8 +312,9 @@ describe("renderSVG — roads", () => {
       ],
     };
     const svg = renderSVG(layoutWithRoads([short, long]));
-    // Two paths drawn, one label.
-    expect(roadCorePathCount(svg)).toBe(2);
+    // Diagram mode drops the tiny duplicate segment as visual noise, while
+    // keeping the long labeled spine.
+    expect(roadCorePathCount(svg)).toBe(1);
     expect(svg.split("강남대로").length - 1).toBe(1);
   });
 
@@ -337,7 +362,7 @@ describe("renderSVG — roads", () => {
     expect(ly, "label y must be within viewBox").toBeLessThanOrEqual(400);
   });
 
-  it("omits the label entirely when no part of the road is inside the viewBox", () => {
+  it("omits offscreen road paths and labels in diagram mode", () => {
     // Both nodes project far outside the 600x400 frame.
     const allOffscreen = {
       id: "ghost",
@@ -349,8 +374,7 @@ describe("renderSVG — roads", () => {
       ],
     };
     const svg = renderSVG(layoutWithRoads([allOffscreen]));
-    // The polyline path is still emitted (SVG clips it harmlessly), but no label.
-    expect(roadCorePathCount(svg)).toBe(1);
+    expect(roadCorePathCount(svg)).toBe(0);
     expect(svg).not.toContain("유령로");
   });
 

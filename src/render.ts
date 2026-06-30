@@ -54,7 +54,7 @@ const ROAD_STYLE: Record<RoadClass, { width: number; color: string }> = {
 // unit-test layouts still render every road, while real Overpass-heavy layouts
 // are reduced to a handful of readable axes.
 const MAX_ROADS_WITHOUT_FILTER = 12;
-const MAX_VISIBLE_ROADS = 10;
+const MAX_VISIBLE_ROADS = 5;
 const MAX_ROADS_PER_NAME = 3;
 
 // Only the two top tiers get name labels (residential clutter kills legibility).
@@ -70,6 +70,21 @@ const MIN_SPAN = 1;
 const LANDMARK_LABEL_MAX = 11;
 const ROAD_LABEL_MAX = 12;
 const CENTER_LABEL_MAX = 12;
+const ROAD_CLIP_INSET_PX = 16;
+const MIN_DIAGRAM_ROAD_RUN_PX = 56;
+const PARALLEL_ROAD_DEDUPE_PX = 28;
+const MINOR_ROAD_FOCUS_DISTANCE_PX = 100;
+
+interface Point {
+  x: number;
+  y: number;
+}
+
+interface RoadSpine {
+  start: Point;
+  end: Point;
+  length: number;
+}
 
 function safeDimension(value: number | undefined, fallback: number): number {
   if (!Number.isFinite(value)) return fallback;
@@ -100,7 +115,7 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
   const displayRoads =
     renderLayout === "geographic"
       ? roads.filter((road) => road.points.length >= 2)
-      : selectDisplayRoads(roads, project, width, height);
+      : selectDisplayRoads(roads, project, width, height, { x: cx, y: cy });
   const approach =
     renderLayout === "diagram"
       ? chooseApproachLandmark(landmarks, cx, cy, project)
@@ -156,7 +171,7 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
   // Road skeleton — curated to a few axes, then drawn with a white casing and
   // a warm-gray core so it looks like printed 약도 linework.
   for (const road of displayRoads) {
-    const d = pathData(road, project);
+    const d = roadPathData(road, project, renderLayout, width, height);
     if (!d) continue;
     const style = ROAD_STYLE[road.class] ?? ROAD_STYLE.path;
     lines.push(
@@ -358,7 +373,18 @@ function trimSegment(
   };
 }
 
-function pathData(
+function roadPathData(
+  road: MapLayout["roads"][number],
+  project: (lat: number, lon: number) => [number, number],
+  renderLayout: RenderOptions["layout"],
+  width: number,
+  height: number,
+): string | null {
+  if (renderLayout === "geographic") return rawRoadPathData(road, project);
+  return diagramRoadPathData(road, project, width, height);
+}
+
+function rawRoadPathData(
   road: MapLayout["roads"][number],
   project: (lat: number, lon: number) => [number, number],
 ): string | null {
@@ -371,11 +397,52 @@ function pathData(
     .join(" ");
 }
 
+function diagramRoadPathData(
+  road: MapLayout["roads"][number],
+  project: (lat: number, lon: number) => [number, number],
+  width: number,
+  height: number,
+): string | null {
+  const spine = diagramRoadSpine(road, project, width, height);
+  if (!spine) return null;
+  return `M${spine.start.x.toFixed(1)},${spine.start.y.toFixed(1)} L${spine.end.x.toFixed(1)},${spine.end.y.toFixed(1)}`;
+}
+
+function diagramRoadSpine(
+  road: MapLayout["roads"][number],
+  project: (lat: number, lon: number) => [number, number],
+  width: number,
+  height: number,
+): RoadSpine | null {
+  const runs = clippedRoadRuns(
+    road,
+    project,
+    ROAD_CLIP_INSET_PX,
+    ROAD_CLIP_INSET_PX,
+    width - ROAD_CLIP_INSET_PX,
+    height - ROAD_CLIP_INSET_PX,
+  );
+  const best = runs
+    .map((points) => ({ points, length: polylineLength(points) }))
+    .filter((run) => run.length >= MIN_DIAGRAM_ROAD_RUN_PX)
+    .sort((a, b) => b.length - a.length)[0];
+  if (!best) return null;
+
+  const start = best.points[0];
+  const end = best.points[best.points.length - 1];
+  const length = Math.hypot(end.x - start.x, end.y - start.y);
+  if (length < MIN_DIAGRAM_ROAD_RUN_PX) {
+    return null;
+  }
+  return { start, end, length };
+}
+
 function selectDisplayRoads(
   roads: MapLayout["roads"],
   project: (lat: number, lon: number) => [number, number],
   width: number,
   height: number,
+  focus: Point,
 ): MapLayout["roads"] {
   const drawable = roads.filter((road) => road.points.length >= 2);
   if (drawable.length <= MAX_ROADS_WITHOUT_FILTER) return drawable;
@@ -409,17 +476,64 @@ function selectDisplayRoads(
 
   const picked: MapLayout["roads"] = [];
   const pickedByName = new Map<string, number>();
+  const pickedSignatures: Array<{ angleBucket: number; offset: number }> = [];
   for (const item of source) {
     if (picked.length >= MAX_VISIBLE_ROADS) break;
+    const spine = diagramRoadSpine(item.road, project, width, height);
+    if (!spine) continue;
+    if (item.road.class === "residential" || item.road.class === "path") {
+      continue;
+    }
+    if (
+      item.road.class === "tertiary" &&
+      pointToSegmentDistance(focus, spine.start, spine.end) > MINOR_ROAD_FOCUS_DISTANCE_PX
+    ) {
+      continue;
+    }
+    const signature = roadVisualSignature(spine);
+    if (pickedSignatures.some((picked) => isParallelDuplicate(signature, picked))) {
+      continue;
+    }
     if (item.road.name) {
       const count = pickedByName.get(item.road.name) ?? 0;
       if (count >= MAX_ROADS_PER_NAME) continue;
       pickedByName.set(item.road.name, count + 1);
     }
+    pickedSignatures.push(signature);
     picked.push(item.road);
   }
 
   return picked;
+}
+
+function pointToSegmentDistance(point: Point, start: Point, end: Point): number {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq === 0) return Math.hypot(point.x - start.x, point.y - start.y);
+  const t = Math.max(0, Math.min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / lenSq));
+  const x = start.x + t * dx;
+  const y = start.y + t * dy;
+  return Math.hypot(point.x - x, point.y - y);
+}
+
+function roadVisualSignature(spine: RoadSpine): { angleBucket: number; offset: number } {
+  const dx = spine.end.x - spine.start.x;
+  const dy = spine.end.y - spine.start.y;
+  const angle = ((Math.atan2(dy, dx) % Math.PI) + Math.PI) % Math.PI;
+  const angleBucket = Math.round(angle / (Math.PI / 12));
+  const midX = (spine.start.x + spine.end.x) / 2;
+  const midY = (spine.start.y + spine.end.y) / 2;
+  const normal = angle + Math.PI / 2;
+  const offset = midX * Math.cos(normal) + midY * Math.sin(normal);
+  return { angleBucket, offset };
+}
+
+function isParallelDuplicate(
+  a: { angleBucket: number; offset: number },
+  b: { angleBucket: number; offset: number },
+): boolean {
+  return a.angleBucket === b.angleBucket && Math.abs(a.offset - b.offset) < PARALLEL_ROAD_DEDUPE_PX;
 }
 
 function clippedRoadLength(
@@ -446,6 +560,67 @@ function clippedRoadLength(
     if (!clipped) continue;
     const [[x0, y0], [x1, y1]] = clipped;
     total += Math.hypot(x1 - x0, y1 - y0);
+  }
+  return total;
+}
+
+function clippedRoadRuns(
+  road: MapLayout["roads"][number],
+  project: (lat: number, lon: number) => [number, number],
+  minX: number,
+  minY: number,
+  maxX: number,
+  maxY: number,
+): Point[][] {
+  const projected = road.points.map((p) => {
+    const [x, y] = project(p.lat, p.lon);
+    return { x, y };
+  });
+
+  const runs: Point[][] = [];
+  let current: Point[] = [];
+  const finishRun = () => {
+    if (current.length >= 2) runs.push(current);
+    current = [];
+  };
+
+  for (let i = 1; i < projected.length; i++) {
+    const clipped = clipSegment(
+      projected[i - 1].x,
+      projected[i - 1].y,
+      projected[i].x,
+      projected[i].y,
+      minX,
+      minY,
+      maxX,
+      maxY,
+    );
+    if (!clipped) {
+      finishRun();
+      continue;
+    }
+
+    const [[x0, y0], [x1, y1]] = clipped;
+    const start = { x: x0, y: y0 };
+    const end = { x: x1, y: y1 };
+    const last = current[current.length - 1];
+    if (!last) {
+      current = [start, end];
+    } else if (Math.hypot(last.x - start.x, last.y - start.y) <= 0.5) {
+      current.push(end);
+    } else {
+      finishRun();
+      current = [start, end];
+    }
+  }
+  finishRun();
+  return runs;
+}
+
+function polylineLength(points: Point[]): number {
+  let total = 0;
+  for (let i = 1; i < points.length; i++) {
+    total += Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y);
   }
   return total;
 }

@@ -55,6 +55,9 @@ versions follow [Semantic Versioning](https://semver.org/).
 - Privacy disclosure: addresses are sent to OpenStreetMap servers.
 
 ### Changed
+- `diagram` mode now clips roads to the canvas, straightens each selected OSM
+  way into a clean schematic spine, drops short visual stubs, dedupes nearby
+  parallel roads, and excludes residential/path roads from dense road sets.
 - npm package name changed from the occupied `cairn-mcp` name to
   `@yakdo/cairn`; the published binaries stay `cairn` and `cairn-mcp`.
 - `engines.node` bumped to `>=22` (Node 20 reached EOL 2026-04-30).
