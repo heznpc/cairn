@@ -47,7 +47,7 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ### Changed
 - npm package name changed from the occupied `cairn-mcp` name to
-  `@cairn/mcp`; the published binaries stay `cairn` and `cairn-mcp`.
+  `@yakdo/cairn`; the published binaries stay `cairn` and `cairn-mcp`.
 - `engines.node` bumped to `>=22` (Node 20 reached EOL 2026-04-30).
 - `vitest` bumped to `^4.1.0` — clears
   [GHSA-67mh-4wv8-2f99](https://github.com/advisories/GHSA-67mh-4wv8-2f99)
@@ -126,7 +126,7 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [0.1.0] — unreleased
 
-Initial public version prepared for npm under `@cairn/mcp`.
+Initial public version prepared for npm under `@yakdo/cairn`.
 
 ### Added
 - MCP server (`cairn-mcp` binary) over stdio with three tools:

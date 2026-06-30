@@ -4,7 +4,7 @@
 > Korean-style 약도, auto-generated, anywhere in the world.
 
 [![ci](https://github.com/heznpc/cairn/actions/workflows/ci.yml/badge.svg)](https://github.com/heznpc/cairn/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/@cairn/mcp.svg)](https://www.npmjs.com/package/@cairn/mcp)
+[![npm](https://img.shields.io/npm/v/@yakdo/cairn.svg)](https://www.npmjs.com/package/@yakdo/cairn)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 Part of: **Human-Controlled AI Systems** — the MCP server stays a tool, never an agent. Curation is a deterministic heuristic; an LLM only enters the loop when the *host* (Claude Code, Cursor, Codex CLI, …) chooses to compose it.
@@ -37,7 +37,7 @@ Most maps are too accurate to be useful. Korean 약도 (yakdo) and Japanese 略�
 
 ## Planned
 
-- Publish v0.1.0 to npm as `@cairn/mcp`.
+- Publish v0.1.0 to npm as `@yakdo/cairn`.
 - Pictogram component library + force-directed label layout (Track A — building on the road skeleton just landed).
 - Wedding invitation template variant (Track C — addressable-market expansion).
 - Optional Mapbox / Google geocoder adapters (opt-in only; the default stays zero-key).
@@ -72,7 +72,7 @@ roadmap).
 
 ## Quick start
 
-> **Status:** v0.1 pre-release. The package is prepared for npm as `@cairn/mcp`; until v0.1.0 is published, install from source: clone → `npm install && npm run build`, then use `node dist/cli.js` for CLI or wire `node /absolute/path/to/dist/server.js` into your MCP config.
+> **Status:** v0.1 pre-release. The package is prepared for npm as `@yakdo/cairn`; until v0.1.0 is published, install from source: clone → `npm install && npm run build`, then use `node dist/cli.js` for CLI or wire `node /absolute/path/to/dist/server.js` into your MCP config.
 
 ### As an MCP server
 
@@ -81,7 +81,7 @@ roadmap).
   "mcpServers": {
     "cairn": {
       "command": "npx",
-      "args": ["-y", "-p", "@cairn/mcp", "cairn-mcp"]
+      "args": ["-y", "-p", "@yakdo/cairn", "cairn-mcp"]
     }
   }
 }
@@ -94,8 +94,8 @@ Then ask the assistant:
 ### As a CLI
 
 ```bash
-npx -p @cairn/mcp cairn "서울 강남구 테헤란로 152" -o office.svg
-npx -p @cairn/mcp cairn "1600 Amphitheatre Pkwy, Mountain View" --label "Office"
+npx -p @yakdo/cairn cairn "서울 강남구 테헤란로 152" -o office.svg
+npx -p @yakdo/cairn cairn "1600 Amphitheatre Pkwy, Mountain View" --label "Office"
 ```
 
 ## How it works
