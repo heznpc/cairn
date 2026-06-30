@@ -29,6 +29,9 @@ describe("findLandmarks", () => {
       `node["public_transport"="station"](around:${Math.round(400 * STATION_SEARCH_RADIUS_MULTIPLIER)},37.5,127);`,
     );
     expect(query).toContain(
+      `node["railway"="subway_entrance"](around:${Math.round(400 * STATION_SEARCH_RADIUS_MULTIPLIER)},37.5,127);`,
+    );
+    expect(query).toContain(
       `node["amenity"~"^(cafe|restaurant|school|university|hospital)$"](around:400,37.5,127);`,
     );
     expect(timeoutMs).toBe(30_000);
@@ -37,6 +40,7 @@ describe("findLandmarks", () => {
   it("maps supported OSM tags to stable landmark categories and importance", async () => {
     mockedOverpassFetch.mockResolvedValue([
       node(1, { name: "Station", public_transport: "station" }),
+      node(11, { railway: "subway_entrance", ref: "3" }),
       node(2, { name: "Bus", highway: "bus_stop" }),
       node(3, { name: "Cafe", amenity: "cafe" }),
       node(4, { name: "Store", shop: "convenience" }),
@@ -52,6 +56,7 @@ describe("findLandmarks", () => {
     const byId = Object.fromEntries(landmarks.map((l) => [l.id, l]));
 
     expect(byId["1"]).toMatchObject({ category: "station", importance: 1.0 });
+    expect(byId["11"]).toMatchObject({ name: "3번 출구", category: "station_exit", importance: 0.95 });
     expect(byId["2"]).toMatchObject({ category: "bus_stop", importance: 0.4 });
     expect(byId["3"]).toMatchObject({ category: "cafe", importance: 0.5 });
     expect(byId["4"]).toMatchObject({ category: "convenience", importance: 0.5 });
@@ -68,6 +73,7 @@ describe("findLandmarks", () => {
       node(1, { name: "Station Cafe", public_transport: "station", amenity: "cafe" }),
       node(2, { name: "Bus Cafe", highway: "bus_stop", amenity: "cafe" }),
       node(3, { name: "Convenience Restaurant", shop: "convenience", amenity: "restaurant" }),
+      node(4, { name: "Station Exit Cafe", railway: "subway_entrance", amenity: "cafe" }),
     ]);
 
     const landmarks = await findLandmarks(37.5, 127, 400);
@@ -76,6 +82,7 @@ describe("findLandmarks", () => {
       "station",
       "bus_stop",
       "convenience",
+      "station_exit",
     ]);
   });
 

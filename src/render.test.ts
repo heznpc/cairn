@@ -51,10 +51,34 @@ describe("renderSVG", () => {
     expect(svg).toContain("스타벅스");
   });
 
+  it("uses SVG pictograms for landmark markers", () => {
+    const svg = renderSVG(layout);
+    expect(svg).toContain('data-landmark-icon="station"');
+    expect(svg).toContain('data-landmark-icon="cafe"');
+    expect(svg).not.toContain(">M<");
+  });
+
+  it("includes visible OpenStreetMap attribution", () => {
+    const svg = renderSVG(layout);
+    expect(svg).toContain('data-attribution="osm"');
+    expect(svg).toContain("© OpenStreetMap contributors");
+  });
+
   it("renders one center marker plus one circle per landmark", () => {
     const svg = renderSVG(layout);
     const circles = svg.match(/<circle\b/g) ?? [];
     expect(circles).toHaveLength(layout.landmarks.length + 1);
+  });
+
+  it("draws a final approach arrow in diagram mode", () => {
+    const svg = renderSVG(layout);
+    expect(svg).toContain('data-approach-arrow="core"');
+    expect(svg).toContain('marker-end="url(#cairn-approach-arrowhead)"');
+  });
+
+  it("omits the approach arrow in geographic mode", () => {
+    const svg = renderSVG(layout, { layout: "geographic" });
+    expect(svg).not.toContain('data-approach-arrow="core"');
   });
 
   it("escapes XML special characters in labels", () => {

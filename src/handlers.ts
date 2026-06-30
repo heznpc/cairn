@@ -59,6 +59,7 @@ const FindRoadsArgs = z.object({
 
 const LANDMARK_CATEGORIES = [
   "station",
+  "station_exit",
   "bus_stop",
   "cafe",
   "convenience",

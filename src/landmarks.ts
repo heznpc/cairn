@@ -4,6 +4,7 @@ import { overpassFetch, OVERPASS_TIMEOUT_MS } from "./overpass.js";
 
 const IMPORTANCE: Record<LandmarkCategory, number> = {
   station: 1.0,
+  station_exit: 0.95,
   landmark: 0.85,
   school: 0.7,
   hospital: 0.7,
@@ -30,7 +31,8 @@ const OverpassNodeSchema = z.object({
 /**
  * Find nearby points of interest using OpenStreetMap Overpass API.
  *
- * Returns only POIs with a `name` tag (anonymous buildings are noise for wayfinding).
+ * Returns only named POIs, except transit exits where `ref=3` is often the
+ * label users actually need ("3번 출구").
  */
 export async function findLandmarks(
   lat: number,
@@ -44,6 +46,7 @@ export async function findLandmarks(
     (
       node["public_transport"="station"](around:${stationRadius},${lat},${lon});
       node["railway"="station"](around:${stationRadius},${lat},${lon});
+      node["railway"="subway_entrance"](around:${stationRadius},${lat},${lon});
       node["amenity"~"^(cafe|restaurant|school|university|hospital)$"](around:${radiusMeters},${lat},${lon});
       node["shop"="convenience"](around:${radiusMeters},${lat},${lon});
       node["tourism"="attraction"](around:${radiusMeters},${lat},${lon});
@@ -61,11 +64,13 @@ export async function findLandmarks(
     const parsed = OverpassNodeSchema.safeParse(el);
     if (!parsed.success) continue; // skip drifted element, keep the rest
     const e = parsed.data;
-    if (!e.tags?.name) continue;
+    if (!e.tags) continue;
     const category = categorize(e.tags);
+    const name = landmarkName(category, e.tags);
+    if (!name) continue;
     landmarks.push({
       id: String(e.id),
-      name: e.tags.name,
+      name,
       lat: e.lat,
       lon: e.lon,
       category,
@@ -77,6 +82,7 @@ export async function findLandmarks(
 }
 
 function categorize(tags: Record<string, string>): LandmarkCategory {
+  if (tags.railway === "subway_entrance") return "station_exit";
   if (tags.public_transport === "station" || tags.railway === "station") return "station";
   if (tags.highway === "bus_stop") return "bus_stop";
   if (tags.amenity === "cafe") return "cafe";
@@ -87,4 +93,10 @@ function categorize(tags: Record<string, string>): LandmarkCategory {
   if (tags.leisure === "park") return "park";
   if (tags.tourism === "attraction" || tags.historic === "monument") return "landmark";
   return "building";
+}
+
+function landmarkName(category: LandmarkCategory, tags: Record<string, string>): string | null {
+  if (tags.name) return tags.name;
+  if (category === "station_exit" && tags.ref) return `${tags.ref}번 출구`;
+  return null;
 }

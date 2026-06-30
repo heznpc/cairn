@@ -7,6 +7,7 @@ export interface GeocodingResult {
 
 export type LandmarkCategory =
   | "station"
+  | "station_exit"
   | "bus_stop"
   | "cafe"
   | "convenience"

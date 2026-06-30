@@ -259,7 +259,7 @@ describe("dispatchTool — outputSchema ↔ structuredContent contract", () => {
     // the return-type annotation on categorize() plus the AssertNever
     // check in handlers.ts. The two together close the loop.
     vi.mocked(findLandmarks).mockResolvedValue(
-      (["station","bus_stop","cafe","convenience","restaurant","school","hospital","park","landmark","building"] as const).map((c, i) => ({
+      (["station","station_exit","bus_stop","cafe","convenience","restaurant","school","hospital","park","landmark","building"] as const).map((c, i) => ({
         id: String(i),
         name: c,
         lat: 37.5,

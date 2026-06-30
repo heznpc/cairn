@@ -4,20 +4,21 @@ import {
   MIN_CANVAS_DIMENSION_PX,
 } from "./limits.js";
 
-const MARKER_STYLE: Record<LandmarkCategory, { icon: string; color: string }> = {
-  station: { icon: "M", color: "#3f6ea8" },
-  bus_stop: { icon: "B", color: "#4b7f89" },
-  cafe: { icon: "C", color: "#8a7159" },
-  convenience: { icon: "CV", color: "#5b7c48" },
-  restaurant: { icon: "R", color: "#9a6a41" },
-  school: { icon: "S", color: "#6e6ea8" },
-  hospital: { icon: "+", color: "#9f4b4b" },
-  park: { icon: "P", color: "#5d8a5a" },
-  landmark: { icon: "*", color: "#8a6e3f" },
-  building: { icon: "B", color: "#666" },
+const MARKER_STYLE: Record<LandmarkCategory, { color: string }> = {
+  station: { color: "#3f6ea8" },
+  station_exit: { color: "#2f7c72" },
+  bus_stop: { color: "#4b7f89" },
+  cafe: { color: "#8a7159" },
+  convenience: { color: "#5b7c48" },
+  restaurant: { color: "#9a6a41" },
+  school: { color: "#6e6ea8" },
+  hospital: { color: "#9f4b4b" },
+  park: { color: "#5d8a5a" },
+  landmark: { color: "#8a6e3f" },
+  building: { color: "#666" },
 };
 
-const FALLBACK_MARKER = { icon: "•", color: "#666" };
+const FALLBACK_MARKER = { color: "#666" };
 
 const ROAD_RANK: Record<RoadClass, number> = {
   primary: 5,
@@ -25,6 +26,20 @@ const ROAD_RANK: Record<RoadClass, number> = {
   tertiary: 3,
   residential: 2,
   path: 1,
+};
+
+const APPROACH_RANK: Record<LandmarkCategory, number> = {
+  station_exit: 10,
+  station: 9,
+  bus_stop: 7,
+  landmark: 5,
+  hospital: 4,
+  school: 4,
+  park: 3,
+  convenience: 3,
+  cafe: 2,
+  restaurant: 2,
+  building: 1,
 };
 
 const ROAD_STYLE: Record<RoadClass, { width: number; color: string }> = {
@@ -86,11 +101,50 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
     renderLayout === "geographic"
       ? roads.filter((road) => road.points.length >= 2)
       : selectDisplayRoads(roads, project, width, height);
+  const approach =
+    renderLayout === "diagram"
+      ? chooseApproachLandmark(landmarks, cx, cy, project)
+      : null;
+  const projectedLandmarks = landmarks.map((lm) => {
+    const [x, y] = project(lm.lat, lm.lon);
+    const label = truncateLabel(lm.name, LANDMARK_LABEL_MAX);
+    return {
+      lm,
+      x,
+      y,
+      label,
+      labelWidth: textBoxWidth(label, 11, 20),
+    };
+  });
+  const landmarkMarkerBoxes = projectedLandmarks.map(({ x, y }) => ({
+    x: x - 23,
+    y: y - 23,
+    width: 46,
+    height: 46,
+  }));
+  const landmarkLabelBoxes = placeLandmarkLabels(projectedLandmarks, width, height, [
+    ...landmarkMarkerBoxes,
+    { x: cx - 18, y: cy - 18, width: 36, height: 36 },
+  ]);
+  const centerLabel = truncateLabel(center.label, CENTER_LABEL_MAX);
+  const centerLabelWidth = textBoxWidth(centerLabel, 13, 24);
+  const centerCallout = pickCenterCallout(
+    cx,
+    cy,
+    centerLabelWidth,
+    width,
+    height,
+    [...landmarkMarkerBoxes, ...landmarkLabelBoxes],
+  );
 
   const lines: string[] = [];
   lines.push(
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Apple SD Gothic Neo', sans-serif">`,
   );
+  lines.push(
+    `<defs><marker id="cairn-approach-arrowhead" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1,1 L9,5 L1,9 Z" fill="#d94b35"/></marker></defs>`,
+  );
+  lines.push(`<metadata>Map data © OpenStreetMap contributors, ODbL.</metadata>`);
   lines.push(`<rect width="${width}" height="${height}" fill="#fbfaf4"/>`);
 
   // Paper-like frame. This replaces the map-tile grid: the design should read
@@ -126,52 +180,42 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
   }
 
   // Connector lines (landmark -> center), drawn first so markers sit on top.
-  for (const lm of landmarks) {
-    const [lx, ly] = project(lm.lat, lm.lon);
+  for (const { x: lx, y: ly } of projectedLandmarks) {
     lines.push(
       `<line x1="${lx.toFixed(1)}" y1="${ly.toFixed(1)}" x2="${cx.toFixed(1)}" y2="${cy.toFixed(1)}" stroke="#d7cfbf" stroke-width="1.25" stroke-dasharray="4,5"/>`,
     );
   }
 
+  if (approach) {
+    const segment = trimSegment(approach.x, approach.y, cx, cy, 27, 21);
+    if (segment) {
+      lines.push(
+        `<path data-approach-arrow="casing" d="M${segment.x1.toFixed(1)},${segment.y1.toFixed(1)} L${segment.x2.toFixed(1)},${segment.y2.toFixed(1)}" fill="none" stroke="#fffdf7" stroke-width="11" stroke-linecap="round"/>`,
+      );
+      lines.push(
+        `<path data-approach-arrow="core" d="M${segment.x1.toFixed(1)},${segment.y1.toFixed(1)} L${segment.x2.toFixed(1)},${segment.y2.toFixed(1)}" fill="none" stroke="#d94b35" stroke-width="5" stroke-linecap="round" marker-end="url(#cairn-approach-arrowhead)"/>`,
+      );
+    }
+  }
+
   // Landmarks
-  for (const lm of landmarks) {
-    const [lx, ly] = project(lm.lat, lm.lon);
+  for (const [index, item] of projectedLandmarks.entries()) {
+    const { lm, x: lx, y: ly, label } = item;
     const marker = MARKER_STYLE[lm.category] ?? FALLBACK_MARKER;
-    const label = truncateLabel(lm.name, LANDMARK_LABEL_MAX);
-    const labelWidth = textBoxWidth(label, 11, 20);
+    const labelBox = landmarkLabelBoxes[index];
     lines.push(
       `<circle cx="${lx}" cy="${ly}" r="17" fill="#fff" stroke="${marker.color}" stroke-width="2.2"/>`,
     );
+    lines.push(landmarkIcon(lm.category, lx, ly, marker.color));
     lines.push(
-      `<text x="${lx}" y="${ly + 4.5}" text-anchor="middle" font-size="${marker.icon.length > 1 ? 10 : 13}" font-weight="700" fill="${marker.color}">${escapeXml(marker.icon)}</text>`,
+      `<rect x="${labelBox.x.toFixed(1)}" y="${labelBox.y.toFixed(1)}" width="${labelBox.width}" height="${labelBox.height}" rx="2" fill="#fffdf8" stroke="#e3ddd0" stroke-width="0.8"/>`,
     );
     lines.push(
-      `<rect x="${(lx - labelWidth / 2).toFixed(1)}" y="${(ly + 23).toFixed(1)}" width="${labelWidth}" height="18" rx="2" fill="#fffdf8" stroke="#e3ddd0" stroke-width="0.8"/>`,
-    );
-    lines.push(
-      `<text x="${lx}" y="${ly + 36}" text-anchor="middle" font-size="11" fill="#333" font-weight="500">${escapeXml(label)}</text>`,
+      `<text x="${(labelBox.x + labelBox.width / 2).toFixed(1)}" y="${(labelBox.y + 13).toFixed(1)}" text-anchor="middle" font-size="11" fill="#333" font-weight="500">${escapeXml(label)}</text>`,
     );
   }
 
   // Center marker (destination)
-  const centerLabel = truncateLabel(center.label, CENTER_LABEL_MAX);
-  const centerLabelWidth = textBoxWidth(centerLabel, 13, 24);
-  const centerCallout = pickCenterCallout(
-    cx,
-    cy,
-    centerLabelWidth,
-    width,
-    height,
-    landmarks.map((lm) => {
-      const [lx, ly] = project(lm.lat, lm.lon);
-      const label = truncateLabel(lm.name, LANDMARK_LABEL_MAX);
-      const labelWidth = textBoxWidth(label, 11, 20);
-      return [
-        { x: lx - 23, y: ly - 23, width: 46, height: 46 },
-        { x: lx - labelWidth / 2, y: ly + 23, width: labelWidth, height: 18 },
-      ];
-    }).flat(),
-  );
   lines.push(
     `<circle cx="${cx}" cy="${cy}" r="11" fill="#d63838" stroke="#fff" stroke-width="3"/>`,
   );
@@ -184,9 +228,134 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
   lines.push(
     `<text x="${(centerCallout.x + centerCallout.width / 2).toFixed(1)}" y="${(centerCallout.y + 17).toFixed(1)}" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">${escapeXml(centerLabel)}</text>`,
   );
+  lines.push(
+    `<text data-attribution="osm" x="${(width - 18).toFixed(1)}" y="${(height - 8).toFixed(1)}" text-anchor="end" font-size="8" fill="#aaa396">© OpenStreetMap contributors</text>`,
+  );
 
   lines.push(`</svg>`);
   return lines.join("\n");
+}
+
+function landmarkIcon(category: LandmarkCategory, x: number, y: number, color: string): string {
+  const p = (n: number) => n.toFixed(1);
+  const common = `data-landmark-icon="${category}" fill="none" stroke="${color}" stroke-linecap="round" stroke-linejoin="round"`;
+  switch (category) {
+    case "station":
+      return `<g ${common} stroke-width="1.7"><rect x="${p(x - 7)}" y="${p(y - 8)}" width="14" height="12" rx="2.5"/><path d="M${p(x - 4)},${p(y - 3)} H${p(x + 4)}"/><path d="M${p(x - 4)},${p(y + 7)} L${p(x - 7)},${p(y + 10)} M${p(x + 4)},${p(y + 7)} L${p(x + 7)},${p(y + 10)}"/></g>`;
+    case "station_exit":
+      return `<g ${common} stroke-width="2"><path d="M${p(x - 8)},${p(y)} H${p(x + 5)}"/><path d="M${p(x + 1)},${p(y - 5)} L${p(x + 7)},${p(y)} L${p(x + 1)},${p(y + 5)}"/><path d="M${p(x - 8)},${p(y - 8)} V${p(y + 8)}"/></g>`;
+    case "bus_stop":
+      return `<g ${common} stroke-width="1.7"><rect x="${p(x - 8)}" y="${p(y - 7)}" width="16" height="11" rx="2"/><path d="M${p(x - 5)},${p(y - 1)} H${p(x + 5)} M${p(x - 5)},${p(y + 7)} H${p(x - 3)} M${p(x + 3)},${p(y + 7)} H${p(x + 5)}"/></g>`;
+    case "cafe":
+      return `<g ${common} stroke-width="1.8"><path d="M${p(x - 7)},${p(y - 3)} H${p(x + 4)} V${p(y + 4)} Q${p(x + 4)},${p(y + 8)} ${p(x - 2)},${p(y + 8)} Q${p(x - 8)},${p(y + 8)} ${p(x - 8)},${p(y + 4)} V${p(y - 3)}"/><path d="M${p(x + 4)},${p(y - 1)} H${p(x + 8)} Q${p(x + 10)},${p(y - 1)} ${p(x + 10)},${p(y + 2)} Q${p(x + 10)},${p(y + 5)} ${p(x + 5)},${p(y + 5)}"/></g>`;
+    case "convenience":
+      return `<g ${common} stroke-width="1.7"><path d="M${p(x - 7)},${p(y - 1)} L${p(x - 5)},${p(y + 8)} H${p(x + 6)} L${p(x + 8)},${p(y - 1)} Z"/><path d="M${p(x - 4)},${p(y - 1)} Q${p(x)},${p(y - 9)} ${p(x + 4)},${p(y - 1)}"/></g>`;
+    case "restaurant":
+      return `<g ${common} stroke-width="1.8"><path d="M${p(x - 5)},${p(y - 8)} V${p(y + 8)} M${p(x - 8)},${p(y - 8)} V${p(y - 2)} Q${p(x - 8)},${p(y + 1)} ${p(x - 5)},${p(y + 1)} Q${p(x - 2)},${p(y + 1)} ${p(x - 2)},${p(y - 2)} V${p(y - 8)}"/><path d="M${p(x + 6)},${p(y - 8)} Q${p(x + 2)},${p(y - 3)} ${p(x + 6)},${p(y + 1)} V${p(y + 8)}"/></g>`;
+    case "school":
+      return `<g ${common} stroke-width="1.7"><path d="M${p(x - 9)},${p(y - 2)} L${p(x)},${p(y - 8)} L${p(x + 9)},${p(y - 2)}"/><path d="M${p(x - 6)},${p(y - 1)} V${p(y + 8)} H${p(x + 6)} V${p(y - 1)}"/></g>`;
+    case "hospital":
+      return `<g data-landmark-icon="${category}" fill="${color}"><rect x="${p(x - 3)}" y="${p(y - 10)}" width="6" height="20" rx="1"/><rect x="${p(x - 10)}" y="${p(y - 3)}" width="20" height="6" rx="1"/></g>`;
+    case "park":
+      return `<g ${common} stroke-width="1.8"><path d="M${p(x)},${p(y + 8)} V${p(y - 3)}"/><path d="M${p(x - 8)},${p(y - 1)} Q${p(x)},${p(y - 10)} ${p(x + 8)},${p(y - 1)} Q${p(x + 4)},${p(y + 4)} ${p(x)},${p(y + 1)} Q${p(x - 4)},${p(y + 4)} ${p(x - 8)},${p(y - 1)}"/></g>`;
+    case "landmark":
+      return `<g ${common} stroke-width="1.7"><path d="M${p(x)},${p(y - 9)} L${p(x + 3)},${p(y - 2)} L${p(x + 10)},${p(y - 2)} L${p(x + 4)},${p(y + 2)} L${p(x + 6)},${p(y + 9)} L${p(x)},${p(y + 5)} L${p(x - 6)},${p(y + 9)} L${p(x - 4)},${p(y + 2)} L${p(x - 10)},${p(y - 2)} L${p(x - 3)},${p(y - 2)} Z"/></g>`;
+    case "building":
+      return `<g ${common} stroke-width="1.6"><rect x="${p(x - 7)}" y="${p(y - 9)}" width="14" height="18" rx="1.5"/><path d="M${p(x - 3)},${p(y - 4)} H${p(x - 1)} M${p(x + 3)},${p(y - 4)} H${p(x + 5)} M${p(x - 3)},${p(y + 1)} H${p(x - 1)} M${p(x + 3)},${p(y + 1)} H${p(x + 5)} M${p(x)},${p(y + 9)} V${p(y + 4)}"/></g>`;
+  }
+}
+
+interface ProjectedLandmark {
+  lm: MapLayout["landmarks"][number];
+  x: number;
+  y: number;
+  label: string;
+  labelWidth: number;
+}
+
+function placeLandmarkLabels(
+  landmarks: ProjectedLandmark[],
+  width: number,
+  height: number,
+  baseObstacles: Box[],
+): Box[] {
+  const placed: Box[] = [];
+  for (const lm of landmarks) {
+    const boxHeight = 18;
+    const candidates: Box[] = [
+      {
+        x: lm.x - lm.labelWidth / 2,
+        y: lm.y + 23,
+        width: lm.labelWidth,
+        height: boxHeight,
+      },
+      {
+        x: lm.x - lm.labelWidth / 2,
+        y: lm.y - 41,
+        width: lm.labelWidth,
+        height: boxHeight,
+      },
+      {
+        x: lm.x + 24,
+        y: lm.y - boxHeight / 2,
+        width: lm.labelWidth,
+        height: boxHeight,
+      },
+      {
+        x: lm.x - lm.labelWidth - 24,
+        y: lm.y - boxHeight / 2,
+        width: lm.labelWidth,
+        height: boxHeight,
+      },
+    ];
+
+    const obstacles = [...baseObstacles, ...placed];
+    const best = candidates
+      .map((candidate, index) => ({
+        candidate,
+        score: boxScore(candidate, width, height, obstacles) + index * 0.01,
+      }))
+      .sort((a, b) => a.score - b.score)[0].candidate;
+    placed.push(best);
+  }
+  return placed;
+}
+
+function chooseApproachLandmark(
+  landmarks: MapLayout["landmarks"],
+  cx: number,
+  cy: number,
+  project: (lat: number, lon: number) => [number, number],
+): { x: number; y: number } | null {
+  let best: { x: number; y: number; score: number } | null = null;
+  for (const lm of landmarks) {
+    const [x, y] = project(lm.lat, lm.lon);
+    const distance = Math.hypot(x - cx, y - cy);
+    if (distance < 48) continue;
+    const score = APPROACH_RANK[lm.category] * 1000 + Math.min(distance, 260);
+    if (!best || score > best.score) best = { x, y, score };
+  }
+  return best ? { x: best.x, y: best.y } : null;
+}
+
+function trimSegment(
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  startTrim: number,
+  endTrim: number,
+): { x1: number; y1: number; x2: number; y2: number } | null {
+  const length = Math.hypot(x2 - x1, y2 - y1);
+  if (length <= startTrim + endTrim + 8) return null;
+  const ux = (x2 - x1) / length;
+  const uy = (y2 - y1) / length;
+  return {
+    x1: x1 + ux * startTrim,
+    y1: y1 + uy * startTrim,
+    x2: x2 - ux * endTrim,
+    y2: y2 - uy * endTrim,
+  };
 }
 
 function pathData(

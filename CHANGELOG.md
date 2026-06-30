@@ -7,6 +7,12 @@ versions follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Subway entrances from OSM (`railway=subway_entrance`) are now captured as
+  `station_exit` landmarks; `ref=3` becomes a printable `3번 출구` label even
+  when the node has no `name`.
+- Renderer now uses category-specific SVG pictograms instead of letter badges,
+  draws a final-approach arrow in `diagram` mode, and includes visible
+  OpenStreetMap attribution inside the SVG.
 - `generate_map` and the CLI now accept `layout: "diagram" | "geographic"`.
   `diagram` remains the default 약도 layout; `geographic` preserves raw road
   geometry more closely for inspection/debugging.
