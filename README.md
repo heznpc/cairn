@@ -34,7 +34,7 @@ Most maps are too accurate to be useful. Korean 약도 (yakdo) and Japanese 略�
 - **Layout modes** — `diagram` is the default 약도 layout, keeping only the navigational structure; `geographic` preserves raw road geometry more closely for inspection/debugging.
 - **Bounded inputs** on public tool/CLI parameters — search radii max out at 5 km and SVG canvas dimensions at 4000 px to keep public OSM services and the single-process renderer healthy.
 - **HTTP rate-limiting and timeouts** on outbound calls — 1.1s minimum spacing to Nominatim, 1 req/s to Overpass, per their usage policies.
-- **Tests**: 151 passing (vitest, run on every push).
+- **Tests**: 153 passing (vitest, run on every push).
 - **Visual audit harness**: `npm run visual:audit` renders a deterministic yakdo fixture and fails on UI-like regressions such as dashed connector lines, rounded label pills, color sprawl, or too many road spines.
 
 ## Planned
