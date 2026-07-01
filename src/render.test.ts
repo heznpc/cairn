@@ -85,6 +85,14 @@ describe("renderSVG", () => {
     expect(svg).toContain('stroke="#fffef9" stroke-width="4"');
   });
 
+  it("uses an outlined print-style destination label", () => {
+    const svg = renderSVG(layout);
+    expect(svg).toContain('data-destination-label="true"');
+    expect(svg).toContain('fill="#fffef9" stroke="#b14436"');
+    expect(svg).not.toContain('data-destination-label="true" fill="#b14436"');
+    expect(svg).not.toContain('fill="#fff">여기</text>');
+  });
+
   it("draws a final approach arrow in diagram mode", () => {
     const svg = renderSVG(layout);
     expect(svg).toContain('data-approach-arrow="core"');
@@ -458,7 +466,68 @@ describe("renderSVG — roads", () => {
       ],
     });
 
-    expect(svg).toContain("서울대학교병원헬스케…");
+    expect(svg).toContain("서울대학교병원헬…");
     expect(svg).not.toContain(longName);
+  });
+
+  it("omits low-importance landmark labels when every placement is too cluttered", () => {
+    const svg = renderSVG({
+      center: { lat: 37.5, lon: 127.0, label: "스튜디오" },
+      landmarks: [
+        {
+          id: "exit7",
+          name: "7번 출구",
+          lat: 37.50055,
+          lon: 127.00045,
+          category: "station_exit",
+          importance: 0.95,
+          tags: { ref: "7" },
+        },
+        {
+          id: "station",
+          name: "역삼역",
+          lat: 37.50045,
+          lon: 127.00055,
+          category: "station",
+          importance: 1,
+          tags: {},
+        },
+        {
+          id: "hospital",
+          name: "서울대학교병원헬스케어센터",
+          lat: 37.5002,
+          lon: 127.0003,
+          category: "hospital",
+          importance: 0.7,
+          tags: {},
+        },
+      ],
+      roads: [
+        {
+          id: "teheran",
+          name: "테헤란로",
+          class: "primary",
+          points: [
+            { lat: 37.5002, lon: 126.9978 },
+            { lat: 37.5006, lon: 126.999 },
+            { lat: 37.5001, lon: 127.0004 },
+            { lat: 37.5005, lon: 127.002 },
+          ],
+        },
+        {
+          id: "nonhyeon",
+          name: "논현로",
+          class: "secondary",
+          points: [
+            { lat: 37.5011, lon: 127.00085 },
+            { lat: 37.499, lon: 127.0002 },
+          ],
+        },
+      ],
+      bbox: { north: 37.5012, south: 37.4988, east: 127.0014, west: 126.9986 },
+    });
+
+    expect(svg).toContain('data-landmark-icon="hospital"');
+    expect(svg).not.toContain("서울대학교병원");
   });
 });

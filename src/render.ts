@@ -11,7 +11,7 @@ const INK = "#25221d";
 const MUTED_INK = "#5f5a52";
 const TRANSIT_INK = "#216f86";
 const EXIT_INK = "#207665";
-const DESTINATION = "#d63b31";
+const DESTINATION = "#b14436";
 
 const MARKER_STYLE: Record<LandmarkCategory, { color: string; emphasis?: boolean }> = {
   station: { color: TRANSIT_INK, emphasis: true },
@@ -52,11 +52,11 @@ const APPROACH_RANK: Record<LandmarkCategory, number> = {
 };
 
 const ROAD_STYLE: Record<RoadClass, { width: number; color: string }> = {
-  primary: { width: 10, color: "#b7b1a6" },
-  secondary: { width: 7.5, color: "#ccc6ba" },
-  tertiary: { width: 4.5, color: "#ded8cc" },
-  residential: { width: 3.5, color: "#e8e1d6" },
-  path: { width: 2.8, color: "#ede7dc" },
+  primary: { width: 8.5, color: "#aea79b" },
+  secondary: { width: 6.5, color: "#c8c1b5" },
+  tertiary: { width: 4, color: "#ddd6ca" },
+  residential: { width: 3, color: "#e8e1d6" },
+  path: { width: 2.4, color: "#eee8dd" },
 };
 
 // A printed 약도 should feel curated, not like an OSM tile. Tiny synthetic
@@ -76,7 +76,7 @@ const LABELED_ROAD_CLASSES = new Set<RoadClass>(["primary", "secondary"]);
 // depth for direct pipeline.ts callers (tests, future internal users) and
 // guarantees a strictly-positive plotting span.
 const MIN_SPAN = 1;
-const LANDMARK_LABEL_MAX = 11;
+const LANDMARK_LABEL_MAX = 9;
 const ROAD_LABEL_MAX = 12;
 const CENTER_LABEL_MAX = 12;
 const ROAD_CLIP_INSET_PX = 16;
@@ -146,8 +146,13 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
     width: 46,
     height: 46,
   }));
+  const roadObstacles =
+    renderLayout === "diagram"
+      ? roadObstacleBoxes(displayRoads, project, width, height)
+      : [];
   const landmarkLabelBoxes = placeLandmarkLabels(projectedLandmarks, width, height, [
     ...landmarkMarkerBoxes,
+    ...roadObstacles,
     { x: cx - 18, y: cy - 18, width: 36, height: 36 },
   ]);
   const centerLabel = truncateLabel(center.label, CENTER_LABEL_MAX);
@@ -158,7 +163,7 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
     centerLabelWidth,
     width,
     height,
-    [...landmarkMarkerBoxes, ...landmarkLabelBoxes],
+    [...landmarkMarkerBoxes, ...landmarkLabelBoxes, ...roadObstacles],
   );
 
   const lines: string[] = [];
@@ -184,7 +189,7 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
     if (!d) continue;
     const style = ROAD_STYLE[road.class] ?? ROAD_STYLE.path;
     lines.push(
-      `<path data-road-layer="casing" d="${d}" fill="none" stroke="${PAPER}" stroke-width="${style.width + 5}" stroke-linecap="round" stroke-linejoin="round"/>`,
+      `<path data-road-layer="casing" d="${d}" fill="none" stroke="${PAPER}" stroke-width="${style.width + 4.5}" stroke-linecap="round" stroke-linejoin="round"/>`,
     );
     lines.push(
       `<path data-road-layer="core" d="${d}" fill="none" stroke="${style.color}" stroke-width="${style.width}" stroke-linecap="round" stroke-linejoin="round"/>`,
@@ -204,7 +209,7 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
         `<path data-approach-arrow="casing" d="M${segment.x1.toFixed(1)},${segment.y1.toFixed(1)} L${segment.x2.toFixed(1)},${segment.y2.toFixed(1)}" fill="none" stroke="${PAPER}" stroke-width="8" stroke-linecap="round"/>`,
       );
       lines.push(
-        `<path data-approach-arrow="core" d="M${segment.x1.toFixed(1)},${segment.y1.toFixed(1)} L${segment.x2.toFixed(1)},${segment.y2.toFixed(1)}" fill="none" stroke="${DESTINATION}" stroke-width="3.5" stroke-linecap="round" marker-end="url(#cairn-approach-arrowhead)"/>`,
+        `<path data-approach-arrow="core" d="M${segment.x1.toFixed(1)},${segment.y1.toFixed(1)} L${segment.x2.toFixed(1)},${segment.y2.toFixed(1)}" fill="none" stroke="${DESTINATION}" stroke-width="3.2" stroke-linecap="round" marker-end="url(#cairn-approach-arrowhead)"/>`,
       );
     }
   }
@@ -218,7 +223,9 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
       `<circle cx="${lx}" cy="${ly}" r="17" fill="${PAPER}" stroke="${marker.color}" stroke-width="${marker.emphasis ? 2 : 1.25}"/>`,
     );
     lines.push(landmarkIcon(lm.category, lx, ly, marker.color));
-    lines.push(labelText(label, labelBox.x + labelBox.width / 2, labelBox.y + 13, 11, INK, 500));
+    if (!labelBox.hidden) {
+      lines.push(labelText(label, labelBox.x + labelBox.width / 2, labelBox.y + 13, 11, INK, 500));
+    }
   }
 
   // Center marker (destination)
@@ -226,13 +233,13 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
     `<circle cx="${cx}" cy="${cy}" r="10" fill="${DESTINATION}" stroke="${PAPER}" stroke-width="3"/>`,
   );
   lines.push(
-    `<line data-destination-tail="true" x1="${centerCallout.anchorX.toFixed(1)}" y1="${centerCallout.anchorY.toFixed(1)}" x2="${cx.toFixed(1)}" y2="${cy.toFixed(1)}" stroke="${DESTINATION}" stroke-width="2.5" stroke-linecap="round"/>`,
+    `<line data-destination-tail="true" x1="${centerCallout.anchorX.toFixed(1)}" y1="${centerCallout.anchorY.toFixed(1)}" x2="${cx.toFixed(1)}" y2="${cy.toFixed(1)}" stroke="${DESTINATION}" stroke-width="1.8" stroke-linecap="round"/>`,
   );
   lines.push(
-    `<rect x="${centerCallout.x.toFixed(1)}" y="${centerCallout.y.toFixed(1)}" width="${centerCallout.width}" height="${centerCallout.height}" fill="${DESTINATION}"/>`,
+    `<rect data-destination-label="true" x="${centerCallout.x.toFixed(1)}" y="${centerCallout.y.toFixed(1)}" width="${centerCallout.width}" height="${centerCallout.height}" fill="${PAPER}" stroke="${DESTINATION}" stroke-width="1.5"/>`,
   );
   lines.push(
-    `<text x="${(centerCallout.x + centerCallout.width / 2).toFixed(1)}" y="${(centerCallout.y + 17).toFixed(1)}" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">${escapeXml(centerLabel)}</text>`,
+    `<text x="${(centerCallout.x + centerCallout.width / 2).toFixed(1)}" y="${(centerCallout.y + 17).toFixed(1)}" text-anchor="middle" font-size="13" font-weight="700" fill="${DESTINATION}">${escapeXml(centerLabel)}</text>`,
   );
   lines.push(
     `<text data-attribution="osm" x="${(width - 18).toFixed(1)}" y="${(height - 8).toFixed(1)}" text-anchor="end" font-size="8" fill="#aaa59d">© OpenStreetMap contributors</text>`,
@@ -295,13 +302,17 @@ interface ProjectedLandmark {
   labelWidth: number;
 }
 
+interface LabelBox extends Box {
+  hidden?: boolean;
+}
+
 function placeLandmarkLabels(
   landmarks: ProjectedLandmark[],
   width: number,
   height: number,
   baseObstacles: Box[],
-): Box[] {
-  const placed: Box[] = [];
+): LabelBox[] {
+  const placed: LabelBox[] = [];
   for (const lm of landmarks) {
     const boxHeight = 18;
     const candidates: Box[] = [
@@ -337,10 +348,38 @@ function placeLandmarkLabels(
         candidate,
         score: boxScore(candidate, width, height, obstacles) + index * 0.01,
       }))
-      .sort((a, b) => a.score - b.score)[0].candidate;
-    placed.push(best);
+      .sort((a, b) => a.score - b.score)[0];
+    if (best.score > 1200 && lm.lm.importance < 0.85) {
+      placed.push({ x: lm.x, y: lm.y, width: 0, height: 0, hidden: true });
+      continue;
+    }
+    placed.push(best.candidate);
   }
   return placed;
+}
+
+function roadObstacleBoxes(
+  roads: MapLayout["roads"],
+  project: (lat: number, lon: number) => [number, number],
+  width: number,
+  height: number,
+): Box[] {
+  return roads
+    .map((road) => diagramRoadSpine(road, project, width, height))
+    .filter((spine): spine is RoadSpine => spine !== null)
+    .map((spine) => {
+      const pad = 9;
+      const minX = Math.min(spine.start.x, spine.end.x) - pad;
+      const minY = Math.min(spine.start.y, spine.end.y) - pad;
+      const maxX = Math.max(spine.start.x, spine.end.x) + pad;
+      const maxY = Math.max(spine.start.y, spine.end.y) + pad;
+      return {
+        x: minX,
+        y: minY,
+        width: maxX - minX,
+        height: maxY - minY,
+      };
+    });
 }
 
 function chooseApproachLandmark(

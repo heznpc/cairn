@@ -59,9 +59,15 @@ versions follow [Semantic Versioning](https://semver.org/).
 - Privacy disclosure: addresses are sent to OpenStreetMap servers.
 
 ### Changed
+- SVG output now uses a more restrained premium print treatment: road strokes
+  are thinner and warmer, the destination accent uses a deeper vermilion, and
+  the destination callout is an outlined label instead of a solid red block.
+  Long landmark names are truncated more aggressively to keep labels from
+  smearing across roads in dense business districts, and low-importance
+  labels are omitted when every placement would collide heavily.
 - SVG output now uses a quieter print-style treatment: muted landmark ink,
   no dashed landmark-to-destination connector lines, haloed text instead of
-  rounded label pills, and a square destination label.
+  rounded label pills, and a square destination callout.
 - `diagram` mode now clips roads to the canvas, straightens each selected OSM
   way into a clean schematic spine, drops short visual stubs, dedupes nearby
   parallel roads, and excludes residential/path roads from dense road sets.

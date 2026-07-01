@@ -96,6 +96,7 @@ function auditSvg(name, svg, out) {
   expectNot(name, svg, 'stroke-dasharray=', "dashed connector lines make the map read like AI relationship UI", out);
   expectNot(name, svg, 'fill="#fffdf8" stroke="#e3ddd0"', "rounded label pills are UI chrome, not print yakdo labeling", out);
   expectNot(name, svg, 'rx="3" fill="#d63b31"', "destination label must not regress to a rounded UI chip", out);
+  expectNot(name, svg, 'data-destination-label="true" fill="#b14436"', "destination label must stay outlined, not a heavy red UI block", out);
 
   const roadCoreCount = count(svg, /data-road-layer="core"/g);
   if (roadCoreCount > 5) out.push(`${name}: expected <=5 road spines, got ${roadCoreCount}`);
@@ -120,6 +121,8 @@ function auditSvg(name, svg, out) {
 
   expect(name, svg, "© OpenStreetMap contributors", "visible OSM attribution is required", out);
   expect(name, svg, 'data-approach-arrow="core"', "diagram output should preserve the final approach cue", out);
+  expect(name, svg, 'data-destination-label="true"', "diagram output should preserve the destination callout", out);
+  expect(name, svg, 'fill="#fffef9" stroke="#b14436"', "destination callout should use an outlined print label", out);
 }
 
 function expect(name, svg, needle, message, out) {
