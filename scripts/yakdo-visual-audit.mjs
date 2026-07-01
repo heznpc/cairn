@@ -7,7 +7,7 @@ import { renderSVG } from "../dist/render.js";
 const outDir = resolve("tmp/visual-audit");
 mkdirSync(outDir, { recursive: true });
 
-const PRESETS = ["standard", "compact", "minimal"];
+const PRESETS = ["standard", "compact", "minimal", "schematic", "badge"];
 
 const fixtures = [
   {
@@ -103,18 +103,18 @@ function auditSvg(name, svg, preset, out) {
   expectNot(name, svg, 'rx="3" fill="#d63b31"', "destination label must not regress to a rounded UI chip", out);
 
   const roadCoreCount = count(svg, /data-road-layer="core"/g);
-  const roadBudget = preset === "standard" ? 5 : preset === "compact" ? 3 : 0;
+  const roadBudget = preset === "standard" ? 5 : preset === "compact" ? 3 : preset === "schematic" ? 4 : 0;
   if (roadCoreCount > roadBudget) out.push(`${name}: expected <=${roadBudget} road spines, got ${roadCoreCount}`);
 
   const landmarkIconCount = count(svg, /data-landmark-icon="/g);
-  const landmarkBudget = preset === "standard" ? 5 : preset === "compact" ? 2 : 1;
+  const landmarkBudget = preset === "standard" ? 5 : preset === "compact" ? 2 : preset === "schematic" ? 4 : 1;
   if (landmarkIconCount > landmarkBudget) {
     out.push(`${name}: expected <=${landmarkBudget} landmark icons, got ${landmarkIconCount}`);
   }
 
   const haloCount = count(svg, /stroke="#fffef9" stroke-width="4"/g);
   const labelFillCount = count(svg, /<text [^>]*fill="(?!none)[^"]*"[^>]*>/g);
-  const minHaloCount = preset === "standard" ? 4 : preset === "compact" ? 3 : 2;
+  const minHaloCount = preset === "standard" ? 4 : preset === "compact" ? 3 : preset === "schematic" ? 4 : 2;
   if (haloCount < minHaloCount) out.push(`${name}: expected at least ${minHaloCount} haloed print labels, got ${haloCount}`);
   if (labelFillCount < haloCount) {
     out.push(`${name}: halo text count (${haloCount}) exceeds filled label count (${labelFillCount})`);
@@ -144,12 +144,22 @@ function auditSvg(name, svg, preset, out) {
     expectNot(name, svg, 'data-landmark-icon="hospital"', "minimal preset should remove secondary landmark icons", out);
     expectNot(name, svg, 'data-landmark-icon="convenience"', "minimal preset should remove secondary landmark icons", out);
   }
+  if (preset === "schematic") {
+    expect(name, svg, 'data-road-geometry="orthogonal"', "schematic preset should use right-angle road geometry", out);
+    expect(name, svg, ">테헤란로</text>", "schematic preset should keep road labels for print wayfinding", out);
+  }
+  if (preset === "badge") {
+    expect(name, svg, 'data-badge-map="true"', "badge preset should use the destination-first inset template", out);
+    expect(name, svg, 'data-badge-road="primary"', "badge preset should retain a main road anchor", out);
+    expect(name, svg, 'data-badge-route="core"', "badge preset should preserve a clear route line", out);
+    expectNot(name, svg, 'data-road-layer="core"', "badge preset should not reuse the full map road skeleton", out);
+  }
   if (preset === "compact") {
     expect(name, svg, ">테헤란로</text>", "compact preset should keep the main road label instead of becoming an empty map", out);
     expectNot(name, svg, 'data-landmark-icon="hospital"', "compact preset should prefer approach landmarks over secondary POIs", out);
     expectNot(name, svg, 'data-landmark-icon="convenience"', "compact preset should prefer approach landmarks over secondary POIs", out);
   }
-  if (preset === "standard" || preset === "compact") {
+  if (preset === "standard" || preset === "compact" || preset === "schematic" || preset === "badge") {
     expect(name, svg, 'fill="#d63b31"', `${preset} destination callout should keep strong destination fill`, out);
   }
 }

@@ -21,7 +21,7 @@ const LatitudeArg = z.number().finite().min(-90).max(90);
 const LongitudeArg = z.number().finite().min(-180).max(180);
 const RENDER_LAYOUTS = ["diagram", "geographic"] as const satisfies readonly RenderLayoutMode[];
 const RenderLayoutArg = z.enum(RENDER_LAYOUTS);
-const RENDER_PRESETS = ["standard", "compact", "minimal"] as const satisfies readonly RenderPreset[];
+const RENDER_PRESETS = ["standard", "compact", "minimal", "schematic", "badge"] as const satisfies readonly RenderPreset[];
 const RenderPresetArg = z.enum(RENDER_PRESETS);
 
 const GenerateMapArgs = z.object({
@@ -33,7 +33,7 @@ const GenerateMapArgs = z.object({
   width: CanvasDimensionArg.optional(),
   height: CanvasDimensionArg.optional(),
   layout: RenderLayoutArg.optional().describe('Render layout mode (default "diagram")'),
-  preset: RenderPresetArg.optional().describe('Output form: "standard" full map (default), "compact" approach map, or "minimal" route strip'),
+  preset: RenderPresetArg.optional().describe('Output form: "standard" full map (default), "compact" approach map, "minimal" route strip, "schematic" right-angle diagram, or "badge" destination inset'),
   roads: z
     .boolean()
     .optional()
@@ -262,7 +262,7 @@ export const tools = [
         preset: {
           type: "string",
           enum: RENDER_PRESETS,
-          description: 'Output form: "standard" keeps the full curated map (default), "compact" keeps a short approach-focused road skeleton, "minimal" uses a dedicated route-strip template',
+          description: 'Output form: "standard" keeps the full curated map (default), "compact" keeps a short approach-focused road skeleton, "minimal" uses a route-strip template, "schematic" uses right-angle diagram roads, "badge" uses a destination-first inset template',
         },
         roads: { type: "boolean", description: "Draw the road skeleton (default true)" },
       },

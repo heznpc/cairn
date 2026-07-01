@@ -30,10 +30,11 @@ Most maps are too accurate to be useful. Korean 약도 (yakdo) and Japanese 略�
   ```bash
   node dist/cli.js "서울 강남구 테헤란로 152" -o office.svg --label "스튜디오"
   node dist/cli.js "서울 강남구 테헤란로 152" -o office-compact.svg --preset compact
+  node dist/cli.js "서울 강남구 테헤란로 152" -o office-badge.svg --preset badge
   node dist/cli.js "Shibuya Crossing, Tokyo" -o shibuya.svg --layout geographic
   ```
 - **Layout modes** — `diagram` is the default 약도 layout, keeping only the navigational structure; `geographic` preserves raw road geometry more closely for inspection/debugging.
-- **Output presets** — `standard` (default) keeps the full curated 약도, `compact` becomes an approach-focused mini-map with the main road labels and transit-like landmarks, and `minimal` uses a dedicated route-strip template for embedding inside a larger design.
+- **Output presets** — `standard` (default) keeps the full curated 약도, `compact` becomes an approach-focused mini-map, `minimal` uses a route-strip template, `schematic` turns roads into right-angle diagram axes, and `badge` renders a destination-first inset map for small placements.
 - **Bounded inputs** on public tool/CLI parameters — search radii max out at 5 km and SVG canvas dimensions at 4000 px to keep public OSM services and the single-process renderer healthy.
 - **HTTP rate-limiting and timeouts** on outbound calls — 1.1s minimum spacing to Nominatim, 1 req/s to Overpass, per their usage policies.
 - **Tests**: 159 passing (vitest, run on every push).
@@ -123,7 +124,7 @@ npx -p @yakdo/cairn cairn "1600 Amphitheatre Pkwy, Mountain View" --label "Offic
 Granular tools let an LLM compose smarter pipelines — for example, "find landmarks and roads, keep the two biggest roads and the three most recognizable landmarks, render with those."
 
 `generate_map` accepts `layout: "diagram" | "geographic"` and
-`preset: "standard" | "compact" | "minimal"`. Use `diagram` for the default
+`preset: "standard" | "compact" | "minimal" | "schematic" | "badge"`. Use `diagram` for the default
 약도 output; use `geographic` when you want the raw road geometry preserved
 more closely.
 

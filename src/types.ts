@@ -53,7 +53,7 @@ export interface MapLayout {
 }
 
 export type RenderLayoutMode = "diagram" | "geographic";
-export type RenderPreset = "standard" | "compact" | "minimal";
+export type RenderPreset = "standard" | "compact" | "minimal" | "schematic" | "badge";
 
 export interface RenderOptions {
   width?: number;
@@ -63,8 +63,9 @@ export interface RenderOptions {
   layout?: RenderLayoutMode;
   // Output form, not a colour palette: "standard" (default) keeps the full
   // curated map; "compact" keeps a shorter road skeleton plus approach
-  // landmarks; "minimal" uses a dedicated route-strip template for embedding
-  // inside a larger design.
+  // landmarks; "minimal" uses a route-strip template; "schematic" turns
+  // roads into right-angle diagram axes; "badge" renders a destination-first
+  // inset map for small placements.
   preset?: RenderPreset;
   // NOTE: `language` is reserved for future localization. render.ts does NOT
   // honor it yet; handlers.ts does NOT expose it to MCP hosts.

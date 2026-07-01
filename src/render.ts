@@ -45,6 +45,7 @@ const APPROACH_RANK: Record<LandmarkCategory, number> = {
 
 interface PresetSpec {
   roadScale: number;
+  roadGeometry: "spine" | "orthogonal";
   showFrame: boolean;
   showRoadSkeleton: boolean;
   destinationLabel: "filled" | "outlined";
@@ -66,6 +67,7 @@ interface PresetSpec {
 const PRESETS: Record<RenderPreset, PresetSpec> = {
   standard: {
     roadScale: 1,
+    roadGeometry: "spine",
     showFrame: true,
     showRoadSkeleton: true,
     destinationLabel: "filled",
@@ -84,6 +86,7 @@ const PRESETS: Record<RenderPreset, PresetSpec> = {
   },
   compact: {
     roadScale: 1.04,
+    roadGeometry: "spine",
     showFrame: true,
     showRoadSkeleton: true,
     destinationLabel: "filled",
@@ -103,12 +106,52 @@ const PRESETS: Record<RenderPreset, PresetSpec> = {
   },
   minimal: {
     roadScale: 0.82,
+    roadGeometry: "spine",
     showFrame: false,
     showRoadSkeleton: false,
     destinationLabel: "outlined",
     destinationTailWidth: 1.8,
     approachWidth: 4.2,
     approachCasingWidth: 9.5,
+    approachStartTrim: 24,
+    approachEndTrim: 12,
+    landmarkLabelMax: 8,
+    labelImportanceMin: 0.9,
+    maxLandmarks: 1,
+    preferredCategories: new Set(["station_exit", "station", "bus_stop"]),
+    showRoadLabels: false,
+    avoidRoadLabels: true,
+    hideClutteredLabels: true,
+    maxVisibleRoads: 0,
+  },
+  schematic: {
+    roadScale: 0.95,
+    roadGeometry: "orthogonal",
+    showFrame: true,
+    showRoadSkeleton: true,
+    destinationLabel: "filled",
+    destinationTailWidth: 2.2,
+    approachWidth: 3.5,
+    approachCasingWidth: 8,
+    approachStartTrim: 34,
+    approachEndTrim: 28,
+    landmarkLabelMax: 8,
+    labelImportanceMin: 0.5,
+    maxLandmarks: 4,
+    showRoadLabels: true,
+    avoidRoadLabels: true,
+    hideClutteredLabels: true,
+    maxVisibleRoads: 4,
+  },
+  badge: {
+    roadScale: 0.9,
+    roadGeometry: "spine",
+    showFrame: true,
+    showRoadSkeleton: false,
+    destinationLabel: "filled",
+    destinationTailWidth: 2,
+    approachWidth: 4,
+    approachCasingWidth: 9,
     approachStartTrim: 24,
     approachEndTrim: 12,
     landmarkLabelMax: 8,
@@ -187,6 +230,9 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
   if (renderLayout === "diagram" && presetName === "minimal") {
     return renderRouteStripSVG(layout, width, height, presetName);
   }
+  if (renderLayout === "diagram" && presetName === "badge") {
+    return renderBadgeSVG(layout, width, height, presetName);
+  }
 
   const displayRoads =
     renderLayout === "geographic"
@@ -263,14 +309,14 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
   // Road skeleton — curated to a few axes, then drawn with a white casing and
   // a warm-gray core so it looks like printed 약도 linework.
   for (const road of skeletonRoads) {
-    const d = roadPathData(road, project, renderLayout, width, height);
+    const d = roadPathData(road, project, renderLayout, width, height, preset.roadGeometry);
     if (!d) continue;
     const style = roadStyle(road.class, preset);
     lines.push(
-      `<path data-road-layer="casing" d="${d}" fill="none" stroke="${PAPER}" stroke-width="${style.width + 5 * preset.roadScale}" stroke-linecap="round" stroke-linejoin="round"/>`,
+      `<path data-road-layer="casing" d="${d}" data-road-geometry="${preset.roadGeometry}" fill="none" stroke="${PAPER}" stroke-width="${style.width + 5 * preset.roadScale}" stroke-linecap="round" stroke-linejoin="round"/>`,
     );
     lines.push(
-      `<path data-road-layer="core" d="${d}" fill="none" stroke="${style.color}" stroke-width="${style.width}" stroke-linecap="round" stroke-linejoin="round"/>`,
+      `<path data-road-layer="core" d="${d}" data-road-geometry="${preset.roadGeometry}" fill="none" stroke="${style.color}" stroke-width="${style.width}" stroke-linecap="round" stroke-linejoin="round"/>`,
     );
   }
 
@@ -406,6 +452,90 @@ function renderRouteStripSVG(
     `<line data-destination-tail="true" x1="${destBox.anchorX.toFixed(1)}" y1="${destBox.anchorY.toFixed(1)}" x2="${dx.toFixed(1)}" y2="${dy.toFixed(1)}" stroke="${DESTINATION}" stroke-width="1.8" stroke-linecap="round"/>`,
   );
   lines.push(destinationLabel(centerLabel, destBox, PRESETS.minimal));
+  lines.push(
+    `<text data-attribution="osm" x="${(width - 18).toFixed(1)}" y="${(height - 8).toFixed(1)}" text-anchor="end" font-size="8" fill="#aaa59d">© OpenStreetMap contributors</text>`,
+  );
+  lines.push(`</svg>`);
+  return lines.join("\n");
+}
+
+function renderBadgeSVG(
+  layout: MapLayout,
+  width: number,
+  height: number,
+  presetName: RenderPreset,
+): string {
+  const start = chooseRouteStartLandmark(layout.landmarks);
+  const roadName = bestRoadName(layout.roads);
+  const centerLabel = truncateLabel(layout.center.label, CENTER_LABEL_MAX);
+  const startLabel = truncateLabel(start?.name ?? "출발", 8);
+  const startCategory = start?.category ?? "station_exit";
+  const startIsRight = start ? start.lon >= layout.center.lon : true;
+  const startIsAbove = start ? start.lat >= layout.center.lat : true;
+
+  const dx = width * 0.50;
+  const dy = height * 0.48;
+  const sx = width * (startIsRight ? 0.70 : 0.30);
+  const sy = height * (startIsAbove ? 0.30 : 0.66);
+  const bendX = sx + (dx - sx) * 0.55;
+  const startEdgeX = sx + (dx > sx ? 23 : -23);
+  const destEdgeX = dx + (dx > sx ? -18 : 18);
+  const destWidth = Math.min(Math.max(textBoxWidth(centerLabel, 14, 32), 76), width * 0.38);
+  const destBox: CenterCallout = {
+    x: Math.max(24, Math.min(width - destWidth - 24, dx - destWidth / 2)),
+    y: Math.min(height - 60, dy + 24),
+    width: destWidth,
+    height: 28,
+    anchorX: dx,
+    anchorY: dy + 24,
+  };
+  const roadY = height * 0.70;
+  const crossX = width * (startIsRight ? 0.62 : 0.38);
+
+  const lines: string[] = [];
+  lines.push(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" data-preset="${presetName}" data-badge-map="true" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Apple SD Gothic Neo', sans-serif">`,
+  );
+  lines.push(
+    `<defs><marker id="cairn-approach-arrowhead" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1,1 L9,5 L1,9 Z" fill="${DESTINATION}"/></marker></defs>`,
+  );
+  lines.push(`<metadata>Map data © OpenStreetMap contributors, ODbL.</metadata>`);
+  lines.push(`<rect width="${width}" height="${height}" fill="${PAPER}"/>`);
+  lines.push(
+    `<rect data-badge-panel="true" x="18" y="18" width="${width - 36}" height="${height - 36}" fill="none" stroke="${PAPER_EDGE}" stroke-width="1"/>`,
+  );
+  lines.push(
+    `<path data-badge-road="primary" d="M${(width * 0.14).toFixed(1)},${roadY.toFixed(1)} H${(width * 0.86).toFixed(1)}" fill="none" stroke="${BASE_ROAD_STYLE.primary.color}" stroke-width="8.5" stroke-linecap="round"/>`,
+  );
+  lines.push(
+    `<path data-badge-road="secondary" d="M${crossX.toFixed(1)},${(height * 0.22).toFixed(1)} V${(height * 0.78).toFixed(1)}" fill="none" stroke="${BASE_ROAD_STYLE.secondary.color}" stroke-width="5.5" stroke-linecap="round"/>`,
+  );
+  if (roadName) {
+    lines.push(labelText(truncateLabel(roadName, ROAD_LABEL_MAX), width * 0.50, roadY - 12, 10, "#8a857c", 600));
+  }
+
+  const routeD = `M${startEdgeX.toFixed(1)},${sy.toFixed(1)} L${bendX.toFixed(1)},${sy.toFixed(1)} L${destEdgeX.toFixed(1)},${dy.toFixed(1)}`;
+  lines.push(
+    `<path data-approach-arrow="casing" data-badge-route="casing" d="${routeD}" fill="none" stroke="${PAPER}" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>`,
+  );
+  lines.push(
+    `<path data-approach-arrow="core" data-badge-route="core" d="${routeD}" fill="none" stroke="${DESTINATION}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#cairn-approach-arrowhead)"/>`,
+  );
+
+  const marker = markerStyle(startCategory);
+  lines.push(
+    `<circle cx="${sx.toFixed(1)}" cy="${sy.toFixed(1)}" r="17" fill="${PAPER}" stroke="${marker.color}" stroke-width="${marker.emphasis ? 2 : 1.25}"/>`,
+  );
+  lines.push(landmarkIcon(startCategory, sx, sy, marker.color));
+  lines.push(labelText(startLabel, sx, sy + 36, 11, INK, 500));
+
+  lines.push(
+    `<circle cx="${dx.toFixed(1)}" cy="${dy.toFixed(1)}" r="10" fill="${DESTINATION}" stroke="${PAPER}" stroke-width="3"/>`,
+  );
+  lines.push(
+    `<line data-destination-tail="true" x1="${destBox.anchorX.toFixed(1)}" y1="${destBox.anchorY.toFixed(1)}" x2="${dx.toFixed(1)}" y2="${dy.toFixed(1)}" stroke="${DESTINATION}" stroke-width="2" stroke-linecap="round"/>`,
+  );
+  lines.push(destinationLabel(centerLabel, destBox, PRESETS.badge));
   lines.push(
     `<text data-attribution="osm" x="${(width - 18).toFixed(1)}" y="${(height - 8).toFixed(1)}" text-anchor="end" font-size="8" fill="#aaa59d">© OpenStreetMap contributors</text>`,
   );
@@ -656,8 +786,10 @@ function roadPathData(
   renderLayout: RenderOptions["layout"],
   width: number,
   height: number,
+  roadGeometry: PresetSpec["roadGeometry"] = "spine",
 ): string | null {
   if (renderLayout === "geographic") return rawRoadPathData(road, project);
+  if (roadGeometry === "orthogonal") return orthogonalRoadPathData(road, project, width, height);
   return diagramRoadPathData(road, project, width, height);
 }
 
@@ -683,6 +815,29 @@ function diagramRoadPathData(
   const spine = diagramRoadSpine(road, project, width, height);
   if (!spine) return null;
   return `M${spine.start.x.toFixed(1)},${spine.start.y.toFixed(1)} L${spine.end.x.toFixed(1)},${spine.end.y.toFixed(1)}`;
+}
+
+function orthogonalRoadPathData(
+  road: MapLayout["roads"][number],
+  project: (lat: number, lon: number) => [number, number],
+  width: number,
+  height: number,
+): string | null {
+  const spine = diagramRoadSpine(road, project, width, height);
+  if (!spine) return null;
+  const dx = spine.end.x - spine.start.x;
+  const dy = spine.end.y - spine.start.y;
+  if (Math.abs(dx) < 12 || Math.abs(dy) < 12) {
+    return `M${spine.start.x.toFixed(1)},${spine.start.y.toFixed(1)} L${spine.end.x.toFixed(1)},${spine.end.y.toFixed(1)}`;
+  }
+  const elbow = Math.abs(dx) >= Math.abs(dy)
+    ? { x: spine.end.x, y: spine.start.y }
+    : { x: spine.start.x, y: spine.end.y };
+  return [
+    `M${spine.start.x.toFixed(1)},${spine.start.y.toFixed(1)}`,
+    `L${elbow.x.toFixed(1)},${elbow.y.toFixed(1)}`,
+    `L${spine.end.x.toFixed(1)},${spine.end.y.toFixed(1)}`,
+  ].join(" ");
 }
 
 function diagramRoadSpine(
