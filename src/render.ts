@@ -45,15 +45,18 @@ const APPROACH_RANK: Record<LandmarkCategory, number> = {
 
 interface PresetSpec {
   roadScale: number;
+  showFrame: boolean;
+  showRoadSkeleton: boolean;
   destinationLabel: "filled" | "outlined";
   destinationTailWidth: number;
   approachWidth: number;
+  approachCasingWidth: number;
   approachStartTrim: number;
   approachEndTrim: number;
   landmarkLabelMax: number;
   labelImportanceMin: number;
   maxLandmarks: number;
-  keepCategories?: ReadonlySet<LandmarkCategory>;
+  preferredCategories?: ReadonlySet<LandmarkCategory>;
   showRoadLabels: boolean;
   avoidRoadLabels: boolean;
   hideClutteredLabels: boolean;
@@ -63,9 +66,12 @@ interface PresetSpec {
 const PRESETS: Record<RenderPreset, PresetSpec> = {
   standard: {
     roadScale: 1,
+    showFrame: true,
+    showRoadSkeleton: true,
     destinationLabel: "filled",
     destinationTailWidth: 2.5,
     approachWidth: 3.5,
+    approachCasingWidth: 8,
     approachStartTrim: 36,
     approachEndTrim: 30,
     landmarkLabelMax: 9,
@@ -77,41 +83,48 @@ const PRESETS: Record<RenderPreset, PresetSpec> = {
     maxVisibleRoads: 5,
   },
   compact: {
-    roadScale: 0.88,
+    roadScale: 1.12,
+    showFrame: false,
+    showRoadSkeleton: true,
     destinationLabel: "filled",
-    destinationTailWidth: 2.2,
-    approachWidth: 3.2,
-    approachStartTrim: 36,
-    approachEndTrim: 30,
-    landmarkLabelMax: 8,
-    labelImportanceMin: 0.8,
-    maxLandmarks: 4,
-    showRoadLabels: true,
-    avoidRoadLabels: true,
-    hideClutteredLabels: true,
-    maxVisibleRoads: 4,
-  },
-  minimal: {
-    roadScale: 0.82,
-    destinationLabel: "outlined",
-    destinationTailWidth: 1.8,
-    approachWidth: 3,
-    approachStartTrim: 34,
-    approachEndTrim: 16,
+    destinationTailWidth: 2.6,
+    approachWidth: 4,
+    approachCasingWidth: 9,
+    approachStartTrim: 30,
+    approachEndTrim: 24,
     landmarkLabelMax: 8,
     labelImportanceMin: 0.85,
     maxLandmarks: 2,
-    keepCategories: new Set(["station_exit", "station", "bus_stop"]),
+    preferredCategories: new Set(["station_exit", "station", "bus_stop"]),
     showRoadLabels: false,
     avoidRoadLabels: true,
     hideClutteredLabels: true,
-    maxVisibleRoads: 4,
+    maxVisibleRoads: 2,
+  },
+  minimal: {
+    roadScale: 0.82,
+    showFrame: false,
+    showRoadSkeleton: false,
+    destinationLabel: "outlined",
+    destinationTailWidth: 1.8,
+    approachWidth: 4.2,
+    approachCasingWidth: 9.5,
+    approachStartTrim: 24,
+    approachEndTrim: 12,
+    landmarkLabelMax: 8,
+    labelImportanceMin: 0.9,
+    maxLandmarks: 1,
+    preferredCategories: new Set(["station_exit", "station", "bus_stop"]),
+    showRoadLabels: false,
+    avoidRoadLabels: true,
+    hideClutteredLabels: true,
+    maxVisibleRoads: 0,
   },
 };
 
-// A printed 약도 should feel curated, not like an OSM tile. Tiny synthetic
-// layouts still render every road, but anything above the visible-road budget
-// goes through the same pruning as real Overpass-heavy layouts.
+// A printed 약도 should feel curated, not like an OSM tile. Standard keeps
+// tiny synthetic layouts readable, while compact/minimal presets still honor
+// their smaller road budgets so the output form actually changes.
 const MAX_ROADS_WITHOUT_FILTER = 5;
 const MAX_ROADS_PER_NAME = 3;
 
@@ -154,7 +167,8 @@ function safeDimension(value: number | undefined, fallback: number): number {
 export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
   const width = safeDimension(opts.width, 600);
   const height = safeDimension(opts.height, 400);
-  const preset = PRESETS[opts.preset ?? "standard"];
+  const presetName = opts.preset ?? "standard";
+  const preset = PRESETS[presetName];
   const spanX = Math.max(width - 100, MIN_SPAN);
   const spanY = Math.max(height - 100, MIN_SPAN);
   const { bbox, center } = layout;
@@ -174,6 +188,7 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
     renderLayout === "geographic"
       ? roads.filter((road) => road.points.length >= 2)
       : selectDisplayRoads(roads, project, width, height, { x: cx, y: cy }, preset.maxVisibleRoads);
+  const skeletonRoads = preset.showRoadSkeleton ? displayRoads : [];
   const approach =
     renderLayout === "diagram"
       ? chooseApproachLandmark(layout.landmarks, cx, cy, project)
@@ -199,7 +214,7 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
   }));
   const roadObstacles =
     renderLayout === "diagram" && preset.avoidRoadLabels
-      ? roadObstacleBoxes(displayRoads, project, width, height)
+      ? roadObstacleBoxes(skeletonRoads, project, width, height)
       : [];
   const landmarkLabelBoxes = placeLandmarkLabels(
     projectedLandmarks,
@@ -225,7 +240,7 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
 
   const lines: string[] = [];
   lines.push(
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Apple SD Gothic Neo', sans-serif">`,
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" data-preset="${presetName}" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Apple SD Gothic Neo', sans-serif">`,
   );
   lines.push(
     `<defs><marker id="cairn-approach-arrowhead" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1,1 L9,5 L1,9 Z" fill="${DESTINATION}"/></marker></defs>`,
@@ -235,13 +250,15 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
 
   // Paper-like frame. This replaces the map-tile grid: the design should read
   // as a diagram that happens to be spatial, not as a zoomed-out web map.
-  lines.push(
-    `<rect x="14" y="14" width="${width - 28}" height="${height - 28}" fill="none" stroke="${PAPER_EDGE}" stroke-width="1"/>`,
-  );
+  if (preset.showFrame) {
+    lines.push(
+      `<rect x="14" y="14" width="${width - 28}" height="${height - 28}" fill="none" stroke="${PAPER_EDGE}" stroke-width="1"/>`,
+    );
+  }
 
   // Road skeleton — curated to a few axes, then drawn with a white casing and
   // a warm-gray core so it looks like printed 약도 linework.
-  for (const road of displayRoads) {
+  for (const road of skeletonRoads) {
     const d = roadPathData(road, project, renderLayout, width, height);
     if (!d) continue;
     const style = roadStyle(road.class, preset);
@@ -255,7 +272,7 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
 
   // Road name labels — one per unique name, placed on the longest in-frame run.
   if (preset.showRoadLabels) {
-    for (const [name, pos] of roadLabelPositions(displayRoads, project, width, height)) {
+    for (const [name, pos] of roadLabelPositions(skeletonRoads, project, width, height)) {
       const label = truncateLabel(name, ROAD_LABEL_MAX);
       lines.push(labelText(label, pos.x, pos.y, 10, "#8a857c", 600));
     }
@@ -272,7 +289,7 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
     );
     if (segment) {
       lines.push(
-        `<path data-approach-arrow="casing" d="M${segment.x1.toFixed(1)},${segment.y1.toFixed(1)} L${segment.x2.toFixed(1)},${segment.y2.toFixed(1)}" fill="none" stroke="${PAPER}" stroke-width="8" stroke-linecap="round"/>`,
+        `<path data-approach-arrow="casing" d="M${segment.x1.toFixed(1)},${segment.y1.toFixed(1)} L${segment.x2.toFixed(1)},${segment.y2.toFixed(1)}" fill="none" stroke="${PAPER}" stroke-width="${preset.approachCasingWidth}" stroke-linecap="round"/>`,
       );
       lines.push(
         `<path data-approach-arrow="core" d="M${segment.x1.toFixed(1)},${segment.y1.toFixed(1)} L${segment.x2.toFixed(1)},${segment.y2.toFixed(1)}" fill="none" stroke="${DESTINATION}" stroke-width="${preset.approachWidth}" stroke-linecap="round" marker-end="url(#cairn-approach-arrowhead)"/>`,
@@ -348,9 +365,10 @@ function selectPresetLandmarks(
   landmarks: MapLayout["landmarks"],
   preset: PresetSpec,
 ): MapLayout["landmarks"] {
-  const filtered = preset.keepCategories
-    ? landmarks.filter((lm) => preset.keepCategories!.has(lm.category))
-    : landmarks;
+  const preferred = preset.preferredCategories
+    ? landmarks.filter((lm) => preset.preferredCategories!.has(lm.category))
+    : [];
+  const filtered = preferred.length > 0 ? preferred : landmarks;
   return filtered.slice(0, preset.maxLandmarks);
 }
 
@@ -603,7 +621,7 @@ function selectDisplayRoads(
   maxVisibleRoads: number,
 ): MapLayout["roads"] {
   const drawable = roads.filter((road) => road.points.length >= 2);
-  if (drawable.length <= MAX_ROADS_WITHOUT_FILTER) return drawable;
+  if (drawable.length <= Math.min(MAX_ROADS_WITHOUT_FILTER, maxVisibleRoads)) return drawable;
 
   const scored = drawable
     .map((road, index) => {
