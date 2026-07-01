@@ -7,8 +7,9 @@ versions follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
-- Renderer output presets: `standard` (default, balanced), `compact`
-  (reduced label/road density), and `minimal` (sparser embedding form).
+- Renderer output presets: `standard` (default, full curated 약도), `compact`
+  (reduced low-priority labels/icons), and `minimal` (transit-like approach
+  landmarks plus destination only).
   The CLI now accepts `--preset`, and the `generate_map` MCP tool accepts
   `preset`.
 - `npm run visual:audit` renders a deterministic yakdo fixture, optionally
@@ -64,9 +65,10 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ### Changed
 - Renderer variants now adjust structure rather than palette. `standard`
-  keeps the stronger destination callout, `compact` lowers road/label density,
-  and `minimal` removes road-name labels and uses an outlined destination
-  callout for embedding inside a larger design.
+  keeps the stronger destination callout, `compact` lowers road/label/icon
+  density, and `minimal` removes road-name labels plus secondary landmark
+  icons and uses an outlined destination callout for embedding inside a larger
+  design.
 - SVG output now uses a quieter print-style treatment: muted landmark ink,
   no dashed landmark-to-destination connector lines, haloed text instead of
   rounded label pills, and a square destination callout.

@@ -61,9 +61,10 @@ export interface RenderOptions {
   // "diagram" (default) keeps only navigational structure; "geographic"
   // preserves the raw road geometry more closely for inspection/debugging.
   layout?: RenderLayoutMode;
-  // Output form, not a colour palette: "standard" (default) balances
-  // recognizability and clarity; "compact" reduces label/road density for
-  // small placements; "minimal" is sparse enough to sit inside a larger design.
+  // Output form, not a colour palette: "standard" (default) keeps the full
+  // curated map; "compact" reduces low-priority labels/icons for small
+  // placements; "minimal" keeps only transit-like approach landmarks plus
+  // the destination so it can sit inside a larger design.
   preset?: RenderPreset;
   // NOTE: `language` is reserved for future localization. render.ts does NOT
   // honor it yet; handlers.ts does NOT expose it to MCP hosts.

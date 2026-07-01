@@ -262,7 +262,7 @@ export const tools = [
         preset: {
           type: "string",
           enum: RENDER_PRESETS,
-          description: 'Output form: "standard" balances detail and clarity (default), "compact" reduces label/road density, "minimal" is sparse for embedding',
+          description: 'Output form: "standard" keeps the full curated map (default), "compact" reduces low-priority labels/icons, "minimal" keeps only transit-like approach landmarks plus the destination',
         },
         roads: { type: "boolean", description: "Draw the road skeleton (default true)" },
       },
