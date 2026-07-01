@@ -7,6 +7,10 @@ versions follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Renderer themes: `classic` (default, strong destination contrast), `quiet`
+  (restrained print treatment), and `mono` (single-ink output for business
+  cards or black-and-white print). The CLI now accepts `--theme`, and the
+  `generate_map` MCP tool accepts `theme`.
 - `npm run visual:audit` renders a deterministic yakdo fixture, optionally
   writes a PNG preview via `rsvg-convert`, and fails on UI-like visual
   regressions such as dashed connector lines, rounded label pills, color
@@ -59,12 +63,12 @@ versions follow [Semantic Versioning](https://semver.org/).
 - Privacy disclosure: addresses are sent to OpenStreetMap servers.
 
 ### Changed
-- SVG output now uses a more restrained premium print treatment: road strokes
-  are thinner and warmer, the destination accent uses a deeper vermilion, and
-  the destination callout is an outlined label instead of a solid red block.
-  Long landmark names are truncated more aggressively to keep labels from
-  smearing across roads in dense business districts, and low-importance
-  labels are omitted when every placement would collide heavily.
+- The experimental restrained print treatment now lives behind the `quiet`
+  theme instead of replacing the default. `classic` keeps the stronger
+  destination callout; `quiet` uses thinner warm-gray roads, an outlined
+  destination label, and low-importance label omission when every placement
+  would collide heavily. All themes truncate long landmark names more
+  aggressively to reduce label smear in dense business districts.
 - SVG output now uses a quieter print-style treatment: muted landmark ink,
   no dashed landmark-to-destination connector lines, haloed text instead of
   rounded label pills, and a square destination callout.
