@@ -106,6 +106,12 @@ function auditSvg(name, svg, preset, out) {
   const roadBudget = preset === "standard" ? 5 : 4;
   if (roadCoreCount > roadBudget) out.push(`${name}: expected <=${roadBudget} road spines, got ${roadCoreCount}`);
 
+  const landmarkIconCount = count(svg, /data-landmark-icon="/g);
+  const landmarkBudget = preset === "standard" ? 5 : preset === "compact" ? 4 : 2;
+  if (landmarkIconCount > landmarkBudget) {
+    out.push(`${name}: expected <=${landmarkBudget} landmark icons, got ${landmarkIconCount}`);
+  }
+
   const haloCount = count(svg, /stroke="#fffef9" stroke-width="4"/g);
   const labelFillCount = count(svg, /<text [^>]*fill="(?!none)[^"]*"[^>]*>/g);
   const minHaloCount = preset === "minimal" ? 2 : 4;
@@ -131,6 +137,8 @@ function auditSvg(name, svg, preset, out) {
   if (preset === "minimal") {
     expect(name, svg, 'fill="#fffef9" stroke="#d63b31"', "minimal destination callout should use an outlined print label", out);
     expectNot(name, svg, ">테헤란로</text>", "minimal preset should remove road-name labels", out);
+    expectNot(name, svg, 'data-landmark-icon="hospital"', "minimal preset should remove secondary landmark icons", out);
+    expectNot(name, svg, 'data-landmark-icon="convenience"', "minimal preset should remove secondary landmark icons", out);
   }
   if (preset === "standard" || preset === "compact") {
     expect(name, svg, 'fill="#d63b31"', `${preset} destination callout should keep strong destination fill`, out);

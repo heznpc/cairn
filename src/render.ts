@@ -48,8 +48,12 @@ interface PresetSpec {
   destinationLabel: "filled" | "outlined";
   destinationTailWidth: number;
   approachWidth: number;
+  approachStartTrim: number;
+  approachEndTrim: number;
   landmarkLabelMax: number;
   labelImportanceMin: number;
+  maxLandmarks: number;
+  keepCategories?: ReadonlySet<LandmarkCategory>;
   showRoadLabels: boolean;
   avoidRoadLabels: boolean;
   hideClutteredLabels: boolean;
@@ -62,8 +66,11 @@ const PRESETS: Record<RenderPreset, PresetSpec> = {
     destinationLabel: "filled",
     destinationTailWidth: 2.5,
     approachWidth: 3.5,
+    approachStartTrim: 36,
+    approachEndTrim: 30,
     landmarkLabelMax: 9,
     labelImportanceMin: 0,
+    maxLandmarks: 5,
     showRoadLabels: true,
     avoidRoadLabels: false,
     hideClutteredLabels: false,
@@ -74,8 +81,11 @@ const PRESETS: Record<RenderPreset, PresetSpec> = {
     destinationLabel: "filled",
     destinationTailWidth: 2.2,
     approachWidth: 3.2,
+    approachStartTrim: 36,
+    approachEndTrim: 30,
     landmarkLabelMax: 8,
-    labelImportanceMin: 0.55,
+    labelImportanceMin: 0.8,
+    maxLandmarks: 4,
     showRoadLabels: true,
     avoidRoadLabels: true,
     hideClutteredLabels: true,
@@ -86,8 +96,12 @@ const PRESETS: Record<RenderPreset, PresetSpec> = {
     destinationLabel: "outlined",
     destinationTailWidth: 1.8,
     approachWidth: 3,
+    approachStartTrim: 34,
+    approachEndTrim: 16,
     landmarkLabelMax: 8,
     labelImportanceMin: 0.85,
+    maxLandmarks: 2,
+    keepCategories: new Set(["station_exit", "station", "bus_stop"]),
     showRoadLabels: false,
     avoidRoadLabels: true,
     hideClutteredLabels: true,
@@ -143,7 +157,7 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
   const preset = PRESETS[opts.preset ?? "standard"];
   const spanX = Math.max(width - 100, MIN_SPAN);
   const spanY = Math.max(height - 100, MIN_SPAN);
-  const { bbox, center, landmarks } = layout;
+  const { bbox, center } = layout;
   const roads = layout.roads ?? [];
   const renderLayout = opts.layout ?? "diagram";
 
@@ -162,8 +176,9 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
       : selectDisplayRoads(roads, project, width, height, { x: cx, y: cy }, preset.maxVisibleRoads);
   const approach =
     renderLayout === "diagram"
-      ? chooseApproachLandmark(landmarks, cx, cy, project)
+      ? chooseApproachLandmark(layout.landmarks, cx, cy, project)
       : null;
+  const landmarks = selectPresetLandmarks(layout.landmarks, preset);
   const projectedLandmarks = landmarks.map((lm) => {
     const [x, y] = project(lm.lat, lm.lon);
     const label = truncateLabel(lm.name, preset.landmarkLabelMax);
@@ -247,7 +262,14 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
   }
 
   if (approach) {
-    const segment = trimSegment(approach.x, approach.y, cx, cy, 36, 30);
+    const segment = trimSegment(
+      approach.x,
+      approach.y,
+      cx,
+      cy,
+      preset.approachStartTrim,
+      preset.approachEndTrim,
+    );
     if (segment) {
       lines.push(
         `<path data-approach-arrow="casing" d="M${segment.x1.toFixed(1)},${segment.y1.toFixed(1)} L${segment.x2.toFixed(1)},${segment.y2.toFixed(1)}" fill="none" stroke="${PAPER}" stroke-width="8" stroke-linecap="round"/>`,
@@ -320,6 +342,16 @@ function landmarkIcon(category: LandmarkCategory, x: number, y: number, color: s
 function roadStyle(roadClass: RoadClass, preset: PresetSpec): { width: number; color: string } {
   const style = BASE_ROAD_STYLE[roadClass] ?? BASE_ROAD_STYLE.path;
   return { width: style.width * preset.roadScale, color: style.color };
+}
+
+function selectPresetLandmarks(
+  landmarks: MapLayout["landmarks"],
+  preset: PresetSpec,
+): MapLayout["landmarks"] {
+  const filtered = preset.keepCategories
+    ? landmarks.filter((lm) => preset.keepCategories!.has(lm.category))
+    : landmarks;
+  return filtered.slice(0, preset.maxLandmarks);
 }
 
 function markerStyle(category: LandmarkCategory): { color: string; emphasis?: boolean } {

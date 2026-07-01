@@ -106,6 +106,13 @@ describe("renderSVG", () => {
     expect(svg).not.toContain("#25221d\" stroke");
   });
 
+  it("minimal preset keeps only transit-like landmarks", () => {
+    const svg = renderSVG(layout, { preset: "minimal" });
+    expect(svg).toContain('data-landmark-icon="station"');
+    expect(svg).not.toContain('data-landmark-icon="cafe"');
+    expect(svg).not.toContain("스타벅스");
+  });
+
   it("draws a final approach arrow in diagram mode", () => {
     const svg = renderSVG(layout);
     expect(svg).toContain('data-approach-arrow="core"');
@@ -546,5 +553,10 @@ describe("renderSVG — roads", () => {
     const compact = renderSVG(cluttered, { preset: "compact" });
     expect(compact).toContain('data-landmark-icon="hospital"');
     expect(compact).not.toContain("서울대학교병원");
+
+    const minimal = renderSVG(cluttered, { preset: "minimal" });
+    expect(minimal).toContain('data-landmark-icon="station_exit"');
+    expect(minimal).toContain('data-landmark-icon="station"');
+    expect(minimal).not.toContain('data-landmark-icon="hospital"');
   });
 });
