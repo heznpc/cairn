@@ -101,8 +101,10 @@ describe("renderSVG", () => {
 
   it("supports a compact preset without changing the colour vocabulary", () => {
     const svg = renderSVG(layout, { preset: "compact" });
+    expect(svg).toContain('data-preset="compact"');
     expect(svg).toContain('fill="#d63b31"');
     expect(svg).toContain('data-landmark-icon="station"');
+    expect(svg).not.toContain('data-landmark-icon="cafe"');
     expect(svg).not.toContain("#25221d\" stroke");
   });
 
@@ -111,6 +113,51 @@ describe("renderSVG", () => {
     expect(svg).toContain('data-landmark-icon="station"');
     expect(svg).not.toContain('data-landmark-icon="cafe"');
     expect(svg).not.toContain("스타벅스");
+  });
+
+  it("makes compact and minimal presets structurally distinct from standard", () => {
+    const roadLayout = {
+      ...layout,
+      roads: [
+        {
+          id: "main",
+          name: "큰길",
+          class: "primary",
+          points: [
+            { lat: 37.5004, lon: 126.999 },
+            { lat: 37.5004, lon: 127.001 },
+          ],
+        },
+        {
+          id: "side",
+          name: "보조길",
+          class: "secondary",
+          points: [
+            { lat: 37.501, lon: 127.0006 },
+            { lat: 37.499, lon: 127.0002 },
+          ],
+        },
+        {
+          id: "alley",
+          name: "이면길",
+          class: "tertiary",
+          points: [
+            { lat: 37.4998, lon: 126.9995 },
+            { lat: 37.4997, lon: 127.0013 },
+          ],
+        },
+      ],
+    } satisfies MapLayout;
+
+    const standard = renderSVG(roadLayout);
+    const compact = renderSVG(roadLayout, { preset: "compact" });
+    const minimal = renderSVG(roadLayout, { preset: "minimal" });
+
+    expect(roadCorePathCount(standard)).toBeGreaterThan(2);
+    expect(roadCorePathCount(compact)).toBeLessThanOrEqual(2);
+    expect(compact).not.toContain(">큰길</text>");
+    expect(roadCorePathCount(minimal)).toBe(0);
+    expect(minimal).not.toContain('stroke="#e5ded2"');
   });
 
   it("draws a final approach arrow in diagram mode", () => {
@@ -551,12 +598,14 @@ describe("renderSVG — roads", () => {
     expect(standard).toContain("서울대학교병원헬");
 
     const compact = renderSVG(cluttered, { preset: "compact" });
-    expect(compact).toContain('data-landmark-icon="hospital"');
-    expect(compact).not.toContain("서울대학교병원");
+    expect(compact).toContain('data-landmark-icon="station_exit"');
+    expect(compact).toContain('data-landmark-icon="station"');
+    expect(compact).not.toContain('data-landmark-icon="hospital"');
 
     const minimal = renderSVG(cluttered, { preset: "minimal" });
     expect(minimal).toContain('data-landmark-icon="station_exit"');
-    expect(minimal).toContain('data-landmark-icon="station"');
+    expect(minimal).not.toContain('data-landmark-icon="station"');
     expect(minimal).not.toContain('data-landmark-icon="hospital"');
+    expect(roadCorePathCount(minimal)).toBe(0);
   });
 });
