@@ -4,7 +4,7 @@
 > Korean-style 약도, auto-generated, anywhere in the world.
 
 [![ci](https://github.com/heznpc/cairn/actions/workflows/ci.yml/badge.svg)](https://github.com/heznpc/cairn/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/@yakdo/cairn.svg)](https://www.npmjs.com/package/@yakdo/cairn)
+[![npm](https://img.shields.io/npm/v/cairn-map.svg)](https://www.npmjs.com/package/cairn-map)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 Part of: **Human-Controlled AI Systems** — the MCP server stays a tool, never an agent. Curation is a deterministic heuristic; an LLM only enters the loop when the *host* (Claude Code, Cursor, Codex CLI, …) chooses to compose it.
@@ -77,7 +77,7 @@ roadmap).
 
 ## Quick start
 
-> **Status:** v0.1 is published as `@yakdo/cairn`. Install from npm with the snippets below, or install from source with `npm install && npm run build` and run `node dist/cli.js`.
+> **Status:** v0.1 is published as `cairn-map`. Install from npm with the snippets below, or install from source with `npm install && npm run build` and run `node dist/cli.js`.
 
 ### As an MCP server
 
@@ -86,7 +86,7 @@ roadmap).
   "mcpServers": {
     "cairn": {
       "command": "npx",
-      "args": ["-y", "-p", "@yakdo/cairn", "cairn-mcp"]
+      "args": ["-y", "-p", "cairn-map", "cairn-mcp"]
     }
   }
 }
@@ -99,8 +99,8 @@ Then ask the assistant:
 ### As a CLI
 
 ```bash
-npx -p @yakdo/cairn cairn "서울 강남구 테헤란로 152" -o office.svg
-npx -p @yakdo/cairn cairn "1600 Amphitheatre Pkwy, Mountain View" --label "Office"
+npx -p cairn-map cairn "서울 강남구 테헤란로 152" -o office.svg
+npx -p cairn-map cairn "1600 Amphitheatre Pkwy, Mountain View" --label "Office"
 ```
 
 ## How it works

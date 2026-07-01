@@ -76,7 +76,7 @@ versions follow [Semantic Versioning](https://semver.org/).
   way into a clean schematic spine, drops short visual stubs, dedupes nearby
   parallel roads, and excludes residential/path roads from dense road sets.
 - npm package name changed from the occupied `cairn-mcp` name to
-  `@yakdo/cairn`; the published binaries stay `cairn` and `cairn-mcp`.
+  `cairn-map`; the published binaries stay `cairn` and `cairn-mcp`.
 - `engines.node` bumped to `>=22` (Node 20 reached EOL 2026-04-30).
 - `vitest` bumped to `^4.1.0` — clears
   [GHSA-67mh-4wv8-2f99](https://github.com/advisories/GHSA-67mh-4wv8-2f99)
@@ -155,7 +155,7 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [0.1.0] — 2026-06-30
 
-Initial public version published to npm under `@yakdo/cairn`.
+Initial public version published to npm under `cairn-map`.
 
 ### Added
 - MCP server (`cairn-mcp` binary) over stdio with three tools:

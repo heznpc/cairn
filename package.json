@@ -1,5 +1,5 @@
 {
-  "name": "@yakdo/cairn",
+  "name": "cairn-map",
   "version": "0.1.0",
   "description": "Type an address, get a pictogram map. Korean-style 약도, auto-generated. MCP server + CLI.",
   "type": "module",
