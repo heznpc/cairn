@@ -59,10 +59,10 @@ const ROAD_STYLE: Record<RoadClass, { width: number; color: string }> = {
   path: { width: 2.8, color: "#ede7dc" },
 };
 
-// A printed 약도 should feel curated, not like an OSM tile. Small synthetic
-// unit-test layouts still render every road, while real Overpass-heavy layouts
-// are reduced to a handful of readable axes.
-const MAX_ROADS_WITHOUT_FILTER = 12;
+// A printed 약도 should feel curated, not like an OSM tile. Tiny synthetic
+// layouts still render every road, but anything above the visible-road budget
+// goes through the same pruning as real Overpass-heavy layouts.
+const MAX_ROADS_WITHOUT_FILTER = 5;
 const MAX_VISIBLE_ROADS = 5;
 const MAX_ROADS_PER_NAME = 3;
 
@@ -198,13 +198,13 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
   }
 
   if (approach) {
-    const segment = trimSegment(approach.x, approach.y, cx, cy, 27, 21);
+    const segment = trimSegment(approach.x, approach.y, cx, cy, 36, 30);
     if (segment) {
       lines.push(
-        `<path data-approach-arrow="casing" d="M${segment.x1.toFixed(1)},${segment.y1.toFixed(1)} L${segment.x2.toFixed(1)},${segment.y2.toFixed(1)}" fill="none" stroke="${PAPER}" stroke-width="10" stroke-linecap="round"/>`,
+        `<path data-approach-arrow="casing" d="M${segment.x1.toFixed(1)},${segment.y1.toFixed(1)} L${segment.x2.toFixed(1)},${segment.y2.toFixed(1)}" fill="none" stroke="${PAPER}" stroke-width="8" stroke-linecap="round"/>`,
       );
       lines.push(
-        `<path data-approach-arrow="core" d="M${segment.x1.toFixed(1)},${segment.y1.toFixed(1)} L${segment.x2.toFixed(1)},${segment.y2.toFixed(1)}" fill="none" stroke="${DESTINATION}" stroke-width="4.5" stroke-linecap="round" marker-end="url(#cairn-approach-arrowhead)"/>`,
+        `<path data-approach-arrow="core" d="M${segment.x1.toFixed(1)},${segment.y1.toFixed(1)} L${segment.x2.toFixed(1)},${segment.y2.toFixed(1)}" fill="none" stroke="${DESTINATION}" stroke-width="3.5" stroke-linecap="round" marker-end="url(#cairn-approach-arrowhead)"/>`,
       );
     }
   }

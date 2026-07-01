@@ -20,6 +20,7 @@
     "dev:cli": "tsx src/cli.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "visual:audit": "node scripts/yakdo-visual-audit.mjs",
     "prepublishOnly": "npm run build"
   },
   "keywords": [

@@ -7,6 +7,10 @@ versions follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- `npm run visual:audit` renders a deterministic yakdo fixture, optionally
+  writes a PNG preview via `rsvg-convert`, and fails on UI-like visual
+  regressions such as dashed connector lines, rounded label pills, color
+  sprawl, or too many road spines.
 - Subway entrances from OSM (`railway=subway_entrance`) are now captured as
   `station_exit` landmarks; `ref=3` becomes a printable `3번 출구` label even
   when the node has no `name`.
