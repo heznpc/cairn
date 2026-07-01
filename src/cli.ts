@@ -22,7 +22,7 @@ OPTIONS
   -w, --width <px>        SVG width (default: 600, ${MIN_CANVAS_DIMENSION_PX}-${MAX_CANVAS_DIMENSION_PX})
   -h, --height <px>       SVG height (default: 400, ${MIN_CANVAS_DIMENSION_PX}-${MAX_CANVAS_DIMENSION_PX})
       --layout <mode>     Render layout: diagram or geographic (default: diagram)
-      --preset <name>     Output form: standard, compact, or minimal (default: standard)
+      --preset <name>     Output form: standard, compact, minimal, schematic, or badge (default: standard)
       --no-roads          Skip the road skeleton (landmarks only)
       --help              Show this help
 
@@ -150,8 +150,8 @@ async function main() {
 
   const parsePreset = (raw: string | undefined) => {
     if (raw === undefined) return undefined;
-    if (raw !== "standard" && raw !== "compact" && raw !== "minimal") {
-      throw new Error(`--preset must be "standard", "compact", or "minimal" (got: "${raw}")`);
+    if (raw !== "standard" && raw !== "compact" && raw !== "minimal" && raw !== "schematic" && raw !== "badge") {
+      throw new Error(`--preset must be "standard", "compact", "minimal", "schematic", or "badge" (got: "${raw}")`);
     }
     return raw;
   };

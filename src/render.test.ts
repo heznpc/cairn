@@ -116,7 +116,7 @@ describe("renderSVG", () => {
     expect(svg).not.toContain("스타벅스");
   });
 
-  it("makes compact and minimal presets structurally distinct from standard", () => {
+  it("makes non-standard presets structurally distinct from standard", () => {
     const roadLayout = {
       ...layout,
       roads: [
@@ -153,6 +153,8 @@ describe("renderSVG", () => {
     const standard = renderSVG(roadLayout);
     const compact = renderSVG(roadLayout, { preset: "compact" });
     const minimal = renderSVG(roadLayout, { preset: "minimal" });
+    const schematic = renderSVG(roadLayout, { preset: "schematic" });
+    const badge = renderSVG(roadLayout, { preset: "badge" });
 
     expect(roadCorePathCount(standard)).toBeGreaterThan(2);
     expect(roadCorePathCount(compact)).toBeLessThanOrEqual(3);
@@ -161,6 +163,11 @@ describe("renderSVG", () => {
     expect(minimal).toContain('data-strip-route="core"');
     expect(minimal).toContain('data-strip-road="anchor"');
     expect(minimal).not.toContain('stroke="#e5ded2"');
+    expect(schematic).toContain('data-road-geometry="orthogonal"');
+    expect(schematic).toContain(">큰길</text>");
+    expect(badge).toContain('data-badge-map="true"');
+    expect(badge).toContain('data-badge-route="core"');
+    expect(badge).not.toContain('data-road-layer="core"');
   });
 
   it("draws a final approach arrow in diagram mode", () => {

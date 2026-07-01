@@ -66,7 +66,7 @@ describe("tool registry", () => {
       enum: ["diagram", "geographic"],
     });
     expect(generateMapProps.preset).toMatchObject({
-      enum: ["standard", "compact", "minimal"],
+      enum: ["standard", "compact", "minimal", "schematic", "badge"],
     });
 
     expect(toolFor("find_landmarks").inputSchema.properties.radiusMeters)
