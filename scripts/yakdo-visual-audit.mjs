@@ -7,7 +7,7 @@ import { renderSVG } from "../dist/render.js";
 const outDir = resolve("tmp/visual-audit");
 mkdirSync(outDir, { recursive: true });
 
-const THEMES = ["classic", "quiet", "mono"];
+const PRESETS = ["standard", "compact", "minimal"];
 
 const fixtures = [
   {
@@ -63,14 +63,14 @@ const fixtures = [
 const failures = [];
 
 for (const fixture of fixtures) {
-  for (const theme of THEMES) {
-    const artifactName = `${fixture.name}-${theme}`;
-    const svg = renderSVG(fixture.layout, { width: fixture.width, height: fixture.height, theme });
+  for (const preset of PRESETS) {
+    const artifactName = `${fixture.name}-${preset}`;
+    const svg = renderSVG(fixture.layout, { width: fixture.width, height: fixture.height, preset });
     const svgPath = resolve(outDir, `${artifactName}.svg`);
     writeFileSync(svgPath, svg, "utf8");
     maybeRenderPng(svgPath, resolve(outDir, `${artifactName}.png`));
 
-    auditSvg(artifactName, svg, theme, failures);
+    auditSvg(artifactName, svg, preset, failures);
   }
 }
 
@@ -80,7 +80,7 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log(`yakdo visual audit passed (${fixtures.length} fixture${fixtures.length === 1 ? "" : "s"} × ${THEMES.length} themes)`);
+console.log(`yakdo visual audit passed (${fixtures.length} fixture${fixtures.length === 1 ? "" : "s"} × ${PRESETS.length} presets)`);
 console.log(`artifacts: ${outDir}`);
 
 function landmark(id, name, lat, lon, category, importance, tags = {}) {
@@ -97,18 +97,19 @@ function road(id, name, roadClass, points) {
   return out;
 }
 
-function auditSvg(name, svg, theme, out) {
+function auditSvg(name, svg, preset, out) {
   expectNot(name, svg, 'stroke-dasharray=', "dashed connector lines make the map read like AI relationship UI", out);
   expectNot(name, svg, 'fill="#fffdf8" stroke="#e3ddd0"', "rounded label pills are UI chrome, not print yakdo labeling", out);
   expectNot(name, svg, 'rx="3" fill="#d63b31"', "destination label must not regress to a rounded UI chip", out);
-  expectNot(name, svg, 'data-destination-label="true" fill="#b14436"', "destination label must stay outlined, not a heavy red UI block", out);
 
   const roadCoreCount = count(svg, /data-road-layer="core"/g);
-  if (roadCoreCount > 5) out.push(`${name}: expected <=5 road spines, got ${roadCoreCount}`);
+  const roadBudget = preset === "standard" ? 5 : 4;
+  if (roadCoreCount > roadBudget) out.push(`${name}: expected <=${roadBudget} road spines, got ${roadCoreCount}`);
 
   const haloCount = count(svg, /stroke="#fffef9" stroke-width="4"/g);
   const labelFillCount = count(svg, /<text [^>]*fill="(?!none)[^"]*"[^>]*>/g);
-  if (haloCount < 4) out.push(`${name}: expected haloed print labels, got ${haloCount}`);
+  const minHaloCount = preset === "minimal" ? 2 : 4;
+  if (haloCount < minHaloCount) out.push(`${name}: expected at least ${minHaloCount} haloed print labels, got ${haloCount}`);
   if (labelFillCount < haloCount) {
     out.push(`${name}: halo text count (${haloCount}) exceeds filled label count (${labelFillCount})`);
   }
@@ -117,9 +118,7 @@ function auditSvg(name, svg, theme, out) {
     [...svg.matchAll(/data-landmark-icon="[^"]+"[^>]*(?:stroke|fill)="(#[0-9a-fA-F]{6})"/g)]
       .map((match) => match[1].toLowerCase()),
   );
-  const allowed = theme === "mono"
-    ? new Set(["#25221d"])
-    : new Set(["#5f5a52", "#216f86", "#207665"]);
+  const allowed = new Set(["#5f5a52", "#216f86", "#207665"]);
   for (const color of markerColors) {
     if (!allowed.has(color)) {
       out.push(`${name}: non-print landmark icon color ${color}`);
@@ -129,15 +128,12 @@ function auditSvg(name, svg, theme, out) {
   expect(name, svg, "© OpenStreetMap contributors", "visible OSM attribution is required", out);
   expect(name, svg, 'data-approach-arrow="core"', "diagram output should preserve the final approach cue", out);
   expect(name, svg, 'data-destination-label="true"', "diagram output should preserve the destination callout", out);
-  if (theme === "quiet") {
-    expect(name, svg, 'fill="#fffef9" stroke="#b14436"', "quiet destination callout should use an outlined print label", out);
+  if (preset === "minimal") {
+    expect(name, svg, 'fill="#fffef9" stroke="#d63b31"', "minimal destination callout should use an outlined print label", out);
+    expectNot(name, svg, ">테헤란로</text>", "minimal preset should remove road-name labels", out);
   }
-  if (theme === "classic") {
-    expect(name, svg, 'data-destination-label="true"', "classic destination callout should be present", out);
-    expect(name, svg, 'fill="#d63b31"', "classic destination callout should keep strong red fill", out);
-  }
-  if (theme === "mono") {
-    expect(name, svg, 'fill="#25221d"', "mono destination callout should use single-ink fill", out);
+  if (preset === "standard" || preset === "compact") {
+    expect(name, svg, 'fill="#d63b31"', `${preset} destination callout should keep strong destination fill`, out);
   }
 }
 

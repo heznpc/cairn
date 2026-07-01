@@ -22,7 +22,7 @@ OPTIONS
   -w, --width <px>        SVG width (default: 600, ${MIN_CANVAS_DIMENSION_PX}-${MAX_CANVAS_DIMENSION_PX})
   -h, --height <px>       SVG height (default: 400, ${MIN_CANVAS_DIMENSION_PX}-${MAX_CANVAS_DIMENSION_PX})
       --layout <mode>     Render layout: diagram or geographic (default: diagram)
-      --theme <name>      Render theme: classic, quiet, or mono (default: classic)
+      --preset <name>     Output form: standard, compact, or minimal (default: standard)
       --no-roads          Skip the road skeleton (landmarks only)
       --help              Show this help
 
@@ -82,8 +82,8 @@ function parse(argv: string[]) {
       case "--layout":
         opts.layout = takeValue(a, ++i);
         break;
-      case "--theme":
-        opts.theme = takeValue(a, ++i);
+      case "--preset":
+        opts.preset = takeValue(a, ++i);
         break;
       case "--no-roads":
         opts.noRoads = "true";
@@ -148,10 +148,10 @@ async function main() {
     return raw;
   };
 
-  const parseTheme = (raw: string | undefined) => {
+  const parsePreset = (raw: string | undefined) => {
     if (raw === undefined) return undefined;
-    if (raw !== "classic" && raw !== "quiet" && raw !== "mono") {
-      throw new Error(`--theme must be "classic", "quiet", or "mono" (got: "${raw}")`);
+    if (raw !== "standard" && raw !== "compact" && raw !== "minimal") {
+      throw new Error(`--preset must be "standard", "compact", or "minimal" (got: "${raw}")`);
     }
     return raw;
   };
@@ -164,7 +164,7 @@ async function main() {
     width: parseFlag("--width", opts.width, MIN_CANVAS_DIMENSION_PX, MAX_CANVAS_DIMENSION_PX),
     height: parseFlag("--height", opts.height, MIN_CANVAS_DIMENSION_PX, MAX_CANVAS_DIMENSION_PX),
     layout: parseLayout(opts.layout),
-    theme: parseTheme(opts.theme),
+    preset: parsePreset(opts.preset),
     roads: opts.noRoads === "true" ? false : undefined,
   });
 
