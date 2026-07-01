@@ -78,12 +78,12 @@ describe("generateMap", () => {
     );
   });
 
-  it("passes the render theme option through to renderSVG", async () => {
-    await generateMap("서울 강남구 테헤란로 152", { theme: "mono" });
+  it("passes the render preset option through to renderSVG", async () => {
+    await generateMap("서울 강남구 테헤란로 152", { preset: "compact" });
 
     expect(mockedRenderSVG).toHaveBeenCalledWith(
       expect.any(Object),
-      expect.objectContaining({ theme: "mono" }),
+      expect.objectContaining({ preset: "compact" }),
     );
   });
 });

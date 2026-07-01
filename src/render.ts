@@ -1,4 +1,4 @@
-import type { LandmarkCategory, MapLayout, RenderOptions, RenderTheme, RoadClass } from "./types.js";
+import type { LandmarkCategory, MapLayout, RenderOptions, RenderPreset, RoadClass } from "./types.js";
 import {
   MAX_CANVAS_DIMENSION_PX,
   MIN_CANVAS_DIMENSION_PX,
@@ -8,6 +8,18 @@ const PAPER = "#fffef9";
 const PAPER_EDGE = "#e5ded2";
 const LABEL_HALO = PAPER;
 const INK = "#25221d";
+const DESTINATION = "#d63b31";
+const MUTED_INK = "#5f5a52";
+const TRANSIT_INK = "#216f86";
+const EXIT_INK = "#207665";
+
+const BASE_ROAD_STYLE: Record<RoadClass, { width: number; color: string }> = {
+  primary: { width: 10, color: "#b7b1a6" },
+  secondary: { width: 7.5, color: "#ccc6ba" },
+  tertiary: { width: 4.5, color: "#ded8cc" },
+  residential: { width: 3.5, color: "#e8e1d6" },
+  path: { width: 2.8, color: "#ede7dc" },
+};
 
 const ROAD_RANK: Record<RoadClass, number> = {
   primary: 5,
@@ -31,81 +43,55 @@ const APPROACH_RANK: Record<LandmarkCategory, number> = {
   building: 1,
 };
 
-interface ThemeSpec {
-  destination: string;
-  transitInk: string;
-  exitInk: string;
-  mutedInk: string;
-  roadStyle: Record<RoadClass, { width: number; color: string }>;
-  roadCasingExtra: number;
+interface PresetSpec {
+  roadScale: number;
   destinationLabel: "filled" | "outlined";
   destinationTailWidth: number;
   approachWidth: number;
   landmarkLabelMax: number;
+  labelImportanceMin: number;
+  showRoadLabels: boolean;
   avoidRoadLabels: boolean;
   hideClutteredLabels: boolean;
+  maxVisibleRoads: number;
 }
 
-const THEMES: Record<RenderTheme, ThemeSpec> = {
-  classic: {
-    destination: "#d63b31",
-    transitInk: "#216f86",
-    exitInk: "#207665",
-    mutedInk: "#5f5a52",
-    roadStyle: {
-      primary: { width: 10, color: "#b7b1a6" },
-      secondary: { width: 7.5, color: "#ccc6ba" },
-      tertiary: { width: 4.5, color: "#ded8cc" },
-      residential: { width: 3.5, color: "#e8e1d6" },
-      path: { width: 2.8, color: "#ede7dc" },
-    },
-    roadCasingExtra: 5,
+const PRESETS: Record<RenderPreset, PresetSpec> = {
+  standard: {
+    roadScale: 1,
     destinationLabel: "filled",
     destinationTailWidth: 2.5,
     approachWidth: 3.5,
     landmarkLabelMax: 9,
+    labelImportanceMin: 0,
+    showRoadLabels: true,
     avoidRoadLabels: false,
     hideClutteredLabels: false,
+    maxVisibleRoads: 5,
   },
-  quiet: {
-    destination: "#b14436",
-    transitInk: "#216f86",
-    exitInk: "#207665",
-    mutedInk: "#5f5a52",
-    roadStyle: {
-      primary: { width: 8.5, color: "#aea79b" },
-      secondary: { width: 6.5, color: "#c8c1b5" },
-      tertiary: { width: 4, color: "#ddd6ca" },
-      residential: { width: 3, color: "#e8e1d6" },
-      path: { width: 2.4, color: "#eee8dd" },
-    },
-    roadCasingExtra: 4.5,
+  compact: {
+    roadScale: 0.88,
+    destinationLabel: "filled",
+    destinationTailWidth: 2.2,
+    approachWidth: 3.2,
+    landmarkLabelMax: 8,
+    labelImportanceMin: 0.55,
+    showRoadLabels: true,
+    avoidRoadLabels: true,
+    hideClutteredLabels: true,
+    maxVisibleRoads: 4,
+  },
+  minimal: {
+    roadScale: 0.82,
     destinationLabel: "outlined",
     destinationTailWidth: 1.8,
-    approachWidth: 3.2,
-    landmarkLabelMax: 9,
-    avoidRoadLabels: true,
-    hideClutteredLabels: true,
-  },
-  mono: {
-    destination: INK,
-    transitInk: INK,
-    exitInk: INK,
-    mutedInk: INK,
-    roadStyle: {
-      primary: { width: 8.5, color: "#8d887f" },
-      secondary: { width: 6, color: "#aaa49a" },
-      tertiary: { width: 3.8, color: "#c9c2b7" },
-      residential: { width: 3, color: "#ddd6ca" },
-      path: { width: 2.4, color: "#e7e0d5" },
-    },
-    roadCasingExtra: 4.5,
-    destinationLabel: "filled",
-    destinationTailWidth: 2,
     approachWidth: 3,
-    landmarkLabelMax: 9,
+    landmarkLabelMax: 8,
+    labelImportanceMin: 0.85,
+    showRoadLabels: false,
     avoidRoadLabels: true,
     hideClutteredLabels: true,
+    maxVisibleRoads: 4,
   },
 };
 
@@ -113,7 +99,6 @@ const THEMES: Record<RenderTheme, ThemeSpec> = {
 // layouts still render every road, but anything above the visible-road budget
 // goes through the same pruning as real Overpass-heavy layouts.
 const MAX_ROADS_WITHOUT_FILTER = 5;
-const MAX_VISIBLE_ROADS = 5;
 const MAX_ROADS_PER_NAME = 3;
 
 // Only the two top tiers get name labels (residential clutter kills legibility).
@@ -155,7 +140,7 @@ function safeDimension(value: number | undefined, fallback: number): number {
 export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
   const width = safeDimension(opts.width, 600);
   const height = safeDimension(opts.height, 400);
-  const theme = THEMES[opts.theme ?? "classic"];
+  const preset = PRESETS[opts.preset ?? "standard"];
   const spanX = Math.max(width - 100, MIN_SPAN);
   const spanY = Math.max(height - 100, MIN_SPAN);
   const { bbox, center, landmarks } = layout;
@@ -174,20 +159,21 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
   const displayRoads =
     renderLayout === "geographic"
       ? roads.filter((road) => road.points.length >= 2)
-      : selectDisplayRoads(roads, project, width, height, { x: cx, y: cy });
+      : selectDisplayRoads(roads, project, width, height, { x: cx, y: cy }, preset.maxVisibleRoads);
   const approach =
     renderLayout === "diagram"
       ? chooseApproachLandmark(landmarks, cx, cy, project)
       : null;
   const projectedLandmarks = landmarks.map((lm) => {
     const [x, y] = project(lm.lat, lm.lon);
-    const label = truncateLabel(lm.name, theme.landmarkLabelMax);
+    const label = truncateLabel(lm.name, preset.landmarkLabelMax);
     return {
       lm,
       x,
       y,
       label,
       labelWidth: textBoxWidth(label, 11, 20),
+      labelHidden: lm.importance < preset.labelImportanceMin,
     };
   });
   const landmarkMarkerBoxes = projectedLandmarks.map(({ x, y }) => ({
@@ -197,14 +183,20 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
     height: 46,
   }));
   const roadObstacles =
-    renderLayout === "diagram" && theme.avoidRoadLabels
+    renderLayout === "diagram" && preset.avoidRoadLabels
       ? roadObstacleBoxes(displayRoads, project, width, height)
       : [];
-  const landmarkLabelBoxes = placeLandmarkLabels(projectedLandmarks, width, height, [
-    ...landmarkMarkerBoxes,
-    ...roadObstacles,
-    { x: cx - 18, y: cy - 18, width: 36, height: 36 },
-  ], theme.hideClutteredLabels);
+  const landmarkLabelBoxes = placeLandmarkLabels(
+    projectedLandmarks,
+    width,
+    height,
+    [
+      ...landmarkMarkerBoxes,
+      ...roadObstacles,
+      { x: cx - 18, y: cy - 18, width: 36, height: 36 },
+    ],
+    preset.hideClutteredLabels,
+  );
   const centerLabel = truncateLabel(center.label, CENTER_LABEL_MAX);
   const centerLabelWidth = textBoxWidth(centerLabel, 13, 24);
   const centerCallout = pickCenterCallout(
@@ -221,7 +213,7 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Apple SD Gothic Neo', sans-serif">`,
   );
   lines.push(
-    `<defs><marker id="cairn-approach-arrowhead" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1,1 L9,5 L1,9 Z" fill="${theme.destination}"/></marker></defs>`,
+    `<defs><marker id="cairn-approach-arrowhead" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1,1 L9,5 L1,9 Z" fill="${DESTINATION}"/></marker></defs>`,
   );
   lines.push(`<metadata>Map data © OpenStreetMap contributors, ODbL.</metadata>`);
   lines.push(`<rect width="${width}" height="${height}" fill="${PAPER}"/>`);
@@ -237,9 +229,9 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
   for (const road of displayRoads) {
     const d = roadPathData(road, project, renderLayout, width, height);
     if (!d) continue;
-    const style = theme.roadStyle[road.class] ?? theme.roadStyle.path;
+    const style = roadStyle(road.class, preset);
     lines.push(
-      `<path data-road-layer="casing" d="${d}" fill="none" stroke="${PAPER}" stroke-width="${style.width + theme.roadCasingExtra}" stroke-linecap="round" stroke-linejoin="round"/>`,
+      `<path data-road-layer="casing" d="${d}" fill="none" stroke="${PAPER}" stroke-width="${style.width + 5 * preset.roadScale}" stroke-linecap="round" stroke-linejoin="round"/>`,
     );
     lines.push(
       `<path data-road-layer="core" d="${d}" fill="none" stroke="${style.color}" stroke-width="${style.width}" stroke-linecap="round" stroke-linejoin="round"/>`,
@@ -247,9 +239,11 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
   }
 
   // Road name labels — one per unique name, placed on the longest in-frame run.
-  for (const [name, pos] of roadLabelPositions(displayRoads, project, width, height)) {
-    const label = truncateLabel(name, ROAD_LABEL_MAX);
-    lines.push(labelText(label, pos.x, pos.y, 10, "#8a857c", 600));
+  if (preset.showRoadLabels) {
+    for (const [name, pos] of roadLabelPositions(displayRoads, project, width, height)) {
+      const label = truncateLabel(name, ROAD_LABEL_MAX);
+      lines.push(labelText(label, pos.x, pos.y, 10, "#8a857c", 600));
+    }
   }
 
   if (approach) {
@@ -259,7 +253,7 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
         `<path data-approach-arrow="casing" d="M${segment.x1.toFixed(1)},${segment.y1.toFixed(1)} L${segment.x2.toFixed(1)},${segment.y2.toFixed(1)}" fill="none" stroke="${PAPER}" stroke-width="8" stroke-linecap="round"/>`,
       );
       lines.push(
-        `<path data-approach-arrow="core" d="M${segment.x1.toFixed(1)},${segment.y1.toFixed(1)} L${segment.x2.toFixed(1)},${segment.y2.toFixed(1)}" fill="none" stroke="${theme.destination}" stroke-width="${theme.approachWidth}" stroke-linecap="round" marker-end="url(#cairn-approach-arrowhead)"/>`,
+        `<path data-approach-arrow="core" d="M${segment.x1.toFixed(1)},${segment.y1.toFixed(1)} L${segment.x2.toFixed(1)},${segment.y2.toFixed(1)}" fill="none" stroke="${DESTINATION}" stroke-width="${preset.approachWidth}" stroke-linecap="round" marker-end="url(#cairn-approach-arrowhead)"/>`,
       );
     }
   }
@@ -267,7 +261,7 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
   // Landmarks
   for (const [index, item] of projectedLandmarks.entries()) {
     const { lm, x: lx, y: ly, label } = item;
-    const marker = markerStyle(lm.category, theme);
+    const marker = markerStyle(lm.category);
     const labelBox = landmarkLabelBoxes[index];
     lines.push(
       `<circle cx="${lx}" cy="${ly}" r="17" fill="${PAPER}" stroke="${marker.color}" stroke-width="${marker.emphasis ? 2 : 1.25}"/>`,
@@ -280,12 +274,12 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
 
   // Center marker (destination)
   lines.push(
-    `<circle cx="${cx}" cy="${cy}" r="10" fill="${theme.destination}" stroke="${PAPER}" stroke-width="3"/>`,
+    `<circle cx="${cx}" cy="${cy}" r="10" fill="${DESTINATION}" stroke="${PAPER}" stroke-width="3"/>`,
   );
   lines.push(
-    `<line data-destination-tail="true" x1="${centerCallout.anchorX.toFixed(1)}" y1="${centerCallout.anchorY.toFixed(1)}" x2="${cx.toFixed(1)}" y2="${cy.toFixed(1)}" stroke="${theme.destination}" stroke-width="${theme.destinationTailWidth}" stroke-linecap="round"/>`,
+    `<line data-destination-tail="true" x1="${centerCallout.anchorX.toFixed(1)}" y1="${centerCallout.anchorY.toFixed(1)}" x2="${cx.toFixed(1)}" y2="${cy.toFixed(1)}" stroke="${DESTINATION}" stroke-width="${preset.destinationTailWidth}" stroke-linecap="round"/>`,
   );
-  lines.push(destinationLabel(centerLabel, centerCallout, theme));
+  lines.push(destinationLabel(centerLabel, centerCallout, preset));
   lines.push(
     `<text data-attribution="osm" x="${(width - 18).toFixed(1)}" y="${(height - 8).toFixed(1)}" text-anchor="end" font-size="8" fill="#aaa59d">© OpenStreetMap contributors</text>`,
   );
@@ -323,31 +317,36 @@ function landmarkIcon(category: LandmarkCategory, x: number, y: number, color: s
   }
 }
 
-function markerStyle(category: LandmarkCategory, theme: ThemeSpec): { color: string; emphasis?: boolean } {
+function roadStyle(roadClass: RoadClass, preset: PresetSpec): { width: number; color: string } {
+  const style = BASE_ROAD_STYLE[roadClass] ?? BASE_ROAD_STYLE.path;
+  return { width: style.width * preset.roadScale, color: style.color };
+}
+
+function markerStyle(category: LandmarkCategory): { color: string; emphasis?: boolean } {
   switch (category) {
     case "station":
-      return { color: theme.transitInk, emphasis: true };
+      return { color: TRANSIT_INK, emphasis: true };
     case "station_exit":
-      return { color: theme.exitInk, emphasis: true };
+      return { color: EXIT_INK, emphasis: true };
     default:
-      return { color: theme.mutedInk };
+      return { color: MUTED_INK };
   }
 }
 
-function destinationLabel(label: string, box: CenterCallout, theme: ThemeSpec): string {
+function destinationLabel(label: string, box: CenterCallout, preset: PresetSpec): string {
   const x = box.x.toFixed(1);
   const y = box.y.toFixed(1);
   const textX = (box.x + box.width / 2).toFixed(1);
   const textY = (box.y + 17).toFixed(1);
   const escaped = escapeXml(label);
-  if (theme.destinationLabel === "outlined") {
+  if (preset.destinationLabel === "outlined") {
     return [
-      `<rect data-destination-label="true" x="${x}" y="${y}" width="${box.width}" height="${box.height}" fill="${PAPER}" stroke="${theme.destination}" stroke-width="1.5"/>`,
-      `<text x="${textX}" y="${textY}" text-anchor="middle" font-size="13" font-weight="700" fill="${theme.destination}">${escaped}</text>`,
+      `<rect data-destination-label="true" x="${x}" y="${y}" width="${box.width}" height="${box.height}" fill="${PAPER}" stroke="${DESTINATION}" stroke-width="1.5"/>`,
+      `<text x="${textX}" y="${textY}" text-anchor="middle" font-size="13" font-weight="700" fill="${DESTINATION}">${escaped}</text>`,
     ].join("\n");
   }
   return [
-    `<rect data-destination-label="true" x="${x}" y="${y}" width="${box.width}" height="${box.height}" fill="${theme.destination}"/>`,
+    `<rect data-destination-label="true" x="${x}" y="${y}" width="${box.width}" height="${box.height}" fill="${DESTINATION}"/>`,
     `<text x="${textX}" y="${textY}" text-anchor="middle" font-size="13" font-weight="700" fill="${PAPER}">${escaped}</text>`,
   ].join("\n");
 }
@@ -374,6 +373,7 @@ interface ProjectedLandmark {
   y: number;
   label: string;
   labelWidth: number;
+  labelHidden: boolean;
 }
 
 interface LabelBox extends Box {
@@ -389,6 +389,10 @@ function placeLandmarkLabels(
 ): LabelBox[] {
   const placed: LabelBox[] = [];
   for (const lm of landmarks) {
+    if (lm.labelHidden) {
+      placed.push({ x: lm.x, y: lm.y, width: 0, height: 0, hidden: true });
+      continue;
+    }
     const boxHeight = 18;
     const candidates: Box[] = [
       {
@@ -564,6 +568,7 @@ function selectDisplayRoads(
   width: number,
   height: number,
   focus: Point,
+  maxVisibleRoads: number,
 ): MapLayout["roads"] {
   const drawable = roads.filter((road) => road.points.length >= 2);
   if (drawable.length <= MAX_ROADS_WITHOUT_FILTER) return drawable;
@@ -599,7 +604,7 @@ function selectDisplayRoads(
   const pickedByName = new Map<string, number>();
   const pickedSignatures: Array<{ angleBucket: number; offset: number }> = [];
   for (const item of source) {
-    if (picked.length >= MAX_VISIBLE_ROADS) break;
+    if (picked.length >= maxVisibleRoads) break;
     const spine = diagramRoadSpine(item.road, project, width, height);
     if (!spine) continue;
     if (item.road.class === "residential" || item.road.class === "path") {

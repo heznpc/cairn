@@ -8,7 +8,7 @@ import {
   MAX_RADIUS_METERS,
   MIN_CANVAS_DIMENSION_PX,
 } from "./limits.js";
-import type { LandmarkCategory, RenderLayoutMode, RenderTheme, RoadClass } from "./types.js";
+import type { LandmarkCategory, RenderLayoutMode, RenderPreset, RoadClass } from "./types.js";
 
 // ---------- Input schemas (zod) ----------
 
@@ -21,8 +21,8 @@ const LatitudeArg = z.number().finite().min(-90).max(90);
 const LongitudeArg = z.number().finite().min(-180).max(180);
 const RENDER_LAYOUTS = ["diagram", "geographic"] as const satisfies readonly RenderLayoutMode[];
 const RenderLayoutArg = z.enum(RENDER_LAYOUTS);
-const RENDER_THEMES = ["classic", "quiet", "mono"] as const satisfies readonly RenderTheme[];
-const RenderThemeArg = z.enum(RENDER_THEMES);
+const RENDER_PRESETS = ["standard", "compact", "minimal"] as const satisfies readonly RenderPreset[];
+const RenderPresetArg = z.enum(RENDER_PRESETS);
 
 const GenerateMapArgs = z.object({
   address: z.string().describe("Street address or place name"),
@@ -33,7 +33,7 @@ const GenerateMapArgs = z.object({
   width: CanvasDimensionArg.optional(),
   height: CanvasDimensionArg.optional(),
   layout: RenderLayoutArg.optional().describe('Render layout mode (default "diagram")'),
-  theme: RenderThemeArg.optional().describe('Render theme: "classic" (default), "quiet", or "mono"'),
+  preset: RenderPresetArg.optional().describe('Output form: "standard" (default), "compact", or "minimal"'),
   roads: z
     .boolean()
     .optional()
@@ -259,10 +259,10 @@ export const tools = [
           enum: RENDER_LAYOUTS,
           description: 'Render layout mode: "diagram" keeps navigational structure (default), "geographic" preserves raw road geometry more closely',
         },
-        theme: {
+        preset: {
           type: "string",
-          enum: RENDER_THEMES,
-          description: 'Render theme: "classic" keeps strong wayfinding contrast (default), "quiet" is restrained, "mono" is single-ink',
+          enum: RENDER_PRESETS,
+          description: 'Output form: "standard" balances detail and clarity (default), "compact" reduces label/road density, "minimal" is sparse for embedding',
         },
         roads: { type: "boolean", description: "Draw the road skeleton (default true)" },
       },

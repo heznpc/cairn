@@ -85,26 +85,25 @@ describe("renderSVG", () => {
     expect(svg).toContain('stroke="#fffef9" stroke-width="4"');
   });
 
-  it("uses the strong classic destination label by default", () => {
+  it("uses the standard destination label by default", () => {
     const svg = renderSVG(layout);
-    expect(svg).toContain('data-destination-label="true"');
     expect(svg).toContain('data-destination-label="true"');
     expect(svg).toContain('fill="#d63b31"');
     expect(svg).toContain('fill="#fffef9">여기</text>');
   });
 
-  it("supports a quieter outlined destination label theme", () => {
-    const svg = renderSVG(layout, { theme: "quiet" });
+  it("supports a minimal preset with an outlined destination label", () => {
+    const svg = renderSVG(layout, { preset: "minimal" });
     expect(svg).toContain('data-destination-label="true"');
-    expect(svg).toContain('fill="#fffef9" stroke="#b14436"');
-    expect(svg).not.toContain('data-destination-label="true" fill="#b14436"');
+    expect(svg).toContain('fill="#fffef9" stroke="#d63b31"');
+    expect(svg).not.toContain('data-destination-label="true" fill="#d63b31"');
   });
 
-  it("supports a single-ink mono theme", () => {
-    const svg = renderSVG(layout, { theme: "mono" });
-    expect(svg).toContain('data-destination-label="true"');
-    expect(svg).toContain('fill="#25221d"');
+  it("supports a compact preset without changing the colour vocabulary", () => {
+    const svg = renderSVG(layout, { preset: "compact" });
+    expect(svg).toContain('fill="#d63b31"');
     expect(svg).toContain('data-landmark-icon="station"');
+    expect(svg).not.toContain("#25221d\" stroke");
   });
 
   it("draws a final approach arrow in diagram mode", () => {
@@ -541,11 +540,11 @@ describe("renderSVG — roads", () => {
       bbox: { north: 37.5012, south: 37.4988, east: 127.0014, west: 126.9986 },
     } satisfies MapLayout;
 
-    const classic = renderSVG(cluttered);
-    expect(classic).toContain("서울대학교병원헬");
+    const standard = renderSVG(cluttered);
+    expect(standard).toContain("서울대학교병원헬");
 
-    const quiet = renderSVG(cluttered, { theme: "quiet" });
-    expect(quiet).toContain('data-landmark-icon="hospital"');
-    expect(quiet).not.toContain("서울대학교병원");
+    const compact = renderSVG(cluttered, { preset: "compact" });
+    expect(compact).toContain('data-landmark-icon="hospital"');
+    expect(compact).not.toContain("서울대학교병원");
   });
 });
