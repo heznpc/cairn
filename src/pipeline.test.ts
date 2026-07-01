@@ -77,4 +77,13 @@ describe("generateMap", () => {
       expect.objectContaining({ layout: "geographic" }),
     );
   });
+
+  it("passes the render theme option through to renderSVG", async () => {
+    await generateMap("서울 강남구 테헤란로 152", { theme: "mono" });
+
+    expect(mockedRenderSVG).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ theme: "mono" }),
+    );
+  });
 });

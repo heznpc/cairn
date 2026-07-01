@@ -65,6 +65,9 @@ describe("tool registry", () => {
     expect(generateMapProps.layout).toMatchObject({
       enum: ["diagram", "geographic"],
     });
+    expect(generateMapProps.theme).toMatchObject({
+      enum: ["classic", "quiet", "mono"],
+    });
 
     expect(toolFor("find_landmarks").inputSchema.properties.radiusMeters)
       .toMatchObject({ maximum: 5000 });
@@ -347,6 +350,17 @@ describe("dispatchTool — error paths", () => {
 
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toMatch(/layout/);
+    expect(generateMap).not.toHaveBeenCalled();
+  });
+
+  it("rejects unknown generate_map themes before calling the pipeline", async () => {
+    const result = await dispatchTool("generate_map", {
+      address: "Seoul",
+      theme: "luxury",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toMatch(/theme/);
     expect(generateMap).not.toHaveBeenCalled();
   });
 

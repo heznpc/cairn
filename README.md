@@ -26,15 +26,17 @@ Most maps are too accurate to be useful. Korean 약도 (yakdo) and Japanese 略�
 - **Road skeleton** in [src/roads.ts](src/roads.ts) — fetches nearby roads, classifies them by importance tier (primary / secondary / tertiary / residential), and simplifies each polyline with Douglas-Peucker ([src/geometry.ts](src/geometry.ts)). This is what turns the output from a scatter of points into an actual 약도: a few roads you navigate along, with the major ones labeled.
 - **Deterministic curation heuristic** in [src/curate.ts](src/curate.ts) — weights importance (transit > civic > shop), targets a ~150 m sweet-spot distance, enforces category diversity, caps at the requested `limit` (default 5).
 - **Pictogram SVG renderer** — curated road bands, category-specific SVG pictograms, station-exit labels, final-approach arrows, deduped road-name labels, destination callouts, and visible OSM attribution tuned for print-style 약도 output.
-- **CLI** with file output, label override, layout selection, and a `--no-roads` toggle:
+- **CLI** with file output, label override, layout/theme selection, and a `--no-roads` toggle:
   ```bash
   node dist/cli.js "서울 강남구 테헤란로 152" -o office.svg --label "스튜디오"
-  node dist/cli.js "Shibuya Crossing, Tokyo" -o shibuya.svg --layout geographic
+  node dist/cli.js "서울 강남구 테헤란로 152" -o office-mono.svg --theme mono
+  node dist/cli.js "Shibuya Crossing, Tokyo" -o shibuya.svg --layout geographic --theme quiet
   ```
 - **Layout modes** — `diagram` is the default 약도 layout, keeping only the navigational structure; `geographic` preserves raw road geometry more closely for inspection/debugging.
+- **Themes** — `classic` (default) keeps the destination unmistakable, `quiet` reduces visual weight for invitation/card layouts, and `mono` uses single-ink styling for business cards or black-and-white print.
 - **Bounded inputs** on public tool/CLI parameters — search radii max out at 5 km and SVG canvas dimensions at 4000 px to keep public OSM services and the single-process renderer healthy.
 - **HTTP rate-limiting and timeouts** on outbound calls — 1.1s minimum spacing to Nominatim, 1 req/s to Overpass, per their usage policies.
-- **Tests**: 153 passing (vitest, run on every push).
+- **Tests**: 157 passing (vitest, run on every push).
 - **Visual audit harness**: `npm run visual:audit` renders a deterministic yakdo fixture and fails on UI-like regressions such as dashed connector lines, rounded label pills, color sprawl, or too many road spines.
 
 ## Planned
@@ -120,9 +122,10 @@ npx -p @yakdo/cairn cairn "1600 Amphitheatre Pkwy, Mountain View" --label "Offic
 
 Granular tools let an LLM compose smarter pipelines — for example, "find landmarks and roads, keep the two biggest roads and the three most recognizable landmarks, render with those."
 
-`generate_map` accepts `layout: "diagram" | "geographic"`. Use `diagram`
-for the default 약도 output; use `geographic` when you want the raw road
-geometry preserved more closely.
+`generate_map` accepts `layout: "diagram" | "geographic"` and
+`theme: "classic" | "quiet" | "mono"`. Use `diagram` for the default 약도
+output; use `geographic` when you want the raw road geometry preserved more
+closely.
 
 ## Why "cairn"?
 

@@ -22,6 +22,7 @@ OPTIONS
   -w, --width <px>        SVG width (default: 600, ${MIN_CANVAS_DIMENSION_PX}-${MAX_CANVAS_DIMENSION_PX})
   -h, --height <px>       SVG height (default: 400, ${MIN_CANVAS_DIMENSION_PX}-${MAX_CANVAS_DIMENSION_PX})
       --layout <mode>     Render layout: diagram or geographic (default: diagram)
+      --theme <name>      Render theme: classic, quiet, or mono (default: classic)
       --no-roads          Skip the road skeleton (landmarks only)
       --help              Show this help
 
@@ -80,6 +81,9 @@ function parse(argv: string[]) {
         break;
       case "--layout":
         opts.layout = takeValue(a, ++i);
+        break;
+      case "--theme":
+        opts.theme = takeValue(a, ++i);
         break;
       case "--no-roads":
         opts.noRoads = "true";
@@ -144,6 +148,14 @@ async function main() {
     return raw;
   };
 
+  const parseTheme = (raw: string | undefined) => {
+    if (raw === undefined) return undefined;
+    if (raw !== "classic" && raw !== "quiet" && raw !== "mono") {
+      throw new Error(`--theme must be "classic", "quiet", or "mono" (got: "${raw}")`);
+    }
+    return raw;
+  };
+
   const { svg, layout } = await generateMap(address, {
     label: opts.label,
     radiusMeters: parseFlag("--radius", opts.radius, 1, MAX_RADIUS_METERS),
@@ -152,6 +164,7 @@ async function main() {
     width: parseFlag("--width", opts.width, MIN_CANVAS_DIMENSION_PX, MAX_CANVAS_DIMENSION_PX),
     height: parseFlag("--height", opts.height, MIN_CANVAS_DIMENSION_PX, MAX_CANVAS_DIMENSION_PX),
     layout: parseLayout(opts.layout),
+    theme: parseTheme(opts.theme),
     roads: opts.noRoads === "true" ? false : undefined,
   });
 

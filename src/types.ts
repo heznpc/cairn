@@ -53,6 +53,7 @@ export interface MapLayout {
 }
 
 export type RenderLayoutMode = "diagram" | "geographic";
+export type RenderTheme = "classic" | "quiet" | "mono";
 
 export interface RenderOptions {
   width?: number;
@@ -60,6 +61,9 @@ export interface RenderOptions {
   // "diagram" (default) keeps only navigational structure; "geographic"
   // preserves the raw road geometry more closely for inspection/debugging.
   layout?: RenderLayoutMode;
+  // "classic" (default) keeps the destination unmistakable; "quiet" reduces
+  // visual weight; "mono" is for single-ink print uses such as business cards.
+  theme?: RenderTheme;
   // NOTE: `language` is reserved for future localization. render.ts does NOT
   // honor it yet; handlers.ts does NOT expose it to MCP hosts.
   language?: "ko" | "en" | "ja";

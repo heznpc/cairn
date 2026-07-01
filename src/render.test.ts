@@ -85,12 +85,26 @@ describe("renderSVG", () => {
     expect(svg).toContain('stroke="#fffef9" stroke-width="4"');
   });
 
-  it("uses an outlined print-style destination label", () => {
+  it("uses the strong classic destination label by default", () => {
     const svg = renderSVG(layout);
+    expect(svg).toContain('data-destination-label="true"');
+    expect(svg).toContain('data-destination-label="true"');
+    expect(svg).toContain('fill="#d63b31"');
+    expect(svg).toContain('fill="#fffef9">여기</text>');
+  });
+
+  it("supports a quieter outlined destination label theme", () => {
+    const svg = renderSVG(layout, { theme: "quiet" });
     expect(svg).toContain('data-destination-label="true"');
     expect(svg).toContain('fill="#fffef9" stroke="#b14436"');
     expect(svg).not.toContain('data-destination-label="true" fill="#b14436"');
-    expect(svg).not.toContain('fill="#fff">여기</text>');
+  });
+
+  it("supports a single-ink mono theme", () => {
+    const svg = renderSVG(layout, { theme: "mono" });
+    expect(svg).toContain('data-destination-label="true"');
+    expect(svg).toContain('fill="#25221d"');
+    expect(svg).toContain('data-landmark-icon="station"');
   });
 
   it("draws a final approach arrow in diagram mode", () => {
@@ -471,7 +485,7 @@ describe("renderSVG — roads", () => {
   });
 
   it("omits low-importance landmark labels when every placement is too cluttered", () => {
-    const svg = renderSVG({
+    const cluttered = {
       center: { lat: 37.5, lon: 127.0, label: "스튜디오" },
       landmarks: [
         {
@@ -525,9 +539,13 @@ describe("renderSVG — roads", () => {
         },
       ],
       bbox: { north: 37.5012, south: 37.4988, east: 127.0014, west: 126.9986 },
-    });
+    } satisfies MapLayout;
 
-    expect(svg).toContain('data-landmark-icon="hospital"');
-    expect(svg).not.toContain("서울대학교병원");
+    const classic = renderSVG(cluttered);
+    expect(classic).toContain("서울대학교병원헬");
+
+    const quiet = renderSVG(cluttered, { theme: "quiet" });
+    expect(quiet).toContain('data-landmark-icon="hospital"');
+    expect(quiet).not.toContain("서울대학교병원");
   });
 });
