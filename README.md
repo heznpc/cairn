@@ -33,7 +33,7 @@ Most maps are too accurate to be useful. Korean 약도 (yakdo) and Japanese 略�
   node dist/cli.js "Shibuya Crossing, Tokyo" -o shibuya.svg --layout geographic
   ```
 - **Layout modes** — `diagram` is the default 약도 layout, keeping only the navigational structure; `geographic` preserves raw road geometry more closely for inspection/debugging.
-- **Output presets** — `standard` (default) keeps the full curated 약도, `compact` becomes an approach-focused mini-map with only the main axes and transit-like landmarks, and `minimal` removes the road skeleton for a route-only destination cue inside a larger design.
+- **Output presets** — `standard` (default) keeps the full curated 약도, `compact` becomes an approach-focused mini-map with the main road labels and transit-like landmarks, and `minimal` uses a dedicated route-strip template for embedding inside a larger design.
 - **Bounded inputs** on public tool/CLI parameters — search radii max out at 5 km and SVG canvas dimensions at 4000 px to keep public OSM services and the single-process renderer healthy.
 - **HTTP rate-limiting and timeouts** on outbound calls — 1.1s minimum spacing to Nominatim, 1 req/s to Overpass, per their usage policies.
 - **Tests**: 159 passing (vitest, run on every push).
