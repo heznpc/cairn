@@ -94,6 +94,7 @@ describe("renderSVG", () => {
 
   it("supports a minimal preset with an outlined destination label", () => {
     const svg = renderSVG(layout, { preset: "minimal" });
+    expect(svg).toContain('data-route-strip="true"');
     expect(svg).toContain('data-destination-label="true"');
     expect(svg).toContain('fill="#fffef9" stroke="#d63b31"');
     expect(svg).not.toContain('data-destination-label="true" fill="#d63b31"');
@@ -154,9 +155,11 @@ describe("renderSVG", () => {
     const minimal = renderSVG(roadLayout, { preset: "minimal" });
 
     expect(roadCorePathCount(standard)).toBeGreaterThan(2);
-    expect(roadCorePathCount(compact)).toBeLessThanOrEqual(2);
-    expect(compact).not.toContain(">큰길</text>");
+    expect(roadCorePathCount(compact)).toBeLessThanOrEqual(3);
+    expect(compact).toContain(">큰길</text>");
     expect(roadCorePathCount(minimal)).toBe(0);
+    expect(minimal).toContain('data-strip-route="core"');
+    expect(minimal).toContain('data-strip-road="anchor"');
     expect(minimal).not.toContain('stroke="#e5ded2"');
   });
 

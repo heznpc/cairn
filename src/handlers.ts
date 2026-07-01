@@ -33,7 +33,7 @@ const GenerateMapArgs = z.object({
   width: CanvasDimensionArg.optional(),
   height: CanvasDimensionArg.optional(),
   layout: RenderLayoutArg.optional().describe('Render layout mode (default "diagram")'),
-  preset: RenderPresetArg.optional().describe('Output form: "standard" full map (default), "compact" approach map, or "minimal" route-only cue'),
+  preset: RenderPresetArg.optional().describe('Output form: "standard" full map (default), "compact" approach map, or "minimal" route strip'),
   roads: z
     .boolean()
     .optional()
@@ -262,7 +262,7 @@ export const tools = [
         preset: {
           type: "string",
           enum: RENDER_PRESETS,
-          description: 'Output form: "standard" keeps the full curated map (default), "compact" keeps a short approach-focused road skeleton, "minimal" removes the road skeleton for a route-only cue',
+          description: 'Output form: "standard" keeps the full curated map (default), "compact" keeps a short approach-focused road skeleton, "minimal" uses a dedicated route-strip template',
         },
         roads: { type: "boolean", description: "Draw the road skeleton (default true)" },
       },
