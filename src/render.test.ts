@@ -526,6 +526,42 @@ describe("renderSVG — roads", () => {
     expect(roadCorePathCount(svg)).toBe(30);
   });
 
+  it("caps the geographic road count so a dense area can't emit an unbounded SVG", () => {
+    // 150 short ways — well past the geographic way budget. Uncapped this would
+    // emit 150 core paths (the pre-cap DoS vector); the cap keeps it bounded.
+    const roads = Array.from({ length: 150 }, (_, i) => ({
+      id: `r${i}`,
+      name: `도로${i}`,
+      class: "residential" as const,
+      points: [
+        { lat: 37.49 + i * 0.00003, lon: 126.99 },
+        { lat: 37.49 + i * 0.00003, lon: 127.01 },
+      ],
+    }));
+
+    const svg = renderSVG(layoutWithRoads(roads), { layout: "geographic" });
+
+    expect(roadCorePathCount(svg)).toBeLessThanOrEqual(80);
+  });
+
+  it("caps the geographic total vertex budget when ways carry heavy geometry", () => {
+    // 40 ways (under the 80-way cap) but 200 vertices each = 8000 total,
+    // past the vertex budget — so the count is trimmed below 40.
+    const roads = Array.from({ length: 40 }, (_, i) => ({
+      id: `r${i}`,
+      name: `도로${i}`,
+      class: "residential" as const,
+      points: Array.from({ length: 200 }, (_, j) => ({
+        lat: 37.49 + i * 0.00003 + j * 0.000001,
+        lon: 126.99 + j * 0.0001,
+      })),
+    }));
+
+    const svg = renderSVG(layoutWithRoads(roads), { layout: "geographic" });
+
+    expect(roadCorePathCount(svg)).toBeLessThan(40);
+  });
+
   it("shortens long landmark labels for print-style maps", () => {
     const longName = "서울대학교병원헬스케어시스템강남센터";
     const svg = renderSVG({

@@ -171,6 +171,17 @@ const PRESETS: Record<RenderPreset, PresetSpec> = {
 const MAX_ROADS_WITHOUT_FILTER = 5;
 const MAX_ROADS_PER_NAME = 3;
 
+// Geographic layout preserves raw OSM way geometry, so — unlike the diagram
+// presets — it can't collapse each road to a 2-point spine. Without a cap, a
+// dense-city request at the 5000m max radius returns hundreds of full-geometry
+// ways and emits a multi-hundred-KB SVG (a resource-exhaustion vector on the
+// stdio server / host). Bound both the way count and the total vertex budget.
+// When the set already fits, it is returned untouched — same roads, same order,
+// output identical to an uncapped render — so the cap only bites pathological
+// density, never a normal 약도.
+const MAX_GEOGRAPHIC_ROADS = 80;
+const MAX_GEOGRAPHIC_ROAD_POINTS = 3000;
+
 // Only the two top tiers get name labels (residential clutter kills legibility).
 const LABELED_ROAD_CLASSES = new Set<RoadClass>(["primary", "secondary"]);
 
@@ -236,7 +247,7 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
 
   const displayRoads =
     renderLayout === "geographic"
-      ? roads.filter((road) => road.points.length >= 2)
+      ? selectGeographicRoads(roads, project, width, height)
       : selectDisplayRoads(roads, project, width, height, { x: cx, y: cy }, preset.maxVisibleRoads);
   const skeletonRoads = preset.showRoadSkeleton ? displayRoads : [];
   const approach =
@@ -867,6 +878,51 @@ function diagramRoadSpine(
     return null;
   }
   return { start, end, length };
+}
+
+// Bound the geographic-layout road set without discarding raw geometry: keep
+// the full way vertices (that's the point of geographic mode) but cap how many
+// ways render and their combined vertex count. Under budget, the drawable set
+// is returned as-is; over budget, the most important + most in-frame ways win,
+// then original order is restored so the drawn skeleton stays visually stable.
+function selectGeographicRoads(
+  roads: MapLayout["roads"],
+  project: (lat: number, lon: number) => [number, number],
+  width: number,
+  height: number,
+): MapLayout["roads"] {
+  const drawable = roads.filter((road) => road.points.length >= 2);
+  const totalPoints = drawable.reduce((sum, road) => sum + road.points.length, 0);
+  if (drawable.length <= MAX_GEOGRAPHIC_ROADS && totalPoints <= MAX_GEOGRAPHIC_ROAD_POINTS) {
+    return drawable;
+  }
+
+  const scored = drawable
+    .map((road, index) => ({
+      road,
+      index,
+      score:
+        ROAD_RANK[road.class] * 1000 +
+        (road.name ? 220 : 0) +
+        Math.min(clippedRoadLength(road, project, 0, 0, width, height), 1200),
+    }))
+    .sort((a, b) => b.score - a.score || a.index - b.index);
+
+  const picked: Array<{ road: MapLayout["roads"][number]; index: number }> = [];
+  let pointBudget = 0;
+  for (const item of scored) {
+    if (picked.length >= MAX_GEOGRAPHIC_ROADS) break;
+    // Always admit the top-scored way (even if it alone exceeds the vertex
+    // budget); after that, skip ways that would push us over so smaller ones
+    // can still fill the remaining budget.
+    if (picked.length > 0 && pointBudget + item.road.points.length > MAX_GEOGRAPHIC_ROAD_POINTS) {
+      continue;
+    }
+    pointBudget += item.road.points.length;
+    picked.push(item);
+  }
+
+  return picked.sort((a, b) => a.index - b.index).map((item) => item.road);
 }
 
 function selectDisplayRoads(
