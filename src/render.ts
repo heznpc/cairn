@@ -467,7 +467,7 @@ function renderRouteStripSVG(
   lines.push(labelText(startLabel, sx, sy + 38, 11, INK, 500));
 
   lines.push(
-    `<circle cx="${dx.toFixed(1)}" cy="${dy.toFixed(1)}" r="10" fill="${DESTINATION}" stroke="${PAPER}" stroke-width="3"/>`,
+    `<circle cx="${dx.toFixed(1)}" cy="${dy.toFixed(1)}" r="13" fill="${DESTINATION}" stroke="${PAPER}" stroke-width="3.5"/>`,
   );
   lines.push(
     `<line data-destination-tail="true" x1="${destBox.anchorX.toFixed(1)}" y1="${destBox.anchorY.toFixed(1)}" x2="${dx.toFixed(1)}" y2="${dy.toFixed(1)}" stroke="${DESTINATION}" stroke-width="1.8" stroke-linecap="round"/>`,
@@ -551,7 +551,7 @@ function renderBadgeSVG(
   lines.push(labelText(startLabel, sx, sy + 36, 11, INK, 500));
 
   lines.push(
-    `<circle cx="${dx.toFixed(1)}" cy="${dy.toFixed(1)}" r="10" fill="${DESTINATION}" stroke="${PAPER}" stroke-width="3"/>`,
+    `<circle cx="${dx.toFixed(1)}" cy="${dy.toFixed(1)}" r="13" fill="${DESTINATION}" stroke="${PAPER}" stroke-width="3.5"/>`,
   );
   lines.push(
     `<line data-destination-tail="true" x1="${destBox.anchorX.toFixed(1)}" y1="${destBox.anchorY.toFixed(1)}" x2="${dx.toFixed(1)}" y2="${dy.toFixed(1)}" stroke="${DESTINATION}" stroke-width="2" stroke-linecap="round"/>`,
@@ -709,45 +709,22 @@ function placeLandmarkLabels(
       continue;
     }
     const boxHeight = lm.labelHeight;
-    const candidates: Box[] = [
-      {
-        x: lm.x - lm.labelWidth / 2,
-        y: lm.y + 23,
-        width: lm.labelWidth,
-        height: boxHeight,
-      },
-      {
-        x: lm.x - lm.labelWidth / 2,
-        y: lm.y - 23 - boxHeight,
-        width: lm.labelWidth,
-        height: boxHeight,
-      },
-      {
-        x: lm.x + 24,
-        y: lm.y - boxHeight / 2,
-        width: lm.labelWidth,
-        height: boxHeight,
-      },
-      {
-        x: lm.x - lm.labelWidth - 24,
-        y: lm.y - boxHeight / 2,
-        width: lm.labelWidth,
-        height: boxHeight,
-      },
-      // Diagonal escapes: crowded intersections often leave only a corner open.
-      {
-        x: lm.x + 22,
-        y: lm.y + 20,
-        width: lm.labelWidth,
-        height: boxHeight,
-      },
-      {
-        x: lm.x - lm.labelWidth - 22,
-        y: lm.y + 20,
-        width: lm.labelWidth,
-        height: boxHeight,
-      },
+    // Candidate anchor positions: below, above, right, left, then two diagonal
+    // "escapes" for crowded intersections where only a corner is open. Every
+    // candidate shares the same width/height, so apply them once via map.
+    const positions: Array<{ x: number; y: number }> = [
+      { x: lm.x - lm.labelWidth / 2, y: lm.y + 23 },
+      { x: lm.x - lm.labelWidth / 2, y: lm.y - 23 - boxHeight },
+      { x: lm.x + 24, y: lm.y - boxHeight / 2 },
+      { x: lm.x - lm.labelWidth - 24, y: lm.y - boxHeight / 2 },
+      { x: lm.x + 22, y: lm.y + 20 },
+      { x: lm.x - lm.labelWidth - 22, y: lm.y + 20 },
     ];
+    const candidates: Box[] = positions.map((pos) => ({
+      ...pos,
+      width: lm.labelWidth,
+      height: boxHeight,
+    }));
 
     const obstacles = [...baseObstacles, ...placed];
     const best = candidates
