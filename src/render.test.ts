@@ -222,8 +222,8 @@ describe("renderSVG", () => {
 // SVG coordinates.
 
 describe("renderSVG — projection", () => {
-  // Center marker uses r="10", landmarks use r="17" — that's how we distinguish.
-  const CENTER_RE = /<circle\s+cx="([\d.]+)"\s+cy="([\d.]+)"\s+r="10"/;
+  // Center marker uses r="13", landmarks use r="17" — that's how we distinguish.
+  const CENTER_RE = /<circle\s+cx="([\d.]+)"\s+cy="([\d.]+)"\s+r="13"/;
   const LANDMARK_RE = /<circle\s+cx="([\d.]+)"\s+cy="([\d.]+)"\s+r="17"/g;
 
   // 0.02° bbox in each axis, destination at the exact center.
@@ -562,7 +562,21 @@ describe("renderSVG — roads", () => {
     expect(roadCorePathCount(svg)).toBeLessThan(40);
   });
 
-  it("shortens long landmark labels for print-style maps", () => {
+  it("draws the main road tier visibly heavier than minor roads", () => {
+    const roads = [
+      { id: "p", name: "큰길", class: "primary" as const, points: [{ lat: 37.499, lon: 126.999 }, { lat: 37.501, lon: 127.001 }] },
+      { id: "r", name: "골목", class: "residential" as const, points: [{ lat: 37.4995, lon: 126.999 }, { lat: 37.5005, lon: 127.001 }] },
+    ];
+    // Geographic layout renders every road by class, so both tiers appear.
+    const svg = renderSVG(layoutWithRoads(roads), { layout: "geographic" });
+    const widths = [...svg.matchAll(/<path data-road-layer="core"[^>]*stroke-width="([\d.]+)"/g)].map((m) => Number(m[1]));
+
+    expect(widths).toHaveLength(2);
+    // Primary should read as the artery: at least twice the residential width.
+    expect(Math.max(...widths)).toBeGreaterThan(Math.min(...widths) * 2);
+  });
+
+  it("wraps long landmark labels onto two lines instead of a hard ellipsis", () => {
     const longName = "서울대학교병원헬스케어시스템강남센터";
     const svg = renderSVG({
       ...layoutWithRoads([]),
@@ -579,7 +593,12 @@ describe("renderSVG — roads", () => {
       ],
     });
 
-    expect(svg).toContain("서울대학교병원헬…");
+    // Two balanced lines via tspans — the full name stays readable, and the
+    // ugly single-line "서울대학교병원헬…" truncation is gone.
+    expect(svg).toContain("<tspan");
+    expect(svg).toContain("서울대학교병원헬스");
+    expect(svg).toContain("케어시스템강남센터");
+    expect(svg).not.toContain("…");
     expect(svg).not.toContain(longName);
   });
 
@@ -641,7 +660,9 @@ describe("renderSVG — roads", () => {
     } satisfies MapLayout;
 
     const standard = renderSVG(cluttered);
-    expect(standard).toContain("서울대학교병원헬");
+    // Standard keeps every label (wrapped to two lines), so the hospital name
+    // is present — its first wrapped line "서울대학교병원" appears verbatim.
+    expect(standard).toContain("서울대학교병원");
 
     const compact = renderSVG(cluttered, { preset: "compact" });
     expect(compact).toContain('data-landmark-icon="station_exit"');

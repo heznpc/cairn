@@ -13,12 +13,16 @@ const MUTED_INK = "#5f5a52";
 const TRANSIT_INK = "#216f86";
 const EXIT_INK = "#207665";
 
+// Road hierarchy is load-bearing for a 약도: the reader has to see the main
+// artery at a glance. Widen the width gap and darken the top tiers so primary
+// reads as "the big road you navigate by", while residential/path recede into
+// pale filler. Kept in a warm-gray range so the linework still prints like ink.
 const BASE_ROAD_STYLE: Record<RoadClass, { width: number; color: string }> = {
-  primary: { width: 10, color: "#b7b1a6" },
-  secondary: { width: 7.5, color: "#ccc6ba" },
-  tertiary: { width: 4.5, color: "#ded8cc" },
-  residential: { width: 3.5, color: "#e8e1d6" },
-  path: { width: 2.8, color: "#ede7dc" },
+  primary: { width: 12, color: "#a29b8c" },
+  secondary: { width: 7.5, color: "#c1baac" },
+  tertiary: { width: 4, color: "#d8d1c4" },
+  residential: { width: 3, color: "#e6dfd3" },
+  path: { width: 2.5, color: "#ece6db" },
 };
 
 const ROAD_RANK: Record<RoadClass, number> = {
@@ -80,7 +84,10 @@ const PRESETS: Record<RenderPreset, PresetSpec> = {
     labelImportanceMin: 0,
     maxLandmarks: 5,
     showRoadLabels: true,
-    avoidRoadLabels: false,
+    // Treat road spines as label obstacles so landmark names route around the
+    // skeleton instead of printing on top of it. Standard keeps every label
+    // (hideClutteredLabels stays false) — this tidies placement, not content.
+    avoidRoadLabels: true,
     hideClutteredLabels: false,
     maxVisibleRoads: 5,
   },
@@ -255,15 +262,17 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
       ? chooseApproachLandmark(layout.landmarks, cx, cy, project)
       : null;
   const landmarks = selectPresetLandmarks(layout.landmarks, preset);
-  const projectedLandmarks = landmarks.map((lm) => {
+  const projectedLandmarks: ProjectedLandmark[] = landmarks.map((lm) => {
     const [x, y] = project(lm.lat, lm.lon);
-    const label = truncateLabel(lm.name, preset.landmarkLabelMax);
+    const labelLines = wrapLandmarkLabel(lm.name, preset.landmarkLabelMax);
+    const labelWidth = Math.max(...labelLines.map((line) => textBoxWidth(line, 11, 20)));
     return {
       lm,
       x,
       y,
-      label,
-      labelWidth: textBoxWidth(label, 11, 20),
+      labelLines,
+      labelWidth,
+      labelHeight: labelLines.length * 15 + 3,
       labelHidden: lm.importance < preset.labelImportanceMin,
     };
   });
@@ -277,6 +286,16 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
     renderLayout === "diagram" && preset.avoidRoadLabels
       ? roadObstacleBoxes(skeletonRoads, project, width, height)
       : [];
+  // Road-name labels are drawn later, but reserve their boxes now so landmark
+  // and destination labels don't stack on top of them (text-on-text is the
+  // worst legibility offender). Computed once and reused for drawing.
+  const roadLabelEntries: Array<[string, { x: number; y: number }]> = preset.showRoadLabels
+    ? [...roadLabelPositions(skeletonRoads, project, width, height)]
+    : [];
+  const roadLabelObstacles: Box[] = roadLabelEntries.map(([name, pos]) => {
+    const w = textBoxWidth(truncateLabel(name, ROAD_LABEL_MAX), 10, 14);
+    return { x: pos.x - w / 2, y: pos.y - 9, width: w, height: 16 };
+  });
   const landmarkLabelBoxes = placeLandmarkLabels(
     projectedLandmarks,
     width,
@@ -284,6 +303,7 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
     [
       ...landmarkMarkerBoxes,
       ...roadObstacles,
+      ...roadLabelObstacles,
       { x: cx - 18, y: cy - 18, width: 36, height: 36 },
     ],
     preset.hideClutteredLabels,
@@ -296,7 +316,7 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
     centerLabelWidth,
     width,
     height,
-    [...landmarkMarkerBoxes, ...landmarkLabelBoxes, ...roadObstacles],
+    [...landmarkMarkerBoxes, ...landmarkLabelBoxes, ...roadObstacles, ...roadLabelObstacles],
   );
 
   const lines: string[] = [];
@@ -332,11 +352,10 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
   }
 
   // Road name labels — one per unique name, placed on the longest in-frame run.
-  if (preset.showRoadLabels) {
-    for (const [name, pos] of roadLabelPositions(skeletonRoads, project, width, height)) {
-      const label = truncateLabel(name, ROAD_LABEL_MAX);
-      lines.push(labelText(label, pos.x, pos.y, 10, "#8a857c", 600));
-    }
+  // Entries were computed above (and reserved as label obstacles).
+  for (const [name, pos] of roadLabelEntries) {
+    const label = truncateLabel(name, ROAD_LABEL_MAX);
+    lines.push(labelText(label, pos.x, pos.y, 10, "#8a857c", 600));
   }
 
   if (approach) {
@@ -360,7 +379,7 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
 
   // Landmarks
   for (const [index, item] of projectedLandmarks.entries()) {
-    const { lm, x: lx, y: ly, label } = item;
+    const { lm, x: lx, y: ly, labelLines } = item;
     const marker = markerStyle(lm.category);
     const labelBox = landmarkLabelBoxes[index];
     lines.push(
@@ -368,13 +387,15 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
     );
     lines.push(landmarkIcon(lm.category, lx, ly, marker.color));
     if (!labelBox.hidden) {
-      lines.push(labelText(label, labelBox.x + labelBox.width / 2, labelBox.y + 13, 11, INK, 500));
+      lines.push(labelText(labelLines, labelBox.x + labelBox.width / 2, labelBox.y + 13, 11, INK, 500));
     }
   }
 
-  // Center marker (destination)
+  // Center marker (destination) — the focal point. Solid saturated red, larger
+  // than the hollow landmark markers and ringed in paper so it reads as "here"
+  // at a glance rather than competing with the surrounding POIs.
   lines.push(
-    `<circle cx="${cx}" cy="${cy}" r="10" fill="${DESTINATION}" stroke="${PAPER}" stroke-width="3"/>`,
+    `<circle cx="${cx}" cy="${cy}" r="13" fill="${DESTINATION}" stroke="${PAPER}" stroke-width="3.5"/>`,
   );
   lines.push(
     `<line data-destination-tail="true" x1="${centerCallout.anchorX.toFixed(1)}" y1="${centerCallout.anchorY.toFixed(1)}" x2="${cx.toFixed(1)}" y2="${cy.toFixed(1)}" stroke="${DESTINATION}" stroke-width="${preset.destinationTailWidth}" stroke-linecap="round"/>`,
@@ -457,7 +478,7 @@ function renderRouteStripSVG(
   lines.push(labelText(startLabel, sx, sy + 38, 11, INK, 500));
 
   lines.push(
-    `<circle cx="${dx.toFixed(1)}" cy="${dy.toFixed(1)}" r="10" fill="${DESTINATION}" stroke="${PAPER}" stroke-width="3"/>`,
+    `<circle cx="${dx.toFixed(1)}" cy="${dy.toFixed(1)}" r="13" fill="${DESTINATION}" stroke="${PAPER}" stroke-width="3.5"/>`,
   );
   lines.push(
     `<line data-destination-tail="true" x1="${destBox.anchorX.toFixed(1)}" y1="${destBox.anchorY.toFixed(1)}" x2="${dx.toFixed(1)}" y2="${dy.toFixed(1)}" stroke="${DESTINATION}" stroke-width="1.8" stroke-linecap="round"/>`,
@@ -541,7 +562,7 @@ function renderBadgeSVG(
   lines.push(labelText(startLabel, sx, sy + 36, 11, INK, 500));
 
   lines.push(
-    `<circle cx="${dx.toFixed(1)}" cy="${dy.toFixed(1)}" r="10" fill="${DESTINATION}" stroke="${PAPER}" stroke-width="3"/>`,
+    `<circle cx="${dx.toFixed(1)}" cy="${dy.toFixed(1)}" r="13" fill="${DESTINATION}" stroke="${PAPER}" stroke-width="3.5"/>`,
   );
   lines.push(
     `<line data-destination-tail="true" x1="${destBox.anchorX.toFixed(1)}" y1="${destBox.anchorY.toFixed(1)}" x2="${dx.toFixed(1)}" y2="${dy.toFixed(1)}" stroke="${DESTINATION}" stroke-width="2" stroke-linecap="round"/>`,
@@ -645,18 +666,29 @@ function destinationLabel(label: string, box: CenterCallout, preset: PresetSpec)
 }
 
 function labelText(
-  label: string,
+  label: string | string[],
   x: number,
   y: number,
   fontSize: number,
   fill: string,
   fontWeight: number,
 ): string {
-  const escaped = escapeXml(label);
+  const lines = Array.isArray(label) ? label : [label];
   const attrs = `x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="middle" font-size="${fontSize}" font-weight="${fontWeight}"`;
+  // A single line keeps the exact flat <text>…</text> shape (other callers and
+  // tests match on it); multiple lines stack as tspans down from the baseline.
+  const body =
+    lines.length === 1
+      ? escapeXml(lines[0])
+      : lines
+          .map(
+            (line, i) =>
+              `<tspan x="${x.toFixed(1)}" dy="${i === 0 ? 0 : fontSize + 3}">${escapeXml(line)}</tspan>`,
+          )
+          .join("");
   return [
-    `<text ${attrs} fill="none" stroke="${LABEL_HALO}" stroke-width="4" stroke-linejoin="round">${escaped}</text>`,
-    `<text ${attrs} fill="${fill}">${escaped}</text>`,
+    `<text ${attrs} fill="none" stroke="${LABEL_HALO}" stroke-width="4" stroke-linejoin="round">${body}</text>`,
+    `<text ${attrs} fill="${fill}">${body}</text>`,
   ].join("\n");
 }
 
@@ -664,8 +696,9 @@ interface ProjectedLandmark {
   lm: MapLayout["landmarks"][number];
   x: number;
   y: number;
-  label: string;
+  labelLines: string[];
   labelWidth: number;
+  labelHeight: number;
   labelHidden: boolean;
 }
 
@@ -686,33 +719,23 @@ function placeLandmarkLabels(
       placed.push({ x: lm.x, y: lm.y, width: 0, height: 0, hidden: true });
       continue;
     }
-    const boxHeight = 18;
-    const candidates: Box[] = [
-      {
-        x: lm.x - lm.labelWidth / 2,
-        y: lm.y + 23,
-        width: lm.labelWidth,
-        height: boxHeight,
-      },
-      {
-        x: lm.x - lm.labelWidth / 2,
-        y: lm.y - 41,
-        width: lm.labelWidth,
-        height: boxHeight,
-      },
-      {
-        x: lm.x + 24,
-        y: lm.y - boxHeight / 2,
-        width: lm.labelWidth,
-        height: boxHeight,
-      },
-      {
-        x: lm.x - lm.labelWidth - 24,
-        y: lm.y - boxHeight / 2,
-        width: lm.labelWidth,
-        height: boxHeight,
-      },
+    const boxHeight = lm.labelHeight;
+    // Candidate anchor positions: below, above, right, left, then two diagonal
+    // "escapes" for crowded intersections where only a corner is open. Every
+    // candidate shares the same width/height, so apply them once via map.
+    const positions: Array<{ x: number; y: number }> = [
+      { x: lm.x - lm.labelWidth / 2, y: lm.y + 23 },
+      { x: lm.x - lm.labelWidth / 2, y: lm.y - 23 - boxHeight },
+      { x: lm.x + 24, y: lm.y - boxHeight / 2 },
+      { x: lm.x - lm.labelWidth - 24, y: lm.y - boxHeight / 2 },
+      { x: lm.x + 22, y: lm.y + 20 },
+      { x: lm.x - lm.labelWidth - 22, y: lm.y + 20 },
     ];
+    const candidates: Box[] = positions.map((pos) => ({
+      ...pos,
+      width: lm.labelWidth,
+      height: boxHeight,
+    }));
 
     const obstacles = [...baseObstacles, ...placed];
     const best = candidates
@@ -1121,6 +1144,25 @@ function truncateLabel(label: string, maxChars: number): string {
   return `${chars.slice(0, Math.max(1, maxChars - 1)).join("")}…`;
 }
 
+// Wrap a landmark name onto at most two lines instead of hard-truncating with
+// an ellipsis (the ugliest "auto-generated" tell). Korean place names are
+// usually space-free, so the split is by character count — balanced, but never
+// past maxPerLine on the first line; a name too long for two lines ellipsises
+// the second. Short names stay on one line (single-element array).
+function wrapLandmarkLabel(name: string, maxPerLine: number): string[] {
+  const trimmed = name.trim();
+  const chars = Array.from(trimmed);
+  if (chars.length <= maxPerLine) return [trimmed];
+  const splitAt = Math.min(maxPerLine, Math.ceil(chars.length / 2));
+  const line1 = chars.slice(0, splitAt).join("");
+  const rest = Array.from(chars.slice(splitAt).join("").trimStart());
+  const line2 =
+    rest.length > maxPerLine
+      ? `${rest.slice(0, Math.max(1, maxPerLine - 1)).join("")}…`
+      : rest.join("");
+  return [line1, line2];
+}
+
 function textBoxWidth(label: string, fontSize: number, padding: number): number {
   const units = Array.from(label).reduce((sum, ch) => {
     return sum + (ch.charCodeAt(0) < 128 ? 0.58 : 1);
@@ -1205,7 +1247,7 @@ function boxScore(box: Box, width: number, height: number, obstacles: Box[]): nu
   }
 
   for (const obstacle of obstacles) {
-    score += overlapArea(box, obstacle) * 20;
+    score += overlapArea(box, obstacle) * 30;
   }
   return score;
 }
