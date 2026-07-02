@@ -30,3 +30,6 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      # Renders every preset and asserts road/landmark budgets + preset-specific
+      # SVG contracts. Imports from dist/, so it must run after the build.
+      - run: npm run visual:audit
