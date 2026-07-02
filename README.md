@@ -37,7 +37,7 @@ Most maps are too accurate to be useful. Korean 약도 (yakdo) and Japanese 略�
 - **Output presets** — `standard` (default) keeps the full curated 약도, `compact` becomes an approach-focused mini-map, `minimal` uses a route-strip template, `schematic` turns roads into right-angle diagram axes, and `badge` renders a destination-first inset map for small placements.
 - **Bounded inputs** on public tool/CLI parameters — search radii max out at 5 km and SVG canvas dimensions at 4000 px to keep public OSM services and the single-process renderer healthy.
 - **HTTP rate-limiting and timeouts** on outbound calls — 1.1s minimum spacing to Nominatim, 1 req/s to Overpass, per their usage policies.
-- **Tests**: 160 passing (vitest, run on every push).
+- **Tests**: 165 passing (vitest, run on every push).
 - **Visual audit harness**: `npm run visual:audit` renders a deterministic yakdo fixture and fails on UI-like regressions such as dashed connector lines, rounded label pills, color sprawl, or too many road spines.
 
 ## Planned
