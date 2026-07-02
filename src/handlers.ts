@@ -38,6 +38,10 @@ const GenerateMapArgs = z.object({
     .boolean()
     .optional()
     .describe("Draw the road skeleton (default true). Set false to skip the extra Overpass round-trip."),
+  focus: z
+    .boolean()
+    .optional()
+    .describe("Fisheye-emphasize the destination area (magnify near, compress far). Diagram layouts only; default false."),
 });
 
 const GeocodeArgs = z.object({
@@ -265,6 +269,7 @@ export const tools = [
           description: 'Output form: "standard" keeps the full curated map (default), "compact" keeps a short approach-focused road skeleton, "minimal" uses a route-strip template, "schematic" uses right-angle diagram roads, "badge" uses a destination-first inset template',
         },
         roads: { type: "boolean", description: "Draw the road skeleton (default true)" },
+        focus: { type: "boolean", description: "Fisheye-emphasize the destination area (diagram only, default false)" },
       },
       required: ["address"],
     },

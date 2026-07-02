@@ -67,6 +67,10 @@ export interface RenderOptions {
   // roads into right-angle diagram axes; "badge" renders a destination-first
   // inset map for small placements.
   preset?: RenderPreset;
+  // Opt-in destination emphasis: a radial fisheye that magnifies the area
+  // around the destination and compresses the periphery, like a hand-drawn
+  // 약도. Default off (linear projection); only applies in "diagram" layout.
+  focus?: boolean;
   // NOTE: `language` is reserved for future localization. render.ts does NOT
   // honor it yet; handlers.ts does NOT expose it to MCP hosts.
   language?: "ko" | "en" | "ja";

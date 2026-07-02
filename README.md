@@ -31,13 +31,15 @@ Most maps are too accurate to be useful. Korean 약도 (yakdo) and Japanese 略�
   node dist/cli.js "서울 강남구 테헤란로 152" -o office.svg --label "스튜디오"
   node dist/cli.js "서울 강남구 테헤란로 152" -o office-compact.svg --preset compact
   node dist/cli.js "서울 강남구 테헤란로 152" -o office-badge.svg --preset badge
+  node dist/cli.js "서울 강남구 테헤란로 152" -o office-focus.svg --focus
   node dist/cli.js "Shibuya Crossing, Tokyo" -o shibuya.svg --layout geographic
   ```
 - **Layout modes** — `diagram` is the default 약도 layout, keeping only the navigational structure; `geographic` preserves raw road geometry more closely for inspection/debugging.
 - **Output presets** — `standard` (default) keeps the full curated 약도, `compact` becomes an approach-focused mini-map, `minimal` uses a route-strip template, `schematic` turns roads into right-angle diagram axes, and `badge` renders a destination-first inset map for small placements.
+- **Destination focus** (opt-in `--focus` / `focus: true`) — a radial fisheye that magnifies the area around the destination and compresses the periphery, so the crucial last block reads larger. Diagram layouts only; the destination stays a fixed point and the default projection stays linear.
 - **Bounded inputs** on public tool/CLI parameters — search radii max out at 5 km and SVG canvas dimensions at 4000 px to keep public OSM services and the single-process renderer healthy.
 - **HTTP rate-limiting and timeouts** on outbound calls — 1.1s minimum spacing to Nominatim, 1 req/s to Overpass, per their usage policies.
-- **Tests**: 165 passing (vitest, run on every push).
+- **Tests**: 169 passing (vitest, run on every push).
 - **Visual audit harness**: `npm run visual:audit` renders a deterministic yakdo fixture and fails on UI-like regressions such as dashed connector lines, rounded label pills, color sprawl, or too many road spines.
 
 ## Planned
