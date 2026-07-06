@@ -767,6 +767,19 @@ describe("renderSVG — focus projection", () => {
     expect(svgOn).not.toMatch(/NaN/);
   });
 
+  it("bounds far projected points to the focus radius", () => {
+    const farLayout: MapLayout = {
+      ...focusLayout,
+      landmarks: [
+        { id: "far", name: "먼 곳", lat: 37.5, lon: 127.06, category: "landmark", importance: 1, tags: {} },
+      ],
+    };
+
+    const focusRadius = Math.hypot(600, 400) / 2;
+    expect(distanceFromCenter(renderSVG(farLayout))).toBeGreaterThan(focusRadius);
+    expect(distanceFromCenter(renderSVG(farLayout, { focus: true }))).toBeLessThanOrEqual(focusRadius + 0.1);
+  });
+
   it("ignores focus in geographic layout (raw geometry preserved)", () => {
     expect(renderSVG(focusLayout, { layout: "geographic", focus: true })).toBe(
       renderSVG(focusLayout, { layout: "geographic" }),
