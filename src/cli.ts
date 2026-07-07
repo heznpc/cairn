@@ -24,6 +24,7 @@ OPTIONS
       --layout <mode>     Render layout: diagram or geographic (default: diagram)
       --preset <name>     Output form: standard, compact, minimal, schematic, or badge (default: standard)
       --no-roads          Skip the road skeleton (landmarks only)
+      --focus             Fisheye-emphasize the destination area (standard/compact/schematic)
       --help              Show this help
 
 EXAMPLES
@@ -87,6 +88,9 @@ function parse(argv: string[]) {
         break;
       case "--no-roads":
         opts.noRoads = "true";
+        break;
+      case "--focus":
+        opts.focus = "true";
         break;
       case "--help":
         opts.help = "true";
@@ -166,6 +170,7 @@ async function main() {
     layout: parseLayout(opts.layout),
     preset: parsePreset(opts.preset),
     roads: opts.noRoads === "true" ? false : undefined,
+    focus: opts.focus === "true" ? true : undefined,
   });
 
   if (opts.output) {

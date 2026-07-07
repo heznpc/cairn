@@ -62,6 +62,13 @@ describe("generateMap", () => {
     );
   });
 
+  it("clamps landmark and road search radii after internal expansion", async () => {
+    await generateMap("서울 강남구 테헤란로 152", { radiusMeters: 5000 });
+
+    expect(mockedFindLandmarks).toHaveBeenCalledWith(geo.lat, geo.lon, 5000);
+    expect(mockedFindRoads).toHaveBeenCalledWith(geo.lat, geo.lon, 5000);
+  });
+
   it("does not query roads when roads are disabled", async () => {
     const result = await generateMap("서울 강남구 테헤란로 152", { roads: false });
 

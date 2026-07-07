@@ -225,6 +225,32 @@ function safeDimension(value: number | undefined, fallback: number): number {
   );
 }
 
+// Distortion factor for the destination fisheye. Higher = stronger magnification
+// of the focus area. Kept gentle so the map still reads as spatial, not warped.
+const FOCUS_STRENGTH = 1.2;
+
+// Sarkar–Brown graphical fisheye around a focus point (px space). Magnifies
+// near the focus and compresses the periphery; the focus itself is a fixed
+// point, the mapping is monotonic in radius, and warped points stay within
+// `radius` of the focus (bounded). Pure and deterministic — unit-testable via
+// the exported renderSVG behaviour.
+function focusWarp(
+  point: [number, number],
+  cx: number,
+  cy: number,
+  radius: number,
+): [number, number] {
+  const [px, py] = point;
+  const dx = px - cx;
+  const dy = py - cy;
+  const d = Math.hypot(dx, dy);
+  if (d < 1e-6 || radius <= 0) return [px, py];
+  const r = Math.min(d / radius, 1);
+  const warped = ((FOCUS_STRENGTH + 1) * r) / (FOCUS_STRENGTH * r + 1);
+  const scale = (warped * radius) / d;
+  return [cx + dx * scale, cy + dy * scale];
+}
+
 export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
   const width = safeDimension(opts.width, 600);
   const height = safeDimension(opts.height, 400);
@@ -236,13 +262,25 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
   const roads = layout.roads ?? [];
   const renderLayout = opts.layout ?? "diagram";
 
-  const project = (lat: number, lon: number): [number, number] => {
+  const baseProject = (lat: number, lon: number): [number, number] => {
     const denomLon = bbox.east - bbox.west || 1e-6;
     const denomLat = bbox.north - bbox.south || 1e-6;
     const x = ((lon - bbox.west) / denomLon) * spanX + 50;
     const y = ((bbox.north - lat) / denomLat) * spanY + 50;
     return [x, y];
   };
+
+  // Opt-in destination fisheye (diagram layouts only): magnify the area around
+  // the destination, compress the periphery — like a hand-drawn 약도 that
+  // enlarges the important last block. The destination is the warp's fixed
+  // point, so it stays exactly where the linear projection placed it.
+  const [focusX, focusY] = baseProject(center.lat, center.lon);
+  const useFocus = renderLayout === "diagram" && opts.focus === true;
+  const focusRadius = Math.hypot(width, height) / 2;
+  const project = useFocus
+    ? (lat: number, lon: number): [number, number] =>
+        focusWarp(baseProject(lat, lon), focusX, focusY, focusRadius)
+    : baseProject;
 
   const [cx, cy] = project(center.lat, center.lon);
   if (renderLayout === "diagram" && presetName === "minimal") {

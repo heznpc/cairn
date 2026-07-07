@@ -6,6 +6,8 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-07-07
+
 ### Added
 - Renderer output presets: `standard` (default, full curated 약도), `compact`
   (reduced low-priority labels/icons), and `minimal` (transit-like approach
@@ -62,6 +64,9 @@ versions follow [Semantic Versioning](https://semver.org/).
 - CI matrix on Node 22 + Node 24, with `permissions: contents: read`
   and a `concurrency` group.
 - Privacy disclosure: addresses are sent to OpenStreetMap servers.
+- Release preflight now runs typecheck, repo-scoped tests, visual audit, npm
+  pack dry-run, and an installed tarball smoke test covering both the CLI and
+  MCP tool registry.
 
 ### Changed
 - Renderer variants now adjust structure rather than palette. `standard`
@@ -92,6 +97,11 @@ versions follow [Semantic Versioning](https://semver.org/).
 - Landmark and road radius expansion heuristics are now named constants
   with regression coverage, so the station-search and road-skeleton
   multipliers stay intentional.
+- Landmark and road radius expansion is clamped after applying those
+  heuristics, so public `radiusMeters <= 5000` means the actual Overpass query
+  radius also stays within 5 km.
+- Vitest discovery now excludes local worktrees and generated output
+  (`.claude`, `tmp`, `dist`) so the public test count is deterministic.
 - SVG rendering now favors a more print-like 약도 style: dense Overpass road
   sets are reduced to a small road skeleton, road strokes use a cased
   diagram line style, landmark labels are shortened, and the destination
@@ -136,6 +146,10 @@ versions follow [Semantic Versioning](https://semver.org/).
   flags and `minimum: 100` on `width` / `height` — earlier the
   inputSchema drifted from zod-side `.positive()` enforcement, letting
   a non-zod host pass zero or negative values.
+- MCP tool input schemas and zod parsers now reject unknown properties instead
+  of silently dropping them.
+- Landmark output schemas now require the `tags` field that runtime has always
+  emitted.
 - `render.ts` clamps width/height to ≥ 100 and the projection span to
   ≥ 1 px so direct pipeline callers cannot produce `Infinity`
   coordinates with degenerate canvas sizes.

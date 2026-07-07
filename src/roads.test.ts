@@ -1,5 +1,18 @@
-import { describe, it, expect } from "vitest";
-import { roadsFromElements, DEFAULT_SIMPLIFY_EPSILON } from "./roads.js";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+vi.mock("./overpass.js", () => ({
+  OVERPASS_TIMEOUT_MS: 30_000,
+  overpassFetch: vi.fn(),
+}));
+
+import { overpassFetch } from "./overpass.js";
+import { roadsFromElements, DEFAULT_SIMPLIFY_EPSILON, findRoads } from "./roads.js";
+
+const mockedOverpassFetch = vi.mocked(overpassFetch);
+
+beforeEach(() => {
+  mockedOverpassFetch.mockReset();
+});
 
 // Minimal Overpass `out geom;` way element.
 function way(
@@ -98,5 +111,17 @@ describe("roadsFromElements", () => {
 
   it("returns an empty array for no elements", () => {
     expect(roadsFromElements([])).toEqual([]);
+  });
+});
+
+describe("findRoads", () => {
+  it("clamps the effective Overpass radius to the public maximum", async () => {
+    mockedOverpassFetch.mockResolvedValue([]);
+
+    await findRoads(37.5, 127, 6000);
+
+    const [query, timeoutMs] = mockedOverpassFetch.mock.calls[0];
+    expect(query).toContain("around:5000,37.5,127");
+    expect(timeoutMs).toBe(30_000);
   });
 });

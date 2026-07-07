@@ -38,23 +38,27 @@ const GenerateMapArgs = z.object({
     .boolean()
     .optional()
     .describe("Draw the road skeleton (default true). Set false to skip the extra Overpass round-trip."),
-});
+  focus: z
+    .boolean()
+    .optional()
+    .describe("Fisheye-emphasize the destination area (magnify near, compress far). Map-skeleton diagram presets only; default false."),
+}).strict();
 
 const GeocodeArgs = z.object({
   address: z.string(),
-});
+}).strict();
 
 const FindLandmarksArgs = z.object({
   lat: LatitudeArg,
   lon: LongitudeArg,
   radiusMeters: RadiusArg.optional(),
-});
+}).strict();
 
 const FindRoadsArgs = z.object({
   lat: LatitudeArg,
   lon: LongitudeArg,
   radiusMeters: RadiusArg.optional(),
-});
+}).strict();
 
 // ---------- Output schemas (JSON Schema for MCP outputSchema) ----------
 // MCP 2025-06-18 spec §tools.outputSchema. Host LLMs validate structuredContent
@@ -111,7 +115,7 @@ void _roadNoneExtra;
 // fields ship silently to hosts.
 const landmarkItemSchema = {
   type: "object",
-  required: ["id", "name", "lat", "lon", "category", "importance"],
+  required: ["id", "name", "lat", "lon", "category", "importance", "tags"],
   additionalProperties: false,
   properties: {
     id: { type: "string" },
@@ -265,8 +269,10 @@ export const tools = [
           description: 'Output form: "standard" keeps the full curated map (default), "compact" keeps a short approach-focused road skeleton, "minimal" uses a route-strip template, "schematic" uses right-angle diagram roads, "badge" uses a destination-first inset template',
         },
         roads: { type: "boolean", description: "Draw the road skeleton (default true)" },
+        focus: { type: "boolean", description: "Fisheye-emphasize the destination area for map-skeleton diagram presets: standard, compact, schematic (default false)" },
       },
       required: ["address"],
+      additionalProperties: false,
     },
     outputSchema: generateMapOutputSchema,
     annotations: safeAnnotations,
@@ -280,6 +286,7 @@ export const tools = [
       type: "object",
       properties: { address: { type: "string" } },
       required: ["address"],
+      additionalProperties: false,
     },
     outputSchema: geocodeOutputSchema,
     annotations: safeAnnotations,
@@ -297,6 +304,7 @@ export const tools = [
         radiusMeters: { type: "integer", minimum: 1, maximum: MAX_RADIUS_METERS, description: "Default 400, max 5000" },
       },
       required: ["lat", "lon"],
+      additionalProperties: false,
     },
     outputSchema: findLandmarksOutputSchema,
     annotations: safeAnnotations,
@@ -316,6 +324,7 @@ export const tools = [
         radiusMeters: { type: "integer", minimum: 1, maximum: MAX_RADIUS_METERS, description: "Default 480, max 5000" },
       },
       required: ["lat", "lon"],
+      additionalProperties: false,
     },
     outputSchema: findRoadsOutputSchema,
     annotations: safeAnnotations,

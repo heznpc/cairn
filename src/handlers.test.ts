@@ -57,6 +57,15 @@ describe("tool registry", () => {
     }
   });
 
+  it("declares strict object input schemas on every tool", () => {
+    for (const t of tools) {
+      expect(t.inputSchema).toMatchObject({
+        type: "object",
+        additionalProperties: false,
+      });
+    }
+  });
+
   it("declares maximums for expensive numeric inputs", () => {
     const generateMapProps = toolFor("generate_map").inputSchema.properties;
     expect(generateMapProps.radiusMeters).toMatchObject({ maximum: 5000 });
@@ -299,6 +308,25 @@ describe("dispatchTool — outputSchema ↔ structuredContent contract", () => {
     expect(validate.errors?.some((e) => e.keyword === "enum")).toBe(true);
   });
 
+  it("landmark outputSchema requires the OSM tags bag emitted by runtime", () => {
+    const validate = validatorFor("find_landmarks");
+    const ok = validate({
+      landmarks: [
+        {
+          id: "0",
+          name: "역삼역",
+          lat: 37.5,
+          lon: 127.0,
+          category: "station",
+          importance: 1.0,
+        },
+      ],
+    });
+
+    expect(ok).toBe(false);
+    expect(validate.errors?.some((e) => e.keyword === "required" && e.params.missingProperty === "tags")).toBe(true);
+  });
+
   it("outputSchema rejects undeclared top-level properties", () => {
     // additionalProperties:false guard. If schema drift in MapLayout adds a
     // new field that the schema doesn't declare, Ajv must reject it.
@@ -361,6 +389,17 @@ describe("dispatchTool — error paths", () => {
 
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toMatch(/preset/);
+    expect(generateMap).not.toHaveBeenCalled();
+  });
+
+  it("rejects unknown generate_map properties before calling the pipeline", async () => {
+    const result = await dispatchTool("generate_map", {
+      address: "Seoul",
+      language: "ko",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toMatch(/language/);
     expect(generateMap).not.toHaveBeenCalled();
   });
 

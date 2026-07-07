@@ -31,14 +31,16 @@ Most maps are too accurate to be useful. Korean 약도 (yakdo) and Japanese 略�
   node dist/cli.js "서울 강남구 테헤란로 152" -o office.svg --label "스튜디오"
   node dist/cli.js "서울 강남구 테헤란로 152" -o office-compact.svg --preset compact
   node dist/cli.js "서울 강남구 테헤란로 152" -o office-badge.svg --preset badge
+  node dist/cli.js "서울 강남구 테헤란로 152" -o office-focus.svg --focus
   node dist/cli.js "Shibuya Crossing, Tokyo" -o shibuya.svg --layout geographic
   ```
 - **Layout modes** — `diagram` is the default 약도 layout, keeping only the navigational structure; `geographic` preserves raw road geometry more closely for inspection/debugging.
 - **Output presets** — `standard` (default) keeps the full curated 약도, `compact` becomes an approach-focused mini-map, `minimal` uses a route-strip template, `schematic` turns roads into right-angle diagram axes, and `badge` renders a destination-first inset map for small placements.
-- **Bounded inputs** on public tool/CLI parameters — search radii max out at 5 km and SVG canvas dimensions at 4000 px to keep public OSM services and the single-process renderer healthy.
+- **Destination focus** (opt-in `--focus` / `focus: true`) — a radial fisheye that magnifies the area around the destination and compresses the periphery, so the crucial last block reads larger. It applies to the map-skeleton diagram presets (`standard`, `compact`, `schematic`); route-strip and badge templates keep their fixed composition.
+- **Bounded inputs** on public tool/CLI parameters — search radii max out at 5 km, internal radius expansion is clamped back to that same ceiling, and SVG canvas dimensions at 4000 px keep public OSM services and the single-process renderer healthy.
 - **HTTP rate-limiting and timeouts** on outbound calls — 1.1s minimum spacing to Nominatim, 1 req/s to Overpass, per their usage policies.
-- **Tests**: 165 passing (vitest, run on every push).
-- **Visual audit harness**: `npm run visual:audit` renders a deterministic yakdo fixture and fails on UI-like regressions such as dashed connector lines, rounded label pills, color sprawl, or too many road spines.
+- **Tests**: 116 passing (vitest, run on every push).
+- **Visual audit harness**: `npm run visual:audit` rebuilds the package, renders a deterministic yakdo fixture, and fails on UI-like regressions such as dashed connector lines, rounded label pills, color sprawl, or too many road spines.
 
 ## Planned
 
@@ -60,7 +62,7 @@ Most maps are too accurate to be useful. Korean 약도 (yakdo) and Japanese 略�
 
 cairn sends the address you type to two OpenStreetMap services in order to
 do its job: [Nominatim](https://nominatim.openstreetmap.org/) for geocoding
-and [Overpass](https://overpass-api.de/) for landmark lookup. Both run on
+and [Overpass](https://overpass-api.de/) for landmark and road lookup. Both run on
 the OSM Foundation's public infrastructure and follow the OSMF [privacy
 policy](https://wiki.osmfoundation.org/wiki/Privacy_Policy). cairn itself
 stores nothing, has no telemetry, and reads no environment variables for
@@ -77,7 +79,7 @@ roadmap).
 
 ## Quick start
 
-> **Status:** v0.1 is published as `@yakdo/cairn`. Install from npm with the snippets below, or install from source with `npm install && npm run build` and run `node dist/cli.js`.
+> **Status:** cairn is published as `@yakdo/cairn`. Install from npm with the snippets below, or install from source with `npm install && npm run build` and run `node dist/cli.js`.
 
 ### As an MCP server
 

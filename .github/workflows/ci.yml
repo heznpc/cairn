@@ -27,9 +27,6 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: "npm"
       - run: npm ci
-      - run: npm run typecheck
-      - run: npm test
-      - run: npm run build
-      # Renders every preset and asserts road/landmark budgets + preset-specific
-      # SVG contracts. Imports from dist/, so it must run after the build.
-      - run: npm run visual:audit
+      # Runs typecheck, tests, visual audit, npm pack dry-run, and an installed
+      # tarball smoke test for both the CLI and MCP server.
+      - run: npm run release:preflight
