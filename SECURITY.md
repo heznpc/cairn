@@ -7,7 +7,7 @@ security updates.
 
 | Version | Supported |
 |---|---|
-| 0.1.x (latest `main`) | ✅ |
+| 0.2.x (latest `main`) | ✅ |
 | anything else | ❌ |
 
 ## Reporting a vulnerability

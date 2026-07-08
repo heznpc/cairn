@@ -39,7 +39,7 @@ Most maps are too accurate to be useful. Korean 약도 (yakdo) and Japanese 略�
 - **Destination focus** (opt-in `--focus` / `focus: true`) — a radial fisheye that magnifies the area around the destination and compresses the periphery, so the crucial last block reads larger. It applies to the map-skeleton diagram presets (`standard`, `compact`, `schematic`); route-strip and badge templates keep their fixed composition.
 - **Bounded inputs** on public tool/CLI parameters — search radii max out at 5 km, internal radius expansion is clamped back to that same ceiling, and SVG canvas dimensions at 4000 px keep public OSM services and the single-process renderer healthy.
 - **HTTP rate-limiting and timeouts** on outbound calls — 1.1s minimum spacing to Nominatim, 1 req/s to Overpass, per their usage policies.
-- **Tests**: 116 passing (vitest, run on every push).
+- **Tests**: 126 passing (vitest, run on every push).
 - **Visual audit harness**: `npm run visual:audit` rebuilds the package, renders a deterministic yakdo fixture, and fails on UI-like regressions such as dashed connector lines, rounded label pills, color sprawl, or too many road spines.
 
 ## Planned

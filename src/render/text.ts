@@ -1,0 +1,124 @@
+import { DESTINATION, LABEL_HALO, PAPER, type PresetSpec } from "./theme.js";
+
+export interface Box {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface CenterCallout extends Box {
+  anchorX: number;
+  anchorY: number;
+}
+
+export function destinationLabel(label: string, box: CenterCallout, preset: PresetSpec): string {
+  const x = box.x.toFixed(1);
+  const y = box.y.toFixed(1);
+  const textX = (box.x + box.width / 2).toFixed(1);
+  const textY = (box.y + 17).toFixed(1);
+  const escaped = escapeXml(label);
+  if (preset.destinationLabel === "outlined") {
+    return [
+      `<rect data-destination-label="true" x="${x}" y="${y}" width="${box.width}" height="${box.height}" fill="${PAPER}" stroke="${DESTINATION}" stroke-width="1.5"/>`,
+      `<text x="${textX}" y="${textY}" text-anchor="middle" font-size="13" font-weight="700" fill="${DESTINATION}">${escaped}</text>`,
+    ].join("\n");
+  }
+  return [
+    `<rect data-destination-label="true" x="${x}" y="${y}" width="${box.width}" height="${box.height}" fill="${DESTINATION}"/>`,
+    `<text x="${textX}" y="${textY}" text-anchor="middle" font-size="13" font-weight="700" fill="${PAPER}">${escaped}</text>`,
+  ].join("\n");
+}
+
+export function labelText(
+  label: string | string[],
+  x: number,
+  y: number,
+  fontSize: number,
+  fill: string,
+  fontWeight: number,
+): string {
+  const lines = Array.isArray(label) ? label : [label];
+  const attrs = `x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="middle" font-size="${fontSize}" font-weight="${fontWeight}"`;
+  // A single line keeps the exact flat <text>…</text> shape (other callers and
+  // tests match on it); multiple lines stack as tspans down from the baseline.
+  const body =
+    lines.length === 1
+      ? escapeXml(lines[0])
+      : lines
+          .map(
+            (line, i) =>
+              `<tspan x="${x.toFixed(1)}" dy="${i === 0 ? 0 : fontSize + 3}">${escapeXml(line)}</tspan>`,
+          )
+          .join("");
+  return [
+    `<text ${attrs} fill="none" stroke="${LABEL_HALO}" stroke-width="4" stroke-linejoin="round">${body}</text>`,
+    `<text ${attrs} fill="${fill}">${body}</text>`,
+  ].join("\n");
+}
+
+export function truncateLabel(label: string, maxChars: number): string {
+  const trimmed = label.trim();
+  const chars = Array.from(trimmed);
+  if (chars.length <= maxChars) return trimmed;
+  return `${chars.slice(0, Math.max(1, maxChars - 1)).join("")}…`;
+}
+
+// Wrap a landmark name onto at most two lines instead of hard-truncating with
+// an ellipsis (the ugliest "auto-generated" tell). Korean place names are
+// usually space-free, so the split is by character count — balanced, but never
+// past maxPerLine on the first line; a name too long for two lines ellipsises
+// the second. Short names stay on one line (single-element array).
+export function wrapLandmarkLabel(name: string, maxPerLine: number): string[] {
+  const trimmed = name.trim();
+  const chars = Array.from(trimmed);
+  if (chars.length <= maxPerLine) return [trimmed];
+  const splitAt = Math.min(maxPerLine, Math.ceil(chars.length / 2));
+  const line1 = chars.slice(0, splitAt).join("");
+  const rest = Array.from(chars.slice(splitAt).join("").trimStart());
+  const line2 =
+    rest.length > maxPerLine
+      ? `${rest.slice(0, Math.max(1, maxPerLine - 1)).join("")}…`
+      : rest.join("");
+  return [line1, line2];
+}
+
+export function textBoxWidth(label: string, fontSize: number, padding: number): number {
+  const units = Array.from(label).reduce((sum, ch) => {
+    return sum + (ch.charCodeAt(0) < 128 ? 0.58 : 1);
+  }, 0);
+  return Math.max(28, Math.ceil(units * fontSize + padding));
+}
+
+export function boxScore(box: Box, width: number, height: number, obstacles: Box[]): number {
+  let score = 0;
+  const margin = 18;
+  if (box.x < margin) score += (margin - box.x) * 100;
+  if (box.y < margin) score += (margin - box.y) * 100;
+  if (box.x + box.width > width - margin) {
+    score += (box.x + box.width - (width - margin)) * 100;
+  }
+  if (box.y + box.height > height - margin) {
+    score += (box.y + box.height - (height - margin)) * 100;
+  }
+
+  for (const obstacle of obstacles) {
+    score += overlapArea(box, obstacle) * 30;
+  }
+  return score;
+}
+
+export function overlapArea(a: Box, b: Box): number {
+  const x = Math.max(0, Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x));
+  const y = Math.max(0, Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y));
+  return x * y;
+}
+
+function escapeXml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}

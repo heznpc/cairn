@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { fetchWithTimeout, overpassGate } from "./http.js";
+import { HTTP_USER_AGENT } from "./metadata.js";
 
 /**
  * Shared Overpass API client: rate-limit gate + timeout + envelope validation.
@@ -11,7 +12,6 @@ import { fetchWithTimeout, overpassGate } from "./http.js";
  */
 
 const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
-const USER_AGENT = "cairn-mcp/0.1 (+https://github.com/heznpc/cairn)";
 // Overpass queries carry [timeout:25]; give the client 30s to read the body.
 export const OVERPASS_TIMEOUT_MS = 30_000;
 
@@ -36,7 +36,7 @@ export async function overpassFetch(
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
-      "User-Agent": USER_AGENT,
+      "User-Agent": HTTP_USER_AGENT,
       Accept: "application/json",
     },
     body: `data=${encodeURIComponent(query)}`,

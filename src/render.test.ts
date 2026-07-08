@@ -1,49 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { renderSVG } from "./render.js";
 import type { MapLayout } from "./types.js";
-
-const layout: MapLayout = {
-  center: { lat: 37.5, lon: 127.0, label: "여기" },
-  landmarks: [
-    {
-      id: "1",
-      name: "역삼역",
-      lat: 37.5005,
-      lon: 127.0005,
-      category: "station",
-      importance: 1.0,
-      tags: {},
-    },
-    {
-      id: "2",
-      name: "스타벅스",
-      lat: 37.4998,
-      lon: 127.0008,
-      category: "cafe",
-      importance: 0.5,
-      tags: {},
-    },
-  ],
-  roads: [],
-  bbox: {
-    north: 37.5013,
-    south: 37.4988,
-    east: 127.0018,
-    west: 126.999,
-  },
-};
-
-function roadCorePathCount(svg: string): number {
-  return svg.match(/data-road-layer="core"/g)?.length ?? 0;
-}
-
-function roadCorePathData(svg: string): string[] {
-  return [...svg.matchAll(/<path data-road-layer="core" d="([^"]+)"/g)].map((m) => m[1]);
-}
-
-function filledTextOccurrences(svg: string, label: string): number {
-  return [...svg.matchAll(new RegExp(`<text [^>]*fill="(?!none)[^"]*"[^>]*>${label}`, "g"))].length;
-}
+import { baseRenderLayout as layout } from "../test/fixtures/render.js";
+import {
+  filledTextOccurrences,
+  roadCorePathCount,
+  roadCorePathData,
+} from "../test/helpers/svg.js";
 
 describe("renderSVG", () => {
   it("produces a well-formed SVG document", () => {
@@ -212,6 +175,16 @@ describe("renderSVG", () => {
     expect(svg).toContain("여기");
     // Only the center circle should be present
     expect((svg.match(/<circle\b/g) ?? [])).toHaveLength(1);
+  });
+
+  it("handles empty landmarks across every preset", () => {
+    const presets = ["standard", "compact", "minimal", "schematic", "badge"] as const;
+    for (const preset of presets) {
+      const svg = renderSVG({ ...layout, landmarks: [], roads: [] }, { preset });
+      expect(svg).toContain("<svg");
+      expect(svg).toContain('data-attribution="osm"');
+      expect(svg).not.toMatch(/NaN/);
+    }
   });
 });
 

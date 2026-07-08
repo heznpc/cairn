@@ -7,9 +7,10 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { tools, dispatchTool } from "./handlers.js";
+import { PROJECT_VERSION, SERVER_NAME } from "./metadata.js";
 
 const server = new Server(
-  { name: "cairn", version: "0.1.0" },
+  { name: SERVER_NAME, version: PROJECT_VERSION },
   { capabilities: { tools: {} } },
 );
 

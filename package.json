@@ -15,6 +15,7 @@
   ],
   "scripts": {
     "build": "tsc",
+    "prepack": "npm run build",
     "start": "node dist/server.js",
     "dev:server": "tsx watch src/server.ts",
     "dev:cli": "tsx src/cli.ts",

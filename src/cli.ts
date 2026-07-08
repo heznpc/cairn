@@ -6,6 +6,15 @@ import {
   MAX_RADIUS_METERS,
   MIN_CANVAS_DIMENSION_PX,
 } from "./limits.js";
+import {
+  isRenderLayoutMode,
+  isRenderPreset,
+  quotedChoiceList,
+  RENDER_LAYOUT_HELP,
+  RENDER_LAYOUTS,
+  RENDER_PRESET_HELP,
+  RENDER_PRESETS,
+} from "./options.js";
 
 const HELP = `
 cairn — pictogram map generator
@@ -21,8 +30,8 @@ OPTIONS
   -n, --limit <count>     Max landmarks to include (default: 5)
   -w, --width <px>        SVG width (default: 600, ${MIN_CANVAS_DIMENSION_PX}-${MAX_CANVAS_DIMENSION_PX})
   -h, --height <px>       SVG height (default: 400, ${MIN_CANVAS_DIMENSION_PX}-${MAX_CANVAS_DIMENSION_PX})
-      --layout <mode>     Render layout: diagram or geographic (default: diagram)
-      --preset <name>     Output form: standard, compact, minimal, schematic, or badge (default: standard)
+      --layout <mode>     Render layout: ${RENDER_LAYOUT_HELP} (default: diagram)
+      --preset <name>     Output form: ${RENDER_PRESET_HELP} (default: standard)
       --no-roads          Skip the road skeleton (landmarks only)
       --focus             Fisheye-emphasize the destination area (standard/compact/schematic)
       --help              Show this help
@@ -146,16 +155,16 @@ async function main() {
 
   const parseLayout = (raw: string | undefined) => {
     if (raw === undefined) return undefined;
-    if (raw !== "diagram" && raw !== "geographic") {
-      throw new Error(`--layout must be "diagram" or "geographic" (got: "${raw}")`);
+    if (!isRenderLayoutMode(raw)) {
+      throw new Error(`--layout must be ${quotedChoiceList(RENDER_LAYOUTS)} (got: "${raw}")`);
     }
     return raw;
   };
 
   const parsePreset = (raw: string | undefined) => {
     if (raw === undefined) return undefined;
-    if (raw !== "standard" && raw !== "compact" && raw !== "minimal" && raw !== "schematic" && raw !== "badge") {
-      throw new Error(`--preset must be "standard", "compact", "minimal", "schematic", or "badge" (got: "${raw}")`);
+    if (!isRenderPreset(raw)) {
+      throw new Error(`--preset must be ${quotedChoiceList(RENDER_PRESETS)} (got: "${raw}")`);
     }
     return raw;
   };
