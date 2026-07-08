@@ -5,6 +5,11 @@ import {
 } from "./limits.js";
 import { landmarkIcon, markerStyle } from "./render/icons.js";
 import {
+  pickCenterCallout,
+  placeLandmarkLabels,
+  type ProjectedLandmark,
+} from "./render/label-layout.js";
+import {
   roadObstacleBoxes,
   roadPathData,
   roadStyle,
@@ -23,9 +28,7 @@ import {
   type PresetSpec,
 } from "./render/theme.js";
 import {
-  boxScore,
   type Box,
-  type CenterCallout,
   destinationLabel,
   labelText,
   textBoxWidth,
@@ -284,67 +287,6 @@ function selectPresetLandmarks(
   return filtered.slice(0, preset.maxLandmarks);
 }
 
-interface ProjectedLandmark {
-  lm: MapLayout["landmarks"][number];
-  x: number;
-  y: number;
-  labelLines: string[];
-  labelWidth: number;
-  labelHeight: number;
-  labelHidden: boolean;
-}
-
-interface LabelBox extends Box {
-  hidden?: boolean;
-}
-
-function placeLandmarkLabels(
-  landmarks: ProjectedLandmark[],
-  width: number,
-  height: number,
-  baseObstacles: Box[],
-  hideClutteredLabels: boolean,
-): LabelBox[] {
-  const placed: LabelBox[] = [];
-  for (const lm of landmarks) {
-    if (lm.labelHidden) {
-      placed.push({ x: lm.x, y: lm.y, width: 0, height: 0, hidden: true });
-      continue;
-    }
-    const boxHeight = lm.labelHeight;
-    // Candidate anchor positions: below, above, right, left, then two diagonal
-    // "escapes" for crowded intersections where only a corner is open. Every
-    // candidate shares the same width/height, so apply them once via map.
-    const positions: Array<{ x: number; y: number }> = [
-      { x: lm.x - lm.labelWidth / 2, y: lm.y + 23 },
-      { x: lm.x - lm.labelWidth / 2, y: lm.y - 23 - boxHeight },
-      { x: lm.x + 24, y: lm.y - boxHeight / 2 },
-      { x: lm.x - lm.labelWidth - 24, y: lm.y - boxHeight / 2 },
-      { x: lm.x + 22, y: lm.y + 20 },
-      { x: lm.x - lm.labelWidth - 22, y: lm.y + 20 },
-    ];
-    const candidates: Box[] = positions.map((pos) => ({
-      ...pos,
-      width: lm.labelWidth,
-      height: boxHeight,
-    }));
-
-    const obstacles = [...baseObstacles, ...placed];
-    const best = candidates
-      .map((candidate, index) => ({
-        candidate,
-        score: boxScore(candidate, width, height, obstacles) + index * 0.01,
-      }))
-      .sort((a, b) => a.score - b.score)[0];
-    if (hideClutteredLabels && best.score > 1200 && lm.lm.importance < 0.85) {
-      placed.push({ x: lm.x, y: lm.y, width: 0, height: 0, hidden: true });
-      continue;
-    }
-    placed.push(best.candidate);
-  }
-  return placed;
-}
-
 function chooseApproachLandmark(
   landmarks: MapLayout["landmarks"],
   cx: number,
@@ -380,56 +322,4 @@ function trimSegment(
     x2: x2 - ux * endTrim,
     y2: y2 - uy * endTrim,
   };
-}
-
-function pickCenterCallout(
-  cx: number,
-  cy: number,
-  labelWidth: number,
-  width: number,
-  height: number,
-  obstacles: Box[],
-): CenterCallout {
-  const boxHeight = 24;
-  const candidates: CenterCallout[] = [
-    {
-      x: cx - labelWidth / 2,
-      y: cy - 48,
-      width: labelWidth,
-      height: boxHeight,
-      anchorX: cx,
-      anchorY: cy - 24,
-    },
-    {
-      x: cx - labelWidth / 2,
-      y: cy + 24,
-      width: labelWidth,
-      height: boxHeight,
-      anchorX: cx,
-      anchorY: cy + 24,
-    },
-    {
-      x: cx - labelWidth - 28,
-      y: cy - boxHeight / 2,
-      width: labelWidth,
-      height: boxHeight,
-      anchorX: cx - 28,
-      anchorY: cy,
-    },
-    {
-      x: cx + 28,
-      y: cy - boxHeight / 2,
-      width: labelWidth,
-      height: boxHeight,
-      anchorX: cx + 28,
-      anchorY: cy,
-    },
-  ];
-
-  return candidates
-    .map((candidate, index) => ({
-      candidate,
-      score: boxScore(candidate, width, height, obstacles) + index * 0.01,
-    }))
-    .sort((a, b) => a.score - b.score)[0].candidate;
 }
