@@ -8,9 +8,9 @@ import {
   FindRoadsArgs,
   GenerateMapArgs,
   GeocodeArgs,
-} from "./tool-contracts.js";
+} from "./tool-input-schemas.js";
 
-export { tools } from "./tool-contracts.js";
+export { tools } from "./tool-registry.js";
 
 // ---------- Dispatcher ----------
 
