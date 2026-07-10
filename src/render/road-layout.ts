@@ -3,6 +3,7 @@ export {
   clippedRoadLength,
   diagramRoadSpine,
   roadPathData,
+  roadPathPoints,
   type Point,
   type RoadSpine,
 } from "./road-geometry.js";

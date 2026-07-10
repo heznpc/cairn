@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { renderSVG } from "./render.js";
+import { createProjection } from "./render/projection.js";
 import type { MapLayout } from "./types.js";
 
 describe("renderSVG — focus projection", () => {
@@ -48,8 +49,12 @@ describe("renderSVG — focus projection", () => {
     };
 
     const focusRadius = Math.hypot(600, 400) / 2;
-    expect(distanceFromCenter(renderSVG(farLayout))).toBeGreaterThan(focusRadius);
-    expect(distanceFromCenter(renderSVG(farLayout, { focus: true }))).toBeLessThanOrEqual(focusRadius + 0.1);
+    const point = farLayout.landmarks[0];
+    const off = createProjection(farLayout, 600, 400).project(point.lat, point.lon);
+    const on = createProjection(farLayout, 600, 400, { focus: true }).project(point.lat, point.lon);
+    const center = createProjection(farLayout, 600, 400).center;
+    expect(Math.hypot(off[0] - center.x, off[1] - center.y)).toBeGreaterThan(focusRadius);
+    expect(Math.hypot(on[0] - center.x, on[1] - center.y)).toBeLessThanOrEqual(focusRadius + 0.1);
   });
 
   it("ignores focus in geographic layout (raw geometry preserved)", () => {

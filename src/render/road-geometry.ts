@@ -23,56 +23,76 @@ export function roadPathData(
   height: number,
   roadGeometry: PresetSpec["roadGeometry"] = "spine",
 ): string | null {
-  if (renderLayout === "geographic") return rawRoadPathData(road, project);
-  if (roadGeometry === "orthogonal") return orthogonalRoadPathData(road, project, width, height);
-  return diagramRoadPathData(road, project, width, height);
-}
-
-function rawRoadPathData(
-  road: MapLayout["roads"][number],
-  project: (lat: number, lon: number) => [number, number],
-): string | null {
-  if (road.points.length < 2) return null;
-  return road.points
-    .map((p, i) => {
-      const [px, py] = project(p.lat, p.lon);
-      return `${i === 0 ? "M" : "L"}${px.toFixed(1)},${py.toFixed(1)}`;
-    })
+  const points = roadPathPoints(
+    road,
+    project,
+    renderLayout,
+    width,
+    height,
+    roadGeometry,
+  );
+  if (!points) return null;
+  return points
+    .map((point, index) =>
+      `${index === 0 ? "M" : "L"}${point.x.toFixed(1)},${point.y.toFixed(1)}`,
+    )
     .join(" ");
 }
 
-function diagramRoadPathData(
+export function roadPathPoints(
   road: MapLayout["roads"][number],
   project: (lat: number, lon: number) => [number, number],
+  renderLayout: RenderOptions["layout"],
   width: number,
   height: number,
-): string | null {
-  const spine = diagramRoadSpine(road, project, width, height);
-  if (!spine) return null;
-  return `M${spine.start.x.toFixed(1)},${spine.start.y.toFixed(1)} L${spine.end.x.toFixed(1)},${spine.end.y.toFixed(1)}`;
+  roadGeometry: PresetSpec["roadGeometry"] = "spine",
+): Point[] | null {
+  if (renderLayout === "geographic") return rawRoadPoints(road, project);
+  if (roadGeometry === "orthogonal") {
+    return orthogonalRoadPoints(road, project, width, height);
+  }
+  return diagramRoadPoints(road, project, width, height);
 }
 
-function orthogonalRoadPathData(
+function rawRoadPoints(
+  road: MapLayout["roads"][number],
+  project: (lat: number, lon: number) => [number, number],
+): Point[] | null {
+  if (road.points.length < 2) return null;
+  return road.points.map((point) => {
+    const [x, y] = project(point.lat, point.lon);
+    return { x, y };
+  });
+}
+
+function diagramRoadPoints(
   road: MapLayout["roads"][number],
   project: (lat: number, lon: number) => [number, number],
   width: number,
   height: number,
-): string | null {
+): Point[] | null {
+  const spine = diagramRoadSpine(road, project, width, height);
+  if (!spine) return null;
+  return [spine.start, spine.end];
+}
+
+function orthogonalRoadPoints(
+  road: MapLayout["roads"][number],
+  project: (lat: number, lon: number) => [number, number],
+  width: number,
+  height: number,
+): Point[] | null {
   const spine = diagramRoadSpine(road, project, width, height);
   if (!spine) return null;
   const dx = spine.end.x - spine.start.x;
   const dy = spine.end.y - spine.start.y;
   if (Math.abs(dx) < 12 || Math.abs(dy) < 12) {
-    return `M${spine.start.x.toFixed(1)},${spine.start.y.toFixed(1)} L${spine.end.x.toFixed(1)},${spine.end.y.toFixed(1)}`;
+    return [spine.start, spine.end];
   }
   const elbow = Math.abs(dx) >= Math.abs(dy)
     ? { x: spine.end.x, y: spine.start.y }
     : { x: spine.start.x, y: spine.end.y };
-  return [
-    `M${spine.start.x.toFixed(1)},${spine.start.y.toFixed(1)}`,
-    `L${elbow.x.toFixed(1)},${elbow.y.toFixed(1)}`,
-    `L${spine.end.x.toFixed(1)},${spine.end.y.toFixed(1)}`,
-  ].join(" ");
+  return [spine.start, elbow, spine.end];
 }
 
 export function diagramRoadSpine(

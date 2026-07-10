@@ -130,6 +130,7 @@ function auditSvg(name, svg, preset, out) {
       out.push(`${name}: non-print landmark icon color ${color}`);
     }
   }
+  auditMarkerRoadSeparation(name, svg, out);
 
   expect(name, svg, "© OpenStreetMap contributors", "visible OSM attribution is required", out);
   expect(name, svg, 'data-approach-arrow="core"', "diagram output should preserve the final approach cue", out);
@@ -174,6 +175,60 @@ function expectNot(name, svg, needle, message, out) {
 
 function count(svg, pattern) {
   return svg.match(pattern)?.length ?? 0;
+}
+
+function auditMarkerRoadSeparation(name, svg, out) {
+  const markers = [...svg.matchAll(
+    /<circle cx="(-?[\d.]+)" cy="(-?[\d.]+)" r="([\d.]+)" data-landmark-marker="([^"]+)"[^>]*>/g,
+  )].map((match) => ({
+    x: Number(match[1]),
+    y: Number(match[2]),
+    radius: Number(match[3]),
+    id: match[4],
+  }));
+  const roads = [...svg.matchAll(
+    /<path data-road-layer="casing" d="([^"]+)"[^>]*stroke-width="([\d.]+)"[^>]*>/g,
+  )].flatMap((match) => {
+    const points = [...match[1].matchAll(/[ML](-?[\d.]+),(-?[\d.]+)/g)]
+      .map((point) => ({ x: Number(point[1]), y: Number(point[2]) }));
+    const segments = [];
+    for (let index = 1; index < points.length; index++) {
+      segments.push({
+        start: points[index - 1],
+        end: points[index],
+        halfWidth: Number(match[2]) / 2,
+      });
+    }
+    return segments;
+  });
+
+  for (const marker of markers) {
+    for (const road of roads) {
+      const distance = pointSegmentDistance(marker, road.start, road.end);
+      const required = marker.radius + road.halfWidth + 3;
+      if (distance + 0.1 < required) {
+        out.push(
+          `${name}: landmark marker ${marker.id} overlaps a protected road corridor (${distance.toFixed(1)}px < ${required.toFixed(1)}px)`,
+        );
+        break;
+      }
+    }
+  }
+}
+
+function pointSegmentDistance(point, start, end) {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const lengthSquared = dx * dx + dy * dy;
+  if (lengthSquared === 0) return Math.hypot(point.x - start.x, point.y - start.y);
+  const t = Math.max(
+    0,
+    Math.min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared),
+  );
+  return Math.hypot(
+    point.x - (start.x + t * dx),
+    point.y - (start.y + t * dy),
+  );
 }
 
 function maybeRenderPng(svgPath, pngPath) {

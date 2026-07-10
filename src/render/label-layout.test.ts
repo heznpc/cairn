@@ -19,8 +19,11 @@ const landmark: Landmark = {
 function projected(overrides: Partial<ProjectedLandmark> = {}): ProjectedLandmark {
   return {
     lm: landmark,
+    anchorX: 100,
+    anchorY: 100,
     x: 100,
     y: 100,
+    displaced: false,
     labelLines: ["Landmark"],
     labelWidth: 60,
     labelHeight: 20,

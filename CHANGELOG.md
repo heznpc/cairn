@@ -6,6 +6,12 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- Landmark markers now preserve navigational road corridors: glyphs move away
+  from rendered road casing, keep their geographic anchor via an under-road
+  leader, and are omitted when no collision-free placement exists instead of
+  erasing the route.
+
 ## [0.2.0] — 2026-07-07
 
 ### Added

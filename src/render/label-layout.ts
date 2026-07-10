@@ -3,8 +3,11 @@ import { boxScore, type Box, type CenterCallout } from "./text.js";
 
 export interface ProjectedLandmark {
   lm: MapLayout["landmarks"][number];
+  anchorX: number;
+  anchorY: number;
   x: number;
   y: number;
+  displaced: boolean;
   labelLines: string[];
   labelWidth: number;
   labelHeight: number;

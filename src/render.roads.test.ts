@@ -37,6 +37,47 @@ describe("renderSVG — roads", () => {
     expect(svg).toContain('stroke-linecap="round"');
   });
 
+  it("moves landmark markers off road corridors without cutting the road", () => {
+    const road = {
+      id: "main",
+      name: "큰길",
+      class: "primary" as const,
+      points: [
+        { lat: 37.5, lon: 126.991 },
+        { lat: 37.5, lon: 127.009 },
+      ],
+    };
+    const svg = renderSVG({
+      ...layoutWithRoads([road]),
+      landmarks: [
+        {
+          id: "station",
+          name: "역",
+          lat: 37.5,
+          lon: 127.006,
+          category: "station",
+          importance: 1,
+          tags: {},
+        },
+      ],
+    });
+    const marker = svg.match(
+      /<circle cx="([\d.]+)" cy="([\d.]+)" r="17" data-landmark-marker="0" data-anchor-x="([\d.]+)" data-anchor-y="([\d.]+)" data-displaced="true"/,
+    );
+
+    expect(marker, "road-safe marker missing").not.toBeNull();
+    const markerY = Number(marker![2]);
+    const anchorY = Number(marker![4]);
+    expect(Math.abs(markerY - anchorY)).toBeGreaterThanOrEqual(29.5);
+    expect(svg).toContain('data-landmark-leader="0"');
+    expect(svg.indexOf('data-landmark-leader="0"')).toBeLessThan(
+      svg.indexOf('data-road-layer="core"'),
+    );
+    expect(svg.indexOf('data-road-layer="core"')).toBeLessThan(
+      svg.indexOf('data-landmark-marker="0"'),
+    );
+  });
+
   it("straightens kinked OSM road geometry into a clean diagram spine", () => {
     const kinked = {
       id: "kink",
