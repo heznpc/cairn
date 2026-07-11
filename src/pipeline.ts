@@ -2,9 +2,12 @@ import { geocode } from "./geocode.js";
 import { findLandmarks } from "./landmarks.js";
 import { findRoads } from "./roads.js";
 import { curate } from "./curate.js";
-import { renderSVG } from "./render.js";
+import {
+  createDiagramDocument,
+  renderDiagramDocument,
+} from "./diagram-document.js";
 import { MAX_RADIUS_METERS } from "./limits.js";
-import type { MapLayout, RenderOptions } from "./types.js";
+import type { DiagramDocument, MapLayout, RenderOptions } from "./types.js";
 
 export interface GenerateMapInput extends RenderOptions {
   radiusMeters?: number;
@@ -18,6 +21,7 @@ export interface GenerateMapInput extends RenderOptions {
 export interface GenerateMapResult {
   svg: string;
   layout: MapLayout;
+  document: DiagramDocument;
 }
 
 export const ROAD_SEARCH_RADIUS_MULTIPLIER = 1.2;
@@ -67,6 +71,7 @@ export async function generateMap(
     },
   };
 
-  const svg = renderSVG(layout, opts);
-  return { svg, layout };
+  const document = createDiagramDocument(layout, opts);
+  const svg = renderDiagramDocument(document);
+  return { svg, layout, document };
 }

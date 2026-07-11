@@ -77,6 +77,12 @@ describe("tool registry", () => {
     expect(generateMapProps.preset).toMatchObject({
       enum: ["standard", "compact", "minimal", "schematic", "badge"],
     });
+    expect(generateMapProps.template).toMatchObject({
+      enum: ["standard", "compact", "minimal", "schematic", "badge"],
+    });
+    expect(generateMapProps.theme).toMatchObject({
+      enum: ["paper", "mono", "civic", "invitation"],
+    });
 
     expect(toolFor("find_landmarks").inputSchema.properties.radiusMeters)
       .toMatchObject({ maximum: 5000 });

@@ -53,7 +53,36 @@ export interface MapLayout {
 }
 
 export type RenderLayoutMode = "diagram" | "geographic";
-export type RenderPreset = "standard" | "compact" | "minimal" | "schematic" | "badge";
+export type RenderTemplate = "standard" | "compact" | "minimal" | "schematic" | "badge";
+/** @deprecated Use RenderTemplate. Kept for v0.1/v0.2 callers. */
+export type RenderPreset = RenderTemplate;
+export type RenderTheme = "paper" | "mono" | "civic" | "invitation";
+
+export interface NormalizedPosition {
+  /** Horizontal canvas position, normalized to 0..1. */
+  x: number;
+  /** Vertical canvas position, normalized to 0..1. */
+  y: number;
+}
+
+export interface LandmarkOverride {
+  hidden?: boolean;
+  label?: string;
+  /** Manual editor position. When present it wins over automatic placement. */
+  position?: NormalizedPosition;
+  locked?: boolean;
+}
+
+export interface RoadOverride {
+  hidden?: boolean;
+  label?: string;
+}
+
+export interface DiagramOverrides {
+  destination?: { label?: string };
+  landmarks?: Record<string, LandmarkOverride>;
+  roads?: Record<string, RoadOverride>;
+}
 
 export interface RenderOptions {
   width?: number;
@@ -61,18 +90,34 @@ export interface RenderOptions {
   // "diagram" (default) keeps only navigational structure; "geographic"
   // preserves the raw road geometry more closely for inspection/debugging.
   layout?: RenderLayoutMode;
-  // Output form, not a colour palette: "standard" (default) keeps the full
-  // curated map; "compact" keeps a shorter road skeleton plus approach
-  // landmarks; "minimal" uses a route-strip template; "schematic" turns
-  // roads into right-angle diagram axes; "badge" renders a destination-first
-  // inset map for small placements.
+  // Composition rules. Templates control structure and density; themes control
+  // the visual vocabulary independently.
+  template?: RenderTemplate;
+  theme?: RenderTheme;
+  /** @deprecated Alias for template. `template` wins when both are present. */
   preset?: RenderPreset;
   // Opt-in destination emphasis: a radial fisheye that magnifies the area
   // around the destination and compresses the periphery, like a hand-drawn
   // 약도. Default off (linear projection); only applies to the map-skeleton
   // diagram presets (`standard`, `compact`, `schematic`).
   focus?: boolean;
+  // Editor-only manual placements keyed by stable landmark IDs. Normalized
+  // positions keep documents portable across canvas sizes.
+  landmarkPositions?: Record<string, NormalizedPosition>;
   // NOTE: `language` is reserved for future localization. render.ts does NOT
   // honor it yet; handlers.ts does NOT expose it to MCP hosts.
   language?: "ko" | "en" | "ja";
+}
+
+export interface DiagramDocument {
+  version: 1;
+  map: MapLayout;
+  canvas: { width: number; height: number };
+  render: {
+    layout: RenderLayoutMode;
+    template: RenderTemplate;
+    theme: RenderTheme;
+    focus: boolean;
+  };
+  overrides: DiagramOverrides;
 }

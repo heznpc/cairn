@@ -1,4 +1,9 @@
-import type { LandmarkCategory, RenderPreset, RoadClass } from "../types.js";
+import type {
+  LandmarkCategory,
+  RenderTemplate,
+  RenderTheme,
+  RoadClass,
+} from "../types.js";
 
 export const PAPER = "#fffef9";
 export const PAPER_EDGE = "#e5ded2";
@@ -43,7 +48,7 @@ export const APPROACH_RANK: Record<LandmarkCategory, number> = {
   building: 1,
 };
 
-export interface PresetSpec {
+export interface TemplateSpec {
   roadScale: number;
   roadGeometry: "spine" | "orthogonal";
   showFrame: boolean;
@@ -64,7 +69,7 @@ export interface PresetSpec {
   maxVisibleRoads: number;
 }
 
-export const PRESETS: Record<RenderPreset, PresetSpec> = {
+export const TEMPLATES: Record<RenderTemplate, TemplateSpec> = {
   standard: {
     roadScale: 1,
     roadGeometry: "spine",
@@ -165,5 +170,103 @@ export const PRESETS: Record<RenderPreset, PresetSpec> = {
     avoidRoadLabels: true,
     hideClutteredLabels: true,
     maxVisibleRoads: 0,
+  },
+};
+
+/** @deprecated Use TemplateSpec. */
+export type PresetSpec = TemplateSpec;
+/** @deprecated Use TEMPLATES. */
+export const PRESETS = TEMPLATES;
+
+export interface ThemeSpec {
+  fontFamily: string;
+  background: string;
+  frame: string;
+  ink: string;
+  destination: string;
+  landmark: string;
+  transit: string;
+  exit: string;
+  roadLabel: string;
+  attribution: string;
+  roads: Record<RoadClass, string>;
+}
+
+export const THEMES: Record<RenderTheme, ThemeSpec> = {
+  paper: {
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Apple SD Gothic Neo', sans-serif",
+    background: PAPER,
+    frame: PAPER_EDGE,
+    ink: INK,
+    destination: DESTINATION,
+    landmark: MUTED_INK,
+    transit: TRANSIT_INK,
+    exit: EXIT_INK,
+    roadLabel: "#8a857c",
+    attribution: "#aaa59d",
+    roads: {
+      primary: "#a29b8c",
+      secondary: "#c1baac",
+      tertiary: "#d8d1c4",
+      residential: "#e6dfd3",
+      path: "#ece6db",
+    },
+  },
+  mono: {
+    fontFamily: "Arial, 'Apple SD Gothic Neo', sans-serif",
+    background: "#ffffff",
+    frame: "#cfcfcf",
+    ink: "#111111",
+    destination: "#111111",
+    landmark: "#3d3d3d",
+    transit: "#111111",
+    exit: "#555555",
+    roadLabel: "#666666",
+    attribution: "#999999",
+    roads: {
+      primary: "#555555",
+      secondary: "#858585",
+      tertiary: "#adadad",
+      residential: "#d0d0d0",
+      path: "#e2e2e2",
+    },
+  },
+  civic: {
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Apple SD Gothic Neo', sans-serif",
+    background: "#f8fbfc",
+    frame: "#cbd8dc",
+    ink: "#17313a",
+    destination: "#d94f3d",
+    landmark: "#4f6268",
+    transit: "#006b7d",
+    exit: "#28765c",
+    roadLabel: "#61767c",
+    attribution: "#8da0a5",
+    roads: {
+      primary: "#71878d",
+      secondary: "#9eafb3",
+      tertiary: "#becbce",
+      residential: "#d8e1e3",
+      path: "#e6edef",
+    },
+  },
+  invitation: {
+    fontFamily: "Georgia, 'Noto Serif KR', 'AppleMyungjo', serif",
+    background: "#fffafc",
+    frame: "#e6d5dc",
+    ink: "#3f2b33",
+    destination: "#9b3f60",
+    landmark: "#705b64",
+    transit: "#675986",
+    exit: "#8a663f",
+    roadLabel: "#8d747e",
+    attribution: "#b19da5",
+    roads: {
+      primary: "#9e8991",
+      secondary: "#c0adb4",
+      tertiary: "#d7c8cd",
+      residential: "#e8dde1",
+      path: "#f0e8eb",
+    },
   },
 };

@@ -63,6 +63,22 @@ describe("landmark marker layout", () => {
       .toBeGreaterThanOrEqual(LANDMARK_MARKER_RADIUS * 2 + 6);
   });
 
+  it("honors a fixed editor position and reserves it before automatic placement", () => {
+    const placed = placeLandmarkMarkers(
+      [
+        marker({ importance: 1, fixed: { x: 80, y: 80 } }),
+        marker({ anchorX: 80, anchorY: 80, importance: 0.5 }),
+      ],
+      [],
+      options,
+    );
+
+    expect(placed[0]).toMatchObject({ x: 80, y: 80, displaced: true });
+    expect(placed[1]).not.toBeNull();
+    expect(Math.hypot(placed[1]!.x - 80, placed[1]!.y - 80))
+      .toBeGreaterThanOrEqual(LANDMARK_MARKER_RADIUS * 2 + 6);
+  });
+
   it("returns no placement when every candidate would erase a road", () => {
     const roads: RoadCorridor[] = [40, 50, 60].map((y) => ({
       start: { x: 0, y },

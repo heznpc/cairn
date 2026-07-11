@@ -75,4 +75,47 @@ try {
 );
 
 run(process.execPath, [smokePath], { cwd: installDir, stdio: "inherit" });
+
+const documentSmokePath = join(installDir, "document-smoke.mjs");
+writeFileSync(
+  documentSmokePath,
+  `
+import { createDiagramDocument, renderDiagramDocument } from "@yakdo/cairn/document";
+import { renderSVG } from "@yakdo/cairn/render";
+import { RENDER_TEMPLATES, RENDER_THEMES } from "@yakdo/cairn/options";
+
+const map = {
+  center: { lat: 37.5, lon: 127, label: "Destination" },
+  landmarks: [{
+    id: "gate",
+    name: "Main gate",
+    lat: 37.5005,
+    lon: 127.0005,
+    category: "landmark",
+    importance: 1,
+    tags: {},
+  }],
+  roads: [],
+  bbox: { north: 37.501, south: 37.499, east: 127.001, west: 126.999 },
+};
+const document = createDiagramDocument(map, {
+  template: "standard",
+  theme: "civic",
+  overrides: { landmarks: { gate: { position: { x: 0.25, y: 0.25 } } } },
+});
+const svg = renderDiagramDocument(JSON.parse(JSON.stringify(document)));
+if (!svg.includes('data-template="standard"') || !svg.includes('data-theme="civic"')) {
+  throw new Error("document subpath did not preserve template/theme");
+}
+if (!renderSVG(map).startsWith("<svg")) {
+  throw new Error("render subpath did not return SVG");
+}
+if (RENDER_TEMPLATES.length !== 5 || RENDER_THEMES.length !== 4) {
+  throw new Error("options subpath did not expose template/theme choices");
+}
+`,
+  "utf8",
+);
+
+run(process.execPath, [documentSmokePath], { cwd: installDir, stdio: "inherit" });
 console.log(`package smoke passed: ${tarball}`);

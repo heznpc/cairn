@@ -23,8 +23,10 @@ describe("parseCliRequest", () => {
         "500",
         "--layout",
         "geographic",
-        "--preset",
+        "--template",
         "compact",
+        "--theme",
+        "civic",
         "--no-roads",
         "--focus",
         "--output",
@@ -41,7 +43,9 @@ describe("parseCliRequest", () => {
         width: 700,
         height: 500,
         layout: "geographic",
-        preset: "compact",
+        template: "compact",
+        theme: "civic",
+        preset: undefined,
         roads: false,
         focus: true,
       },
@@ -73,6 +77,23 @@ describe("parseCliRequest", () => {
     );
     expect(() => parseCliRequest(["Seoul", "--preset", "poster"])).toThrow(
       '--preset must be "standard", "compact", "minimal", "schematic", or "badge" (got: "poster")',
+    );
+  });
+
+  it("keeps --preset as a compatibility alias", () => {
+    const request = parseCliRequest(["Seoul", "--preset", "badge"]);
+    expect(request).toMatchObject({
+      kind: "generate",
+      options: { preset: "badge", template: undefined, theme: undefined },
+    });
+  });
+
+  it("rejects unsupported template and theme names", () => {
+    expect(() => parseCliRequest(["Seoul", "--template", "poster"])).toThrow(
+      '--template must be "standard", "compact", "minimal", "schematic", or "badge" (got: "poster")',
+    );
+    expect(() => parseCliRequest(["Seoul", "--theme", "neon"])).toThrow(
+      '--theme must be "paper", "mono", "civic", or "invitation" (got: "neon")',
     );
   });
 });

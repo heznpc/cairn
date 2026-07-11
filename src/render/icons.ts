@@ -1,5 +1,5 @@
 import type { LandmarkCategory } from "../types.js";
-import { EXIT_INK, MUTED_INK, TRANSIT_INK } from "./theme.js";
+import { THEMES, type ThemeSpec } from "./theme.js";
 
 // One stroke weight and one stroked grammar for the whole pictogram family, so
 // the icons read as a single designed set rather than a grab-bag. Every icon is
@@ -37,13 +37,16 @@ export function landmarkIcon(category: LandmarkCategory, x: number, y: number, c
   }
 }
 
-export function markerStyle(category: LandmarkCategory): { color: string; emphasis?: boolean } {
+export function markerStyle(
+  category: LandmarkCategory,
+  theme: ThemeSpec = THEMES.paper,
+): { color: string; emphasis?: boolean } {
   switch (category) {
     case "station":
-      return { color: TRANSIT_INK, emphasis: true };
+      return { color: theme.transit, emphasis: true };
     case "station_exit":
-      return { color: EXIT_INK, emphasis: true };
+      return { color: theme.exit, emphasis: true };
     default:
-      return { color: MUTED_INK };
+      return { color: theme.landmark };
   }
 }

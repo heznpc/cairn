@@ -1,4 +1,8 @@
-import { DESTINATION, LABEL_HALO, PAPER, type PresetSpec } from "./theme.js";
+import {
+  LABEL_HALO,
+  type TemplateSpec,
+  type ThemeSpec,
+} from "./theme.js";
 
 export interface Box {
   x: number;
@@ -12,21 +16,26 @@ export interface CenterCallout extends Box {
   anchorY: number;
 }
 
-export function destinationLabel(label: string, box: CenterCallout, preset: PresetSpec): string {
+export function destinationLabel(
+  label: string,
+  box: CenterCallout,
+  template: TemplateSpec,
+  theme: ThemeSpec,
+): string {
   const x = box.x.toFixed(1);
   const y = box.y.toFixed(1);
   const textX = (box.x + box.width / 2).toFixed(1);
   const textY = (box.y + 17).toFixed(1);
   const escaped = escapeXml(label);
-  if (preset.destinationLabel === "outlined") {
+  if (template.destinationLabel === "outlined") {
     return [
-      `<rect data-destination-label="true" x="${x}" y="${y}" width="${box.width}" height="${box.height}" fill="${PAPER}" stroke="${DESTINATION}" stroke-width="1.5"/>`,
-      `<text x="${textX}" y="${textY}" text-anchor="middle" font-size="13" font-weight="700" fill="${DESTINATION}">${escaped}</text>`,
+      `<rect data-destination-label="true" x="${x}" y="${y}" width="${box.width}" height="${box.height}" fill="${theme.background}" stroke="${theme.destination}" stroke-width="1.5"/>`,
+      `<text x="${textX}" y="${textY}" text-anchor="middle" font-size="13" font-weight="700" fill="${theme.destination}">${escaped}</text>`,
     ].join("\n");
   }
   return [
-    `<rect data-destination-label="true" x="${x}" y="${y}" width="${box.width}" height="${box.height}" fill="${DESTINATION}"/>`,
-    `<text x="${textX}" y="${textY}" text-anchor="middle" font-size="13" font-weight="700" fill="${PAPER}">${escaped}</text>`,
+    `<rect data-destination-label="true" x="${x}" y="${y}" width="${box.width}" height="${box.height}" fill="${theme.destination}"/>`,
+    `<text x="${textX}" y="${textY}" text-anchor="middle" font-size="13" font-weight="700" fill="${theme.background}">${escaped}</text>`,
   ].join("\n");
 }
 
@@ -37,6 +46,7 @@ export function labelText(
   fontSize: number,
   fill: string,
   fontWeight: number,
+  haloColor: string = LABEL_HALO,
 ): string {
   const lines = Array.isArray(label) ? label : [label];
   const attrs = `x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="middle" font-size="${fontSize}" font-weight="${fontWeight}"`;
@@ -52,7 +62,7 @@ export function labelText(
           )
           .join("");
   return [
-    `<text ${attrs} fill="none" stroke="${LABEL_HALO}" stroke-width="4" stroke-linejoin="round">${body}</text>`,
+    `<text ${attrs} fill="none" stroke="${haloColor}" stroke-width="4" stroke-linejoin="round">${body}</text>`,
     `<text ${attrs} fill="${fill}">${body}</text>`,
   ].join("\n");
 }

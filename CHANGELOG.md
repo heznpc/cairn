@@ -6,6 +6,24 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Independent composition templates (`standard`, `compact`, `minimal`,
+  `schematic`, `badge`) and visual themes (`paper`, `mono`, `civic`,
+  `invitation`). CLI and MCP callers can combine them with `template` and
+  `theme`; the existing `preset` option remains a compatibility alias.
+- Versioned `DiagramDocument` JSON for editor workflows. It preserves the
+  source `MapLayout`, canvas, template, theme, destination/landmark/road label
+  overrides, visibility, and normalized manual landmark positions.
+- Public package subpaths for headless integrations: `@yakdo/cairn/render`,
+  `@yakdo/cairn/document`, `@yakdo/cairn/options`, `@yakdo/cairn/pipeline`, and
+  `@yakdo/cairn/types`.
+
+### Changed
+- The visual audit now checks all 20 template/theme combinations and rejects
+  marker/road overlap and style regressions across the full matrix.
+- `generateMap()` now returns the exact editable `document` used to render its
+  SVG alongside the existing `svg` and `layout` fields.
+
 ### Fixed
 - Landmark markers now preserve navigational road corridors: glyphs move away
   from rendered road casing, keep their geographic anchor via an under-road

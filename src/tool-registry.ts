@@ -3,7 +3,12 @@ import {
   MAX_RADIUS_METERS,
   MIN_CANVAS_DIMENSION_PX,
 } from "./limits.js";
-import { RENDER_LAYOUTS, RENDER_PRESETS } from "./options.js";
+import {
+  RENDER_LAYOUTS,
+  RENDER_PRESETS,
+  RENDER_TEMPLATES,
+  RENDER_THEMES,
+} from "./options.js";
 import {
   findLandmarksOutputSchema,
   findRoadsOutputSchema,
@@ -42,10 +47,20 @@ export const tools = [
           enum: RENDER_LAYOUTS,
           description: 'Render layout mode: "diagram" keeps navigational structure (default), "geographic" preserves raw road geometry more closely',
         },
+        template: {
+          type: "string",
+          enum: RENDER_TEMPLATES,
+          description: 'Composition template: "standard" keeps the full curated map (default), "compact" keeps a short approach-focused road skeleton, "minimal" uses a route strip, "schematic" uses right-angle roads, and "badge" uses a destination-first inset',
+        },
+        theme: {
+          type: "string",
+          enum: RENDER_THEMES,
+          description: 'Visual theme independent of composition: "paper" (default), "mono", "civic", or "invitation"',
+        },
         preset: {
           type: "string",
           enum: RENDER_PRESETS,
-          description: 'Output form: "standard" keeps the full curated map (default), "compact" keeps a short approach-focused road skeleton, "minimal" uses a route-strip template, "schematic" uses right-angle diagram roads, "badge" uses a destination-first inset template',
+          description: "Compatibility alias for template. Ignored when template is also provided.",
         },
         roads: { type: "boolean", description: "Draw the road skeleton (default true)" },
         focus: { type: "boolean", description: "Fisheye-emphasize the destination area for map-skeleton diagram presets: standard, compact, schematic (default false)" },

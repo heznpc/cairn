@@ -1,5 +1,5 @@
 import type { MapLayout, RenderOptions } from "../types.js";
-import type { PresetSpec } from "./theme.js";
+import type { TemplateSpec } from "./theme.js";
 
 const ROAD_CLIP_INSET_PX = 16;
 const MIN_DIAGRAM_ROAD_RUN_PX = 56;
@@ -21,7 +21,7 @@ export function roadPathData(
   renderLayout: RenderOptions["layout"],
   width: number,
   height: number,
-  roadGeometry: PresetSpec["roadGeometry"] = "spine",
+  roadGeometry: TemplateSpec["roadGeometry"] = "spine",
 ): string | null {
   const points = roadPathPoints(
     road,
@@ -45,7 +45,7 @@ export function roadPathPoints(
   renderLayout: RenderOptions["layout"],
   width: number,
   height: number,
-  roadGeometry: PresetSpec["roadGeometry"] = "spine",
+  roadGeometry: TemplateSpec["roadGeometry"] = "spine",
 ): Point[] | null {
   if (renderLayout === "geographic") return rawRoadPoints(road, project);
   if (roadGeometry === "orthogonal") {

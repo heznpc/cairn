@@ -2,7 +2,7 @@ import type { MapLayout, RenderOptions } from "../types.js";
 import type { Box } from "./text.js";
 import { roadPathPoints, type Point } from "./road-geometry.js";
 import { roadStyle } from "./road-style.js";
-import type { PresetSpec } from "./theme.js";
+import type { TemplateSpec, ThemeSpec } from "./theme.js";
 
 export const LANDMARK_MARKER_RADIUS = 17;
 const DESTINATION_MARKER_RADIUS = 13;
@@ -32,6 +32,7 @@ export interface MarkerAnchor {
   anchorX: number;
   anchorY: number;
   importance: number;
+  fixed?: Point;
 }
 
 export interface MarkerPlacement extends MarkerAnchor {
@@ -53,7 +54,8 @@ export function roadMarkerCorridors(
   renderLayout: RenderOptions["layout"],
   width: number,
   height: number,
-  preset: PresetSpec,
+  template: TemplateSpec,
+  theme: ThemeSpec,
 ): RoadCorridor[] {
   const corridors: RoadCorridor[] = [];
   for (const road of roads) {
@@ -63,11 +65,11 @@ export function roadMarkerCorridors(
       renderLayout,
       width,
       height,
-      preset.roadGeometry,
+      template.roadGeometry,
     );
     if (!points) continue;
-    const style = roadStyle(road.class, preset);
-    const halfWidth = (style.width + 5 * preset.roadScale) / 2;
+    const style = roadStyle(road.class, template, theme);
+    const halfWidth = (style.width + 5 * template.roadScale) / 2;
     for (let index = 1; index < points.length; index++) {
       corridors.push({
         start: points[index - 1],
@@ -94,12 +96,18 @@ export function placeLandmarkMarkers(
   const occupied: Point[] = [];
   const order = markers
     .map((marker, index) => ({ marker, index }))
-    .sort((a, b) => b.marker.importance - a.marker.importance || a.index - b.index);
+    .sort((a, b) =>
+      Number(Boolean(b.marker.fixed)) - Number(Boolean(a.marker.fixed)) ||
+      b.marker.importance - a.marker.importance ||
+      a.index - b.index,
+    );
 
   for (const { marker, index } of order) {
-    const candidate = markerCandidates(marker).find((point) =>
-      markerFits(point, occupied, roads, options),
-    );
+    const candidate =
+      marker.fixed ??
+      markerCandidates(marker).find((point) =>
+        markerFits(point, occupied, roads, options),
+      );
     if (!candidate) continue;
     const displacement = Math.hypot(
       candidate.x - marker.anchorX,

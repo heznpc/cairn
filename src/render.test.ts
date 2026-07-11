@@ -68,6 +68,24 @@ describe("renderSVG", () => {
     expect(svg).not.toContain("#25221d\" stroke");
   });
 
+  it("varies visual vocabulary independently from the template", () => {
+    const paper = renderSVG(layout, { template: "standard", theme: "paper" });
+    const civic = renderSVG(layout, { template: "standard", theme: "civic" });
+
+    expect(civic).toContain('data-template="standard"');
+    expect(civic).toContain('data-theme="civic"');
+    expect(civic).toContain('fill="#f8fbfc"');
+    expect(civic).toContain('fill="#d94f3d"');
+    expect(civic).not.toBe(paper);
+  });
+
+  it("prefers template over the legacy preset alias", () => {
+    const svg = renderSVG(layout, { template: "badge", preset: "minimal" });
+    expect(svg).toContain('data-template="badge"');
+    expect(svg).toContain('data-badge-map="true"');
+    expect(svg).not.toContain('data-route-strip="true"');
+  });
+
   it("minimal preset keeps only transit-like landmarks", () => {
     const svg = renderSVG(layout, { preset: "minimal" });
     expect(svg).toContain('data-landmark-icon="station"');

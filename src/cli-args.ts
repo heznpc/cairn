@@ -7,11 +7,17 @@ import {
 import {
   isRenderLayoutMode,
   isRenderPreset,
+  isRenderTemplate,
+  isRenderTheme,
   quotedChoiceList,
   RENDER_LAYOUT_HELP,
   RENDER_LAYOUTS,
   RENDER_PRESET_HELP,
   RENDER_PRESETS,
+  RENDER_TEMPLATE_HELP,
+  RENDER_TEMPLATES,
+  RENDER_THEME_HELP,
+  RENDER_THEMES,
 } from "./options.js";
 
 export const HELP = `
@@ -29,7 +35,9 @@ OPTIONS
   -w, --width <px>        SVG width (default: 600, ${MIN_CANVAS_DIMENSION_PX}-${MAX_CANVAS_DIMENSION_PX})
   -h, --height <px>       SVG height (default: 400, ${MIN_CANVAS_DIMENSION_PX}-${MAX_CANVAS_DIMENSION_PX})
       --layout <mode>     Render layout: ${RENDER_LAYOUT_HELP} (default: diagram)
-      --preset <name>     Output form: ${RENDER_PRESET_HELP} (default: standard)
+      --template <name>   Composition: ${RENDER_TEMPLATE_HELP} (default: standard)
+      --theme <name>      Visual style: ${RENDER_THEME_HELP} (default: paper)
+      --preset <name>     Compatibility alias for --template: ${RENDER_PRESET_HELP}
       --no-roads          Skip the road skeleton (landmarks only)
       --focus             Fisheye-emphasize the destination area (standard/compact/schematic)
       --help              Show this help
@@ -76,6 +84,8 @@ export function parseCliRequest(argv: string[]): CliRequest {
       width: parseFlag("--width", opts.width, MIN_CANVAS_DIMENSION_PX, MAX_CANVAS_DIMENSION_PX),
       height: parseFlag("--height", opts.height, MIN_CANVAS_DIMENSION_PX, MAX_CANVAS_DIMENSION_PX),
       layout: parseLayout(opts.layout),
+      template: parseTemplate(opts.template),
+      theme: parseTheme(opts.theme),
       preset: parsePreset(opts.preset),
       roads: opts.noRoads === "true" ? false : undefined,
       focus: opts.focus === "true" ? true : undefined,
@@ -136,6 +146,12 @@ function parse(argv: string[]) {
       case "--preset":
         opts.preset = takeValue(a, ++i);
         break;
+      case "--template":
+        opts.template = takeValue(a, ++i);
+        break;
+      case "--theme":
+        opts.theme = takeValue(a, ++i);
+        break;
       case "--no-roads":
         opts.noRoads = "true";
         break;
@@ -188,6 +204,22 @@ function parsePreset(raw: string | undefined) {
   if (raw === undefined) return undefined;
   if (!isRenderPreset(raw)) {
     throw new Error(`--preset must be ${quotedChoiceList(RENDER_PRESETS)} (got: "${raw}")`);
+  }
+  return raw;
+}
+
+function parseTemplate(raw: string | undefined) {
+  if (raw === undefined) return undefined;
+  if (!isRenderTemplate(raw)) {
+    throw new Error(`--template must be ${quotedChoiceList(RENDER_TEMPLATES)} (got: "${raw}")`);
+  }
+  return raw;
+}
+
+function parseTheme(raw: string | undefined) {
+  if (raw === undefined) return undefined;
+  if (!isRenderTheme(raw)) {
+    throw new Error(`--theme must be ${quotedChoiceList(RENDER_THEMES)} (got: "${raw}")`);
   }
   return raw;
 }
