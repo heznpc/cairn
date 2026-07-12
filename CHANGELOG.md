@@ -12,8 +12,10 @@ versions follow [Semantic Versioning](https://semver.org/).
   validated patches, including explicit start-landmark selection, and returns
   both revised SVG and updated document.
 - CLI document round-tripping with `--save-document` and
-  `cairn render <document.json>`.
+  `cairn render <document.json>`, with SVG, PNG, and PDF output selected by
+  file extension. SVG remains vector; PDF uses a 4× locally rendered image.
 - A packaged `create-wayfinding-map` skill with quality and patch references
+  plus campus, invitation, monochrome, and custom-topology golden workflows
   for compatible AI hosts. Release preflight validates and package smoke-tests
   the shipped skill; `cairn install-skill <skills-directory>` installs it
   without overwriting an existing copy.

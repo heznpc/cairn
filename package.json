@@ -21,6 +21,10 @@
       "types": "./dist/diagram-document.d.ts",
       "import": "./dist/diagram-document.js"
     },
+    "./export": {
+      "types": "./dist/export.d.ts",
+      "import": "./dist/export.js"
+    },
     "./options": {
       "types": "./dist/options.d.ts",
       "import": "./dist/options.js"
@@ -81,6 +85,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
+    "@resvg/resvg-js": "^2.6.2",
     "zod": "^3.23.0"
   },
   "devDependencies": {

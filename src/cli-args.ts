@@ -30,7 +30,7 @@ USAGE
   cairn install-skill <skills-directory>
 
 OPTIONS
-  -o, --output <file>     Write SVG to file (default: stdout)
+  -o, --output <file>     Write SVG, PNG, or PDF by extension (default: SVG stdout)
       --save-document <file>
                           Save editable DiagramDocument JSON when generating
   -l, --label <text>      Label for the destination (default: "여기")

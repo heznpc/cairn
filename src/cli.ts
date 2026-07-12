@@ -12,6 +12,7 @@ import { generateMap } from "./pipeline.js";
 import { HELP, parseCliRequest } from "./cli-args.js";
 import { parseDiagramDocument } from "./diagram-schema.js";
 import { renderDiagramDocument } from "./diagram-document.js";
+import { artifactFormatFromPath, encodeMapArtifact } from "./export.js";
 
 async function main() {
   const argv = process.argv.slice(2);
@@ -60,7 +61,7 @@ async function main() {
     );
     const svg = renderDiagramDocument(document);
     if (request.output) {
-      writeFileSync(request.output, svg, "utf8");
+      writeArtifact(request.output, svg, document.canvas);
       console.error(
         `✓ ${request.output}  (${document.map.landmarks.length} landmarks · ${document.render.template}/${document.render.theme})`,
       );
@@ -82,13 +83,22 @@ async function main() {
   }
 
   if (request.output) {
-    writeFileSync(request.output, svg, "utf8");
+    writeArtifact(request.output, svg, document.canvas);
     console.error(
       `✓ ${request.output}  (${layout.landmarks.length} landmarks · ${layout.roads.length} roads · center: ${layout.center.lat.toFixed(5)}, ${layout.center.lon.toFixed(5)})`,
     );
   } else {
     process.stdout.write(svg);
   }
+}
+
+function writeArtifact(
+  path: string,
+  svg: string,
+  canvas: { width: number; height: number },
+): void {
+  const artifact = encodeMapArtifact(svg, canvas, artifactFormatFromPath(path));
+  writeFileSync(path, artifact, typeof artifact === "string" ? "utf8" : undefined);
 }
 
 main().catch((err) => {

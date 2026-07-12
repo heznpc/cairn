@@ -15,6 +15,8 @@ source of truth across edit turns.
    - Require a destination address or an existing `DiagramDocument`.
    - Infer a sensible destination label, canvas, template, and theme when the
      user does not care. Do not turn routine defaults into a questionnaire.
+   - Read [references/examples.md](references/examples.md) when the requested
+     domain is ambiguous or when selecting the first composition.
    - Ask for a start point only when the user explicitly needs a route from a
      particular gate, exit, or landmark.
 
@@ -50,7 +52,8 @@ source of truth across edit turns.
      the hard checks pass unless the user requested visual exploration.
 
 6. Deliver both surfaces when future edits are plausible.
-   - Return or write the SVG as the usable artifact.
+   - Return or write SVG for future editing, PNG for bitmap use, or PDF for
+     print delivery. Keep SVG as the canonical visual source.
    - Keep the final `DiagramDocument` alongside it for later chat edits.
    - State any unresolved map-data ambiguity instead of presenting inferred
      access routes as surveyed navigation truth.

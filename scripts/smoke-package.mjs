@@ -66,6 +66,8 @@ if (!overwriteRefused) throw new Error("skill installer overwrote an existing sk
 
 const cliDocumentPath = join(installDir, "map.json");
 const cliSvgPath = join(installDir, "map.svg");
+const cliPngPath = join(installDir, "map.png");
+const cliPdfPath = join(installDir, "map.pdf");
 writeFileSync(cliDocumentPath, JSON.stringify({
   version: 1,
   map: {
@@ -92,6 +94,20 @@ run(process.execPath, [cliPath, "render", cliDocumentPath, "-o", cliSvgPath], {
 });
 if (!readFileSync(cliSvgPath, "utf8").includes('data-theme="mono"')) {
   throw new Error("installed CLI did not re-render DiagramDocument JSON");
+}
+run(process.execPath, [cliPath, "render", cliDocumentPath, "-o", cliPngPath], {
+  cwd: installDir,
+  stdio: "ignore",
+});
+run(process.execPath, [cliPath, "render", cliDocumentPath, "-o", cliPdfPath], {
+  cwd: installDir,
+  stdio: "ignore",
+});
+if (!readFileSync(cliPngPath).subarray(1, 4).equals(Buffer.from("PNG"))) {
+  throw new Error("installed CLI did not export PNG");
+}
+if (readFileSync(cliPdfPath).subarray(0, 8).toString("ascii") !== "%PDF-1.4") {
+  throw new Error("installed CLI did not export PDF");
 }
 
 const smokePath = join(installDir, "mcp-smoke.mjs");
@@ -175,6 +191,7 @@ writeFileSync(
   documentSmokePath,
   `
 import { createDiagramDocument, renderDiagramDocument } from "@yakdo/cairn/document";
+import { artifactFormatFromPath, encodeMapArtifact } from "@yakdo/cairn/export";
 import { renderSVG } from "@yakdo/cairn/render";
 import { RENDER_TEMPLATES, RENDER_THEMES } from "@yakdo/cairn/options";
 
@@ -206,6 +223,12 @@ if (!renderSVG(map).startsWith("<svg")) {
 }
 if (RENDER_TEMPLATES.length !== 5 || RENDER_THEMES.length !== 4) {
   throw new Error("options subpath did not expose template/theme choices");
+}
+if (artifactFormatFromPath("map.pdf") !== "pdf") {
+  throw new Error("export subpath did not expose artifact helpers");
+}
+if (!Buffer.isBuffer(encodeMapArtifact(svg, document.canvas, "png"))) {
+  throw new Error("export subpath did not encode PNG");
 }
 `,
   "utf8",

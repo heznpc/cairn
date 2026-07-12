@@ -36,7 +36,13 @@ Most maps are too accurate to be useful. Korean 약도 (yakdo) and Japanese 略�
   node dist/cli.js "Shibuya Crossing, Tokyo" -o shibuya.svg --layout geographic
   node dist/cli.js "서울 강남구 테헤란로 152" -o office.svg --save-document office.json
   node dist/cli.js render office.json -o office-revised.svg
+  node dist/cli.js render office.json -o office-print.pdf
+  node dist/cli.js render office.json -o office-preview.png
   ```
+- **Local export** — `.svg`, `.png`, and `.pdf` output is selected by the
+  filename extension without a paid conversion service. SVG remains the
+  canonical vector artifact; PDF embeds a 4× local raster for reliable print
+  delivery.
 - **Layout modes** — `diagram` is the default 약도 layout, keeping only the navigational structure; `geographic` preserves raw road geometry more closely for inspection/debugging.
 - **Composition templates** — `standard` (default) keeps the full curated 약도, `compact` becomes an approach-focused mini-map, `minimal` uses a route strip, `schematic` turns roads into right-angle axes, and `badge` renders a destination-first inset.
 - **Visual themes** — `paper` (default), `mono`, `civic`, and `invitation` independently change color, typography, roads, markers, and callouts without changing the chosen composition.
@@ -124,6 +130,7 @@ npx -p @yakdo/cairn cairn "서울 강남구 테헤란로 152" -o office.svg
 npx -p @yakdo/cairn cairn "1600 Amphitheatre Pkwy, Mountain View" --label "Office" --template compact --theme mono
 npx -p @yakdo/cairn cairn "서울 강남구 테헤란로 152" -o office.svg --save-document office.json
 npx -p @yakdo/cairn cairn render office.json -o office-revised.svg
+npx -p @yakdo/cairn cairn render office.json -o office-print.pdf
 ```
 
 ### As an editable document
