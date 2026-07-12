@@ -1,18 +1,23 @@
 import type { MapLayout, RenderTemplate, RenderTheme } from "../types.js";
-import { landmarkIcon, markerStyle } from "./icons.js";
+import { selectApproachLandmark } from "./approach.js";
 import { bestRoadName } from "./road-layout.js";
 import {
-  APPROACH_RANK,
   type TemplateSpec,
   type ThemeSpec,
 } from "./theme.js";
 import {
   type CenterCallout,
-  destinationLabel,
   labelText,
   textBoxWidth,
   truncateLabel,
 } from "./text.js";
+import {
+  renderApproachPath,
+  renderDestinationMarker,
+  renderLandmarkMarker,
+  renderOsmAttribution,
+  svgDocumentStart,
+} from "./svg-primitives.js";
 
 const ROAD_LABEL_MAX = 12;
 const CENTER_LABEL_MAX = 12;
@@ -27,7 +32,7 @@ export function renderRouteStripSVG(
   theme: ThemeSpec,
   approachLandmarkId?: string,
 ): string {
-  const start = chooseRouteStartLandmark(layout.landmarks, approachLandmarkId);
+  const start = selectTemplateApproachLandmark(layout.landmarks, approachLandmarkId);
   const roadName = bestRoadName(layout.roads);
   const centerLabel = truncateLabel(layout.center.label, CENTER_LABEL_MAX);
   const startLabel = truncateLabel(start?.name ?? "출발", 9);
@@ -58,15 +63,14 @@ export function renderRouteStripSVG(
     anchorY: dy,
   };
 
-  const lines: string[] = [];
-  lines.push(
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" data-preset="${templateName}" data-template="${templateName}" data-theme="${themeName}" data-route-strip="true" font-family="${theme.fontFamily}">`,
-  );
-  lines.push(
-    `<defs><marker id="cairn-approach-arrowhead" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1,1 L9,5 L1,9 Z" fill="${theme.destination}"/></marker></defs>`,
-  );
-  lines.push(`<metadata>Map data © OpenStreetMap contributors, ODbL.</metadata>`);
-  lines.push(`<rect width="${width}" height="${height}" fill="${theme.background}"/>`);
+  const lines = svgDocumentStart({
+    width,
+    height,
+    templateName,
+    themeName,
+    theme,
+    data: { "route-strip": true },
+  });
   lines.push(
     `<path data-strip-road="anchor" d="M${roadStartX.toFixed(1)},${roadY.toFixed(1)} H${roadEndX.toFixed(1)}" fill="none" stroke="${theme.roads.primary}" stroke-width="9" stroke-linecap="round"/>`,
   );
@@ -75,30 +79,32 @@ export function renderRouteStripSVG(
   }
 
   const routeD = `M${startEdgeX.toFixed(1)},${sy.toFixed(1)} L${bendX.toFixed(1)},${sy.toFixed(1)} L${destEdgeX.toFixed(1)},${dy.toFixed(1)}`;
-  lines.push(
-    `<path data-approach-arrow="casing" data-strip-route="casing" d="${routeD}" fill="none" stroke="${theme.background}" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>`,
-  );
-  lines.push(
-    `<path data-approach-arrow="core" data-strip-route="core" d="${routeD}" fill="none" stroke="${theme.destination}" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#cairn-approach-arrowhead)"/>`,
-  );
+  lines.push(...renderApproachPath(routeD, theme, {
+    casingWidth: 11,
+    coreWidth: 4.4,
+    layerDataName: "strip-route",
+    lineJoin: true,
+  }));
 
-  const marker = markerStyle(startCategory, theme);
-  lines.push(
-    `<circle cx="${sx.toFixed(1)}" cy="${sy.toFixed(1)}" r="18" fill="${theme.background}" stroke="${marker.color}" stroke-width="${marker.emphasis ? 2 : 1.25}"/>`,
-  );
-  lines.push(landmarkIcon(startCategory, sx, sy, marker.color));
+  lines.push(...renderLandmarkMarker({
+    x: sx,
+    y: sy,
+    radius: 18,
+    category: startCategory,
+    theme,
+  }));
   lines.push(labelText(startLabel, sx, sy + 38, 11, theme.ink, 500, theme.background));
 
-  lines.push(
-    `<circle cx="${dx.toFixed(1)}" cy="${dy.toFixed(1)}" r="13" fill="${theme.destination}" stroke="${theme.background}" stroke-width="3.5"/>`,
-  );
-  lines.push(
-    `<line data-destination-tail="true" x1="${destBox.anchorX.toFixed(1)}" y1="${destBox.anchorY.toFixed(1)}" x2="${dx.toFixed(1)}" y2="${dy.toFixed(1)}" stroke="${theme.destination}" stroke-width="1.8" stroke-linecap="round"/>`,
-  );
-  lines.push(destinationLabel(centerLabel, destBox, template, theme));
-  lines.push(
-    `<text data-attribution="osm" x="${(width - 18).toFixed(1)}" y="${(height - 8).toFixed(1)}" text-anchor="end" font-size="8" fill="${theme.attribution}">© OpenStreetMap contributors</text>`,
-  );
+  lines.push(...renderDestinationMarker({
+    x: dx,
+    y: dy,
+    label: centerLabel,
+    callout: destBox,
+    tailWidth: 1.8,
+    template,
+    theme,
+  }));
+  lines.push(renderOsmAttribution(width, height, theme));
   lines.push(`</svg>`);
   return lines.join("\n");
 }
@@ -113,7 +119,7 @@ export function renderBadgeSVG(
   theme: ThemeSpec,
   approachLandmarkId?: string,
 ): string {
-  const start = chooseRouteStartLandmark(layout.landmarks, approachLandmarkId);
+  const start = selectTemplateApproachLandmark(layout.landmarks, approachLandmarkId);
   const roadName = bestRoadName(layout.roads);
   const centerLabel = truncateLabel(layout.center.label, CENTER_LABEL_MAX);
   const startLabel = truncateLabel(start?.name ?? "출발", 8);
@@ -140,15 +146,14 @@ export function renderBadgeSVG(
   const roadY = height * 0.70;
   const crossX = width * (startIsRight ? 0.62 : 0.38);
 
-  const lines: string[] = [];
-  lines.push(
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" data-preset="${templateName}" data-template="${templateName}" data-theme="${themeName}" data-badge-map="true" font-family="${theme.fontFamily}">`,
-  );
-  lines.push(
-    `<defs><marker id="cairn-approach-arrowhead" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1,1 L9,5 L1,9 Z" fill="${theme.destination}"/></marker></defs>`,
-  );
-  lines.push(`<metadata>Map data © OpenStreetMap contributors, ODbL.</metadata>`);
-  lines.push(`<rect width="${width}" height="${height}" fill="${theme.background}"/>`);
+  const lines = svgDocumentStart({
+    width,
+    height,
+    templateName,
+    themeName,
+    theme,
+    data: { "badge-map": true },
+  });
   lines.push(
     `<rect data-badge-panel="true" x="18" y="18" width="${width - 36}" height="${height - 36}" fill="none" stroke="${theme.frame}" stroke-width="1"/>`,
   );
@@ -163,46 +168,47 @@ export function renderBadgeSVG(
   }
 
   const routeD = `M${startEdgeX.toFixed(1)},${sy.toFixed(1)} L${bendX.toFixed(1)},${sy.toFixed(1)} L${destEdgeX.toFixed(1)},${dy.toFixed(1)}`;
-  lines.push(
-    `<path data-approach-arrow="casing" data-badge-route="casing" d="${routeD}" fill="none" stroke="${theme.background}" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>`,
-  );
-  lines.push(
-    `<path data-approach-arrow="core" data-badge-route="core" d="${routeD}" fill="none" stroke="${theme.destination}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#cairn-approach-arrowhead)"/>`,
-  );
+  lines.push(...renderApproachPath(routeD, theme, {
+    casingWidth: 10,
+    coreWidth: 4,
+    layerDataName: "badge-route",
+    lineJoin: true,
+  }));
 
-  const marker = markerStyle(startCategory, theme);
-  lines.push(
-    `<circle cx="${sx.toFixed(1)}" cy="${sy.toFixed(1)}" r="17" fill="${theme.background}" stroke="${marker.color}" stroke-width="${marker.emphasis ? 2 : 1.25}"/>`,
-  );
-  lines.push(landmarkIcon(startCategory, sx, sy, marker.color));
+  lines.push(...renderLandmarkMarker({
+    x: sx,
+    y: sy,
+    radius: 17,
+    category: startCategory,
+    theme,
+  }));
   lines.push(labelText(startLabel, sx, sy + 36, 11, theme.ink, 500, theme.background));
 
-  lines.push(
-    `<circle cx="${dx.toFixed(1)}" cy="${dy.toFixed(1)}" r="13" fill="${theme.destination}" stroke="${theme.background}" stroke-width="3.5"/>`,
-  );
-  lines.push(
-    `<line data-destination-tail="true" x1="${destBox.anchorX.toFixed(1)}" y1="${destBox.anchorY.toFixed(1)}" x2="${dx.toFixed(1)}" y2="${dy.toFixed(1)}" stroke="${theme.destination}" stroke-width="2" stroke-linecap="round"/>`,
-  );
-  lines.push(destinationLabel(centerLabel, destBox, template, theme));
-  lines.push(
-    `<text data-attribution="osm" x="${(width - 18).toFixed(1)}" y="${(height - 8).toFixed(1)}" text-anchor="end" font-size="8" fill="${theme.attribution}">© OpenStreetMap contributors</text>`,
-  );
+  lines.push(...renderDestinationMarker({
+    x: dx,
+    y: dy,
+    label: centerLabel,
+    callout: destBox,
+    tailWidth: 2,
+    template,
+    theme,
+  }));
+  lines.push(renderOsmAttribution(width, height, theme));
   lines.push(`</svg>`);
   return lines.join("\n");
 }
 
-function chooseRouteStartLandmark(
+function selectTemplateApproachLandmark(
   landmarks: MapLayout["landmarks"],
   approachLandmarkId?: string,
 ): MapLayout["landmarks"][number] | null {
-  if (approachLandmarkId) {
-    const approach = landmarks.find((landmark) => landmark.id === approachLandmarkId);
-    if (!approach) throw new Error(`Unknown approach landmark id: ${approachLandmarkId}`);
-    return approach;
-  }
-  return [...landmarks]
-    .sort((a, b) =>
-      APPROACH_RANK[b.category] * 1000 + b.importance * 100 -
-      (APPROACH_RANK[a.category] * 1000 + a.importance * 100),
-    )[0] ?? null;
+  return selectApproachLandmark(
+    landmarks.map((landmark) => ({
+      value: landmark,
+      id: landmark.id,
+      category: landmark.category,
+      importance: landmark.importance,
+    })),
+    { explicitId: approachLandmarkId },
+  );
 }

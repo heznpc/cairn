@@ -35,8 +35,15 @@ versions follow [Semantic Versioning](https://semver.org/).
   marker/road overlap and style regressions across the full matrix.
 - `generateMap()` now returns the exact editable `document` used to render its
   SVG alongside the existing `svg` and `layout` fields.
+- Standard map layout now produces a testable `StandardMapScene` before SVG
+  serialization. Standard, minimal, and badge renderers share document-frame,
+  route, marker, destination, attribution, and approach-selection primitives.
 
 ### Fixed
+- MCP JSON Schema and runtime Zod validation now share domain values and
+  numeric bounds, with acceptance-parity tests. Public document schemas no
+  longer accept empty landmark, road, or explicit approach IDs that runtime
+  validation rejects.
 - Landmark markers now preserve navigational road corridors: glyphs move away
   from rendered road casing, keep their geographic anchor via an under-road
   leader, and are omitted when no collision-free placement exists instead of

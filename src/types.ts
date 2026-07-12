@@ -1,3 +1,11 @@
+import type {
+  LANDMARK_CATEGORIES,
+  RENDER_LAYOUTS,
+  RENDER_TEMPLATES,
+  RENDER_THEMES,
+  ROAD_CLASSES,
+} from "./domain-values.js";
+
 export interface GeocodingResult {
   lat: number;
   lon: number;
@@ -5,18 +13,7 @@ export interface GeocodingResult {
   raw?: unknown;
 }
 
-export type LandmarkCategory =
-  | "station"
-  | "station_exit"
-  | "bus_stop"
-  | "cafe"
-  | "convenience"
-  | "restaurant"
-  | "school"
-  | "hospital"
-  | "park"
-  | "landmark"
-  | "building";
+export type LandmarkCategory = (typeof LANDMARK_CATEGORIES)[number];
 
 export interface Landmark {
   id: string;
@@ -30,12 +27,7 @@ export interface Landmark {
 
 // Road importance tiers, collapsed from OSM's many `highway=*` values.
 // Width / colour in the renderer key off this, not the raw OSM tag.
-export type RoadClass =
-  | "primary" // motorway, trunk, primary — the big roads you navigate by
-  | "secondary"
-  | "tertiary"
-  | "residential" // residential, unclassified, living_street
-  | "path"; // anything else that slipped through
+export type RoadClass = (typeof ROAD_CLASSES)[number];
 
 export interface Road {
   id: string;
@@ -52,11 +44,11 @@ export interface MapLayout {
   bbox: { north: number; south: number; east: number; west: number };
 }
 
-export type RenderLayoutMode = "diagram" | "geographic";
-export type RenderTemplate = "standard" | "compact" | "minimal" | "schematic" | "badge";
+export type RenderLayoutMode = (typeof RENDER_LAYOUTS)[number];
+export type RenderTemplate = (typeof RENDER_TEMPLATES)[number];
 /** @deprecated Use RenderTemplate. Kept for v0.1/v0.2 callers. */
 export type RenderPreset = RenderTemplate;
-export type RenderTheme = "paper" | "mono" | "civic" | "invitation";
+export type RenderTheme = (typeof RENDER_THEMES)[number];
 
 export interface NormalizedPosition {
   /** Horizontal canvas position, normalized to 0..1. */

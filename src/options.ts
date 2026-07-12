@@ -4,12 +4,15 @@ import type {
   RenderTemplate,
   RenderTheme,
 } from "./types.js";
+import {
+  RENDER_LAYOUTS,
+  RENDER_TEMPLATES,
+  RENDER_THEMES,
+} from "./domain-values.js";
 
-export const RENDER_LAYOUTS = ["diagram", "geographic"] as const satisfies readonly RenderLayoutMode[];
-export const RENDER_TEMPLATES = ["standard", "compact", "minimal", "schematic", "badge"] as const satisfies readonly RenderTemplate[];
+export { RENDER_LAYOUTS, RENDER_TEMPLATES, RENDER_THEMES };
 /** @deprecated Use RENDER_TEMPLATES. */
 export const RENDER_PRESETS = RENDER_TEMPLATES satisfies readonly RenderPreset[];
-export const RENDER_THEMES = ["paper", "mono", "civic", "invitation"] as const satisfies readonly RenderTheme[];
 
 export const RENDER_LAYOUT_HELP = plainChoiceList(RENDER_LAYOUTS);
 export const RENDER_TEMPLATE_HELP = plainChoiceList(RENDER_TEMPLATES);

@@ -1,63 +1,31 @@
-import type { LandmarkCategory, RoadClass } from "./types.js";
 import {
+  IDENTIFIER_MIN_LENGTH,
+  IMPORTANCE_RANGE,
+  LANDMARK_CATEGORIES,
+  LATITUDE_RANGE,
+  LONGITUDE_RANGE,
+  NORMALIZED_POSITION_RANGE,
   RENDER_LAYOUTS,
   RENDER_TEMPLATES,
   RENDER_THEMES,
-} from "./options.js";
+  ROAD_CLASSES,
+} from "./domain-values.js";
 import {
   MAX_CANVAS_DIMENSION_PX,
   MIN_CANVAS_DIMENSION_PX,
 } from "./limits.js";
-
-const LANDMARK_CATEGORIES = [
-  "station",
-  "station_exit",
-  "bus_stop",
-  "cafe",
-  "convenience",
-  "restaurant",
-  "school",
-  "hospital",
-  "park",
-  "landmark",
-  "building",
-] as const;
-
-type AssertNever<T> = [T] extends [never]
-  ? true
-  : { error: "JSON schema enum drift"; offenders: T };
-type _LandmarkMissing = Exclude<LandmarkCategory, (typeof LANDMARK_CATEGORIES)[number]>;
-type _LandmarkExtra = Exclude<(typeof LANDMARK_CATEGORIES)[number], LandmarkCategory>;
-const _landmarkNoneMissing: AssertNever<_LandmarkMissing> = true;
-const _landmarkNoneExtra: AssertNever<_LandmarkExtra> = true;
-void _landmarkNoneMissing;
-void _landmarkNoneExtra;
-
-const ROAD_CLASSES = [
-  "primary",
-  "secondary",
-  "tertiary",
-  "residential",
-  "path",
-] as const;
-type _RoadMissing = Exclude<RoadClass, (typeof ROAD_CLASSES)[number]>;
-type _RoadExtra = Exclude<(typeof ROAD_CLASSES)[number], RoadClass>;
-const _roadNoneMissing: AssertNever<_RoadMissing> = true;
-const _roadNoneExtra: AssertNever<_RoadExtra> = true;
-void _roadNoneMissing;
-void _roadNoneExtra;
 
 export const landmarkItemJsonSchema = {
   type: "object",
   required: ["id", "name", "lat", "lon", "category", "importance", "tags"],
   additionalProperties: false,
   properties: {
-    id: { type: "string" },
+    id: { type: "string", minLength: IDENTIFIER_MIN_LENGTH },
     name: { type: "string" },
-    lat: { type: "number", minimum: -90, maximum: 90 },
-    lon: { type: "number", minimum: -180, maximum: 180 },
+    lat: { type: "number", ...LATITUDE_RANGE },
+    lon: { type: "number", ...LONGITUDE_RANGE },
     category: { type: "string", enum: LANDMARK_CATEGORIES },
-    importance: { type: "number", minimum: 0, maximum: 1 },
+    importance: { type: "number", ...IMPORTANCE_RANGE },
     tags: {
       type: "object",
       additionalProperties: { type: "string" },
@@ -70,7 +38,7 @@ export const roadItemJsonSchema = {
   required: ["id", "class", "points"],
   additionalProperties: false,
   properties: {
-    id: { type: "string" },
+    id: { type: "string", minLength: IDENTIFIER_MIN_LENGTH },
     name: { type: "string" },
     class: { type: "string", enum: ROAD_CLASSES },
     points: {
@@ -80,8 +48,8 @@ export const roadItemJsonSchema = {
         required: ["lat", "lon"],
         additionalProperties: false,
         properties: {
-          lat: { type: "number", minimum: -90, maximum: 90 },
-          lon: { type: "number", minimum: -180, maximum: 180 },
+          lat: { type: "number", ...LATITUDE_RANGE },
+          lon: { type: "number", ...LONGITUDE_RANGE },
         },
       },
     },
@@ -98,8 +66,8 @@ export const mapLayoutJsonSchema = {
       required: ["lat", "lon", "label"],
       additionalProperties: false,
       properties: {
-        lat: { type: "number", minimum: -90, maximum: 90 },
-        lon: { type: "number", minimum: -180, maximum: 180 },
+        lat: { type: "number", ...LATITUDE_RANGE },
+        lon: { type: "number", ...LONGITUDE_RANGE },
         label: { type: "string" },
       },
     },
@@ -110,10 +78,10 @@ export const mapLayoutJsonSchema = {
       required: ["north", "south", "east", "west"],
       additionalProperties: false,
       properties: {
-        north: { type: "number", minimum: -90, maximum: 90 },
-        south: { type: "number", minimum: -90, maximum: 90 },
-        east: { type: "number", minimum: -180, maximum: 180 },
-        west: { type: "number", minimum: -180, maximum: 180 },
+        north: { type: "number", ...LATITUDE_RANGE },
+        south: { type: "number", ...LATITUDE_RANGE },
+        east: { type: "number", ...LONGITUDE_RANGE },
+        west: { type: "number", ...LONGITUDE_RANGE },
       },
     },
   },
@@ -124,8 +92,8 @@ const normalizedPositionJsonSchema = {
   required: ["x", "y"],
   additionalProperties: false,
   properties: {
-    x: { type: "number", minimum: 0, maximum: 1 },
-    y: { type: "number", minimum: 0, maximum: 1 },
+    x: { type: "number", ...NORMALIZED_POSITION_RANGE },
+    y: { type: "number", ...NORMALIZED_POSITION_RANGE },
   },
 } as const;
 
@@ -177,6 +145,7 @@ export const diagramDocumentJsonSchema = {
         focus: { type: "boolean" },
         approachLandmarkId: {
           type: "string",
+          minLength: IDENTIFIER_MIN_LENGTH,
           description: "Exact landmark ID used as the start of the final approach.",
         },
       },
@@ -205,6 +174,12 @@ export const diagramDocumentJsonSchema = {
 
 const nullableString = {
   anyOf: [{ type: "string" }, { type: "null" }],
+} as const;
+const nullableIdentifier = {
+  anyOf: [
+    { type: "string", minLength: IDENTIFIER_MIN_LENGTH },
+    { type: "null" },
+  ],
 } as const;
 const nullableBoolean = {
   anyOf: [{ type: "boolean" }, { type: "null" }],
@@ -237,7 +212,7 @@ export const diagramDocumentPatchJsonSchema = {
         theme: { type: "string", enum: RENDER_THEMES },
         focus: { type: "boolean" },
         approachLandmarkId: {
-          ...nullableString,
+          ...nullableIdentifier,
           description: "Set an exact landmark ID as the start, or null for automatic selection.",
         },
       },

@@ -4,51 +4,46 @@ import {
   MIN_CANVAS_DIMENSION_PX,
 } from "./limits.js";
 import {
+  IDENTIFIER_MIN_LENGTH,
+  IMPORTANCE_RANGE,
+  LANDMARK_CATEGORIES,
+  LATITUDE_RANGE,
+  LONGITUDE_RANGE,
+  NORMALIZED_POSITION_RANGE,
   RENDER_LAYOUTS,
   RENDER_TEMPLATES,
   RENDER_THEMES,
-} from "./options.js";
+  ROAD_CLASSES,
+} from "./domain-values.js";
 import type { DiagramDocument, DiagramDocumentPatch } from "./types.js";
 
 const Coordinate = z.number().finite();
-const Latitude = Coordinate.min(-90).max(90);
-const Longitude = Coordinate.min(-180).max(180);
+const Latitude = Coordinate.min(LATITUDE_RANGE.minimum).max(LATITUDE_RANGE.maximum);
+const Longitude = Coordinate.min(LONGITUDE_RANGE.minimum).max(LONGITUDE_RANGE.maximum);
 const CanvasDimension = z
   .number()
   .int()
   .min(MIN_CANVAS_DIMENSION_PX)
   .max(MAX_CANVAS_DIMENSION_PX);
 const NormalizedPosition = z.object({
-  x: Coordinate.min(0).max(1),
-  y: Coordinate.min(0).max(1),
+  x: Coordinate.min(NORMALIZED_POSITION_RANGE.minimum).max(NORMALIZED_POSITION_RANGE.maximum),
+  y: Coordinate.min(NORMALIZED_POSITION_RANGE.minimum).max(NORMALIZED_POSITION_RANGE.maximum),
 }).strict();
 
 const Landmark = z.object({
-  id: z.string().min(1),
+  id: z.string().min(IDENTIFIER_MIN_LENGTH),
   name: z.string(),
   lat: Latitude,
   lon: Longitude,
-  category: z.enum([
-    "station",
-    "station_exit",
-    "bus_stop",
-    "cafe",
-    "convenience",
-    "restaurant",
-    "school",
-    "hospital",
-    "park",
-    "landmark",
-    "building",
-  ]),
-  importance: Coordinate.min(0).max(1),
+  category: z.enum(LANDMARK_CATEGORIES),
+  importance: Coordinate.min(IMPORTANCE_RANGE.minimum).max(IMPORTANCE_RANGE.maximum),
   tags: z.record(z.string()),
 }).strict();
 
 const Road = z.object({
-  id: z.string().min(1),
+  id: z.string().min(IDENTIFIER_MIN_LENGTH),
   name: z.string().optional(),
-  class: z.enum(["primary", "secondary", "tertiary", "residential", "path"]),
+  class: z.enum(ROAD_CLASSES),
   points: z.array(z.object({ lat: Latitude, lon: Longitude }).strict()),
 }).strict();
 
@@ -92,7 +87,7 @@ export const DiagramDocumentSchema = z.object({
     template: z.enum(RENDER_TEMPLATES),
     theme: z.enum(RENDER_THEMES),
     focus: z.boolean(),
-    approachLandmarkId: z.string().min(1).optional(),
+    approachLandmarkId: z.string().min(IDENTIFIER_MIN_LENGTH).optional(),
   }).strict(),
   overrides: z.object({
     destination: z.object({ label: z.string().optional() }).strict().optional(),
@@ -123,7 +118,7 @@ export const DiagramDocumentPatchSchema = z.object({
     template: z.enum(RENDER_TEMPLATES).optional(),
     theme: z.enum(RENDER_THEMES).optional(),
     focus: z.boolean().optional(),
-    approachLandmarkId: z.string().min(1).nullable().optional(),
+    approachLandmarkId: z.string().min(IDENTIFIER_MIN_LENGTH).nullable().optional(),
   }).strict().optional(),
   destinationLabel: z.string().nullable().optional(),
   landmarks: z.record(LandmarkPatch).optional(),
