@@ -70,6 +70,17 @@ export function renderStandardMapSceneSVG(scene: StandardMapScene): string {
     );
   }
 
+  if (approach?.points) {
+    const path = approach.points
+      .map((point, index) => `${index === 0 ? "M" : "L"}${point.x.toFixed(1)},${point.y.toFixed(1)}`)
+      .join(" ");
+    lines.push(...renderApproachPath(path, theme, {
+      casingWidth: template.approachCasingWidth,
+      coreWidth: template.approachWidth,
+      data: { "route-mode": approach.mode },
+    }));
+  }
+
   for (const roadLabel of roadLabels) {
     lines.push(
       labelText(
@@ -82,14 +93,6 @@ export function renderStandardMapSceneSVG(scene: StandardMapScene): string {
         theme.background,
       ),
     );
-  }
-
-  if (approach?.segment) {
-    const path = `M${approach.segment.x1.toFixed(1)},${approach.segment.y1.toFixed(1)} L${approach.segment.x2.toFixed(1)},${approach.segment.y2.toFixed(1)}`;
-    lines.push(...renderApproachPath(path, theme, {
-      casingWidth: template.approachCasingWidth,
-      coreWidth: template.approachWidth,
-    }));
   }
 
   for (const [index, landmark] of landmarks.entries()) {

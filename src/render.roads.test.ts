@@ -389,8 +389,13 @@ describe("renderSVG — roads", () => {
 
     const compact = renderSVG(cluttered, { preset: "compact" });
     expect(compact).toContain('data-landmark-icon="station_exit"');
-    expect(compact).toContain('data-landmark-icon="station"');
+    expect(compact).not.toContain('data-landmark-icon="station"');
+    expect(compact).toContain("역삼역");
+    expect(compact).toContain("7번 출구");
+    expect(compact).toContain('data-route-mode="inferred-road"');
     expect(compact).not.toContain('data-landmark-icon="hospital"');
+    expect(compact.indexOf('data-approach-arrow="core"'))
+      .toBeLessThan(compact.lastIndexOf(">논현로</text>"));
 
     const minimal = renderSVG(cluttered, { preset: "minimal" });
     expect(minimal).toContain('data-landmark-icon="station_exit"');

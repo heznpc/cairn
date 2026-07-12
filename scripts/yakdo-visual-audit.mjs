@@ -17,6 +17,11 @@ const fixtures = [
     name: "dense-seoul-block",
     width: 600,
     height: 400,
+    expectations: {
+      roadLabel: "테헤란로",
+      routeMode: "inferred-road",
+      transitCluster: { station: "역삼역", exit: "7번 출구" },
+    },
     layout: {
       center: { lat: 37.5, lon: 127, label: "스튜디오" },
       landmarks: [
@@ -61,6 +66,44 @@ const fixtures = [
       bbox: { north: 37.5012, south: 37.4988, east: 127.0014, west: 126.9986 },
     },
   },
+  {
+    name: "campus-gate",
+    width: 600,
+    height: 400,
+    expectations: {
+      roadLabel: "관악로",
+      routeMode: "inferred-road",
+    },
+    layout: {
+      center: { lat: 37.46, lon: 126.95, label: "학생회관" },
+      landmarks: [
+        landmark("bus", "관악사거리 정류장", 37.4592, 126.9492, "bus_stop", 0.96),
+        landmark("gate", "정문", 37.45945, 126.9495, "landmark", 0.9),
+        landmark("library", "중앙도서관", 37.4607, 126.95065, "building", 0.82),
+        landmark("cafeteria", "학생식당", 37.46025, 126.9508, "restaurant", 0.58),
+        landmark("square", "잔디광장", 37.4605, 126.94925, "park", 0.62),
+      ],
+      roads: [
+        road("gwanak", "관악로", "primary", [
+          [37.459, 126.9483],
+          [37.4597, 126.9494],
+          [37.4601, 126.9502],
+          [37.4608, 126.9517],
+        ]),
+        road("union", "학생회관길", "secondary", [
+          [37.4614, 126.9497],
+          [37.46, 126.95],
+          [37.4586, 126.9503],
+        ]),
+        road("library", "도서관길", "tertiary", [
+          [37.46075, 126.9486],
+          [37.46045, 126.95],
+          [37.46065, 126.95135],
+        ]),
+      ],
+      bbox: { north: 37.4613, south: 37.4587, east: 126.9515, west: 126.9485 },
+    },
+  },
 ];
 
 const failures = [];
@@ -79,7 +122,15 @@ for (const fixture of fixtures) {
       writeFileSync(svgPath, svg, "utf8");
       maybeRenderPng(svgPath, resolve(outDir, `${artifactName}.png`));
 
-      auditSvg(artifactName, svg, template, themeName, THEMES[themeName], failures);
+      auditSvg(
+        artifactName,
+        svg,
+        template,
+        themeName,
+        THEMES[themeName],
+        fixture.expectations,
+        failures,
+      );
     }
   }
 }
@@ -107,7 +158,7 @@ function road(id, name, roadClass, points) {
   return out;
 }
 
-function auditSvg(name, svg, template, themeName, theme, out) {
+function auditSvg(name, svg, template, themeName, theme, expectations, out) {
   expectNot(name, svg, 'stroke-dasharray=', "dashed connector lines make the map read like AI relationship UI", out);
   expectNot(name, svg, 'fill="#fffdf8" stroke="#e3ddd0"', "rounded label pills are UI chrome, not print yakdo labeling", out);
   expectNot(name, svg, 'rx="3" fill="#d63b31"', "destination label must not regress to a rounded UI chip", out);
@@ -143,6 +194,7 @@ function auditSvg(name, svg, template, themeName, theme, out) {
     }
   }
   auditMarkerRoadSeparation(name, svg, out);
+  auditApproachLength(name, svg, 36, out);
 
   expect(name, svg, "© OpenStreetMap contributors", "visible OSM attribution is required", out);
   expect(name, svg, 'data-approach-arrow="core"', "diagram output should preserve the final approach cue", out);
@@ -159,7 +211,7 @@ function auditSvg(name, svg, template, themeName, theme, out) {
   }
   if (template === "schematic") {
     expect(name, svg, 'data-road-geometry="orthogonal"', "schematic preset should use right-angle road geometry", out);
-    expect(name, svg, ">테헤란로</text>", "schematic preset should keep road labels for print wayfinding", out);
+    expect(name, svg, `>${expectations.roadLabel}</text>`, "schematic preset should keep road labels for print wayfinding", out);
   }
   if (template === "badge") {
     expect(name, svg, 'data-badge-map="true"', "badge preset should use the destination-first inset template", out);
@@ -168,12 +220,20 @@ function auditSvg(name, svg, template, themeName, theme, out) {
     expectNot(name, svg, 'data-road-layer="core"', "badge preset should not reuse the full map road skeleton", out);
   }
   if (template === "compact") {
-    expect(name, svg, ">테헤란로</text>", "compact preset should keep the main road label instead of becoming an empty map", out);
+    expect(name, svg, `>${expectations.roadLabel}</text>`, "compact preset should keep the main road label instead of becoming an empty map", out);
     expectNot(name, svg, 'data-landmark-icon="hospital"', "compact preset should prefer approach landmarks over secondary POIs", out);
     expectNot(name, svg, 'data-landmark-icon="convenience"', "compact preset should prefer approach landmarks over secondary POIs", out);
   }
   if (template === "standard" || template === "compact" || template === "schematic" || template === "badge") {
     expect(name, svg, `fill="${theme.destination}"`, `${template} destination callout should keep strong destination fill`, out);
+  }
+  if (["standard", "compact", "schematic"].includes(template)) {
+    expect(name, svg, `data-route-mode="${expectations.routeMode}"`, "route mode should make the approach heuristic explicit", out);
+    if (expectations.transitCluster) {
+      expectNot(name, svg, 'data-landmark-icon="station"', "nearby station and exit should collapse into one actionable transit marker", out);
+      expect(name, svg, expectations.transitCluster.station, "coalesced transit marker should retain the station name", out);
+      expect(name, svg, expectations.transitCluster.exit, "coalesced transit marker should retain the exit name without splitting its word", out);
+    }
   }
 }
 
@@ -229,6 +289,23 @@ function auditMarkerRoadSeparation(name, svg, out) {
         break;
       }
     }
+  }
+}
+
+function auditApproachLength(name, svg, minimumLength, out) {
+  const path = svg.match(/<path data-approach-arrow="core"[^>]*?\sd="([^"]+)"/)?.[1];
+  if (!path) return;
+  const points = [...path.matchAll(/[ML](-?[\d.]+),(-?[\d.]+)/g)]
+    .map((match) => ({ x: Number(match[1]), y: Number(match[2]) }));
+  let length = 0;
+  for (let index = 1; index < points.length; index++) {
+    length += Math.hypot(
+      points[index].x - points[index - 1].x,
+      points[index].y - points[index - 1].y,
+    );
+  }
+  if (length < minimumLength) {
+    out.push(`${name}: approach cue is decorative rather than legible (${length.toFixed(1)}px < ${minimumLength}px)`);
   }
 }
 

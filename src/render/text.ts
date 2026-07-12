@@ -83,6 +83,8 @@ export function wrapLandmarkLabel(name: string, maxPerLine: number): string[] {
   const trimmed = name.trim();
   const chars = Array.from(trimmed);
   if (chars.length <= maxPerLine) return [trimmed];
+  const wordWrapped = wrapAtWordBoundary(trimmed, maxPerLine);
+  if (wordWrapped) return wordWrapped;
   const splitAt = Math.min(maxPerLine, Math.ceil(chars.length / 2));
   const line1 = chars.slice(0, splitAt).join("");
   const rest = Array.from(chars.slice(splitAt).join("").trimStart());
@@ -91,6 +93,33 @@ export function wrapLandmarkLabel(name: string, maxPerLine: number): string[] {
       ? `${rest.slice(0, Math.max(1, maxPerLine - 1)).join("")}…`
       : rest.join("");
   return [line1, line2];
+}
+
+function wrapAtWordBoundary(label: string, maxPerLine: number): string[] | null {
+  const words = label.split(/\s+/).filter(Boolean);
+  if (words.length < 2) return null;
+  const candidates = Array.from({ length: words.length - 1 }, (_, index) => {
+    const line1 = words.slice(0, index + 1).join(" ");
+    const line2 = words.slice(index + 1).join(" ");
+    const firstLength = Array.from(line1).length;
+    const secondLength = Array.from(line2).length;
+    return {
+      line1,
+      line2,
+      firstLength,
+      secondLength,
+      score: Math.max(0, secondLength - maxPerLine) * 100 +
+        Math.abs(firstLength - Math.min(secondLength, maxPerLine)),
+    };
+  }).filter((candidate) => candidate.firstLength <= maxPerLine);
+  if (candidates.length === 0) return null;
+
+  const best = candidates.sort((a, b) => a.score - b.score)[0];
+  const secondChars = Array.from(best.line2);
+  const line2 = secondChars.length <= maxPerLine
+    ? best.line2
+    : `${secondChars.slice(0, Math.max(1, maxPerLine - 1)).join("")}…`;
+  return [best.line1, line2];
 }
 
 export function textBoxWidth(label: string, fontSize: number, padding: number): number {

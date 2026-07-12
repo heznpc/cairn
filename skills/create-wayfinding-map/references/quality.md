@@ -44,5 +44,8 @@ Use this order of importance. Never trade a higher item for a lower one.
 - Move a marker manually only after automatic placement visibly fails. Keep
   normalized positions within `0..1` and reinspect the road corridor.
 - Use `mono` when color contrast or print conditions are uncertain.
+- Treat `data-route-mode="inferred-road"` as a diagram heuristic, not certified
+  pedestrian routing. Verify crossings, entrances, restricted roads, and
+  grade-separated segments before publishing directions.
 - Never infer a private entrance, indoor connection, or game-world route from
   geographic proximity alone.

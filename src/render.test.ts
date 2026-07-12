@@ -161,6 +161,7 @@ describe("renderSVG", () => {
   it("draws a final approach arrow in diagram mode", () => {
     const svg = renderSVG(layout);
     expect(svg).toContain('data-approach-arrow="core"');
+    expect(svg).toContain('data-route-mode="direct"');
     expect(svg).toContain('marker-end="url(#cairn-approach-arrowhead)"');
   });
 

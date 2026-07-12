@@ -6,6 +6,7 @@ import type {
   RenderTheme,
 } from "../types.js";
 import { selectApproachLandmark } from "./approach.js";
+import { buildApproachRoute } from "./approach-route.js";
 import {
   pickCenterCallout,
   placeLandmarkLabels,
@@ -19,10 +20,11 @@ import {
 } from "./marker-layout.js";
 import {
   roadObstacleBoxes,
-  roadPathData,
+  roadPathPoints,
   selectDisplayRoads,
   selectGeographicRoads,
   roadLabelPositions,
+  type Point,
 } from "./road-layout.js";
 import type { TemplateSpec, ThemeSpec } from "./theme.js";
 import {
@@ -36,6 +38,7 @@ import type { Projector } from "./projection.js";
 
 const ROAD_LABEL_MAX = 12;
 const CENTER_LABEL_MAX = 12;
+const TRANSIT_CLUSTER_DISTANCE_PX = 72;
 
 export interface StandardMapRenderContext {
   width: number;
@@ -53,6 +56,7 @@ export interface StandardMapRenderContext {
 
 export interface StandardSceneRoad {
   source: MapLayout["roads"][number];
+  points: Point[];
   path: string;
 }
 
@@ -65,13 +69,6 @@ export interface StandardSceneRoadLabel {
 export interface StandardSceneLandmark extends ProjectedLandmark {
   labelBox: LabelBox;
   leader: ReturnType<typeof markerLeaderSegment>;
-}
-
-export interface StandardSceneSegment {
-  x1: number;
-  y1: number;
-  x2: number;
-  y2: number;
 }
 
 export interface StandardMapScene {
@@ -87,7 +84,8 @@ export interface StandardMapScene {
   landmarks: StandardSceneLandmark[];
   approach: {
     landmarkId: string;
-    segment: StandardSceneSegment | null;
+    mode: "inferred-road" | "direct";
+    points: Point[] | null;
   } | null;
   destination: {
     x: number;
@@ -126,11 +124,25 @@ export function buildStandardMapScene(
         template.maxVisibleRoads,
       );
   const skeletonRoads = template.showRoadSkeleton ? displayRoads : [];
-  const landmarks = selectTemplateLandmarks(
+  const sceneRoads = skeletonRoads.flatMap((road) => {
+    const points = roadPathPoints(
+      road,
+      project,
+      renderLayout,
+      width,
+      height,
+      template.roadGeometry,
+    );
+    return points ? [{ source: road, points, path: pointsToPath(points) }] : [];
+  });
+  const selectedLandmarks = selectTemplateLandmarks(
     layout.landmarks,
     template,
     approachLandmarkId,
   );
+  const landmarks = renderLayout === "diagram"
+    ? coalesceTransitCluster(selectedLandmarks, project, approachLandmarkId)
+    : selectedLandmarks;
   const rawProjectedLandmarks = landmarks.map((landmark) => {
     const [anchorX, anchorY] = project(landmark.lat, landmark.lon);
     const labelLines = wrapLandmarkLabel(landmark.name, template.landmarkLabelMax);
@@ -216,6 +228,19 @@ export function buildStandardMapScene(
         },
       )
     : null;
+  const approachRoute = approachLandmark
+    ? buildApproachRoute({
+        start: { x: approachLandmark.x, y: approachLandmark.y },
+        startAnchor: { x: approachLandmark.anchorX, y: approachLandmark.anchorY },
+        destination: { x: cx, y: cy },
+        roads: sceneRoads.map((road) => road.points),
+        startTrim: template.approachStartTrim,
+        endTrim: template.approachEndTrim,
+      })
+    : null;
+  const approachObstacles = approachRoute
+    ? polylineObstacleBoxes(approachRoute.points, template.approachCasingWidth / 2 + 4)
+    : [];
   const landmarkMarkerBoxes = projectedLandmarks.map(({ x, y }) => ({
     x: x - 23,
     y: y - 23,
@@ -233,6 +258,7 @@ export function buildStandardMapScene(
       ...landmarkMarkerBoxes,
       ...roadObstacles,
       ...roadLabelObstacles,
+      ...approachObstacles,
       { x: cx - 18, y: cy - 18, width: 36, height: 36 },
     ],
     template.hideClutteredLabels,
@@ -245,19 +271,14 @@ export function buildStandardMapScene(
     centerLabelWidth,
     width,
     height,
-    [...landmarkMarkerBoxes, ...landmarkLabelBoxes, ...roadObstacles, ...roadLabelObstacles],
+    [
+      ...landmarkMarkerBoxes,
+      ...landmarkLabelBoxes,
+      ...roadObstacles,
+      ...roadLabelObstacles,
+      ...approachObstacles,
+    ],
   );
-  const sceneRoads = skeletonRoads.flatMap((road) => {
-    const path = roadPathData(
-      road,
-      project,
-      renderLayout,
-      width,
-      height,
-      template.roadGeometry,
-    );
-    return path ? [{ source: road, path }] : [];
-  });
   const sceneLandmarks = projectedLandmarks.map((landmark, index) => ({
     ...landmark,
     labelBox: landmarkLabelBoxes[index],
@@ -285,18 +306,86 @@ export function buildStandardMapScene(
     approach: approachLandmark
       ? {
           landmarkId: approachLandmark.lm.id,
-          segment: trimSegment(
-            approachLandmark.x,
-            approachLandmark.y,
-            cx,
-            cy,
-            template.approachStartTrim,
-            template.approachEndTrim,
-          ),
+          mode: approachRoute?.mode ?? "direct",
+          points: approachRoute?.points ?? null,
         }
       : null,
     destination: { x: cx, y: cy, label: centerLabel, callout: centerCallout },
   };
+}
+
+function coalesceTransitCluster(
+  landmarks: MapLayout["landmarks"],
+  project: Projector,
+  approachLandmarkId?: string,
+): MapLayout["landmarks"] {
+  const suppressed = new Set<string>();
+  const claimedExits = new Set<string>();
+  const replacements = new Map<string, MapLayout["landmarks"][number]>();
+  const stations = landmarks.filter((landmark) => landmark.category === "station");
+  const exits = landmarks.filter((landmark) => landmark.category === "station_exit");
+
+  for (const station of stations) {
+    const [stationX, stationY] = project(station.lat, station.lon);
+    const nearbyExits = exits.filter((exit) => {
+      if (claimedExits.has(exit.id) || suppressed.has(exit.id)) return false;
+      const [exitX, exitY] = project(exit.lat, exit.lon);
+      return Math.hypot(exitX - stationX, exitY - stationY) <= TRANSIT_CLUSTER_DISTANCE_PX;
+    });
+    if (nearbyExits.length === 0) continue;
+
+    if (approachLandmarkId === station.id) {
+      for (const exit of nearbyExits) suppressed.add(exit.id);
+      continue;
+    }
+
+    const preferredExit = nearbyExits.find((exit) => exit.id === approachLandmarkId)
+      ?? [...nearbyExits].sort((a, b) => b.importance - a.importance)[0];
+    claimedExits.add(preferredExit.id);
+    suppressed.add(station.id);
+    for (const exit of nearbyExits) {
+      if (exit.id !== preferredExit.id) suppressed.add(exit.id);
+    }
+    replacements.set(preferredExit.id, {
+      ...preferredExit,
+      name: mergedTransitLabel(station.name, preferredExit.name),
+    });
+  }
+
+  return landmarks
+    .filter((landmark) => !suppressed.has(landmark.id))
+    .map((landmark) => replacements.get(landmark.id) ?? landmark);
+}
+
+function mergedTransitLabel(stationName: string, exitName: string): string {
+  const station = stationName.trim();
+  const exit = exitName.trim();
+  if (!station) return exit;
+  if (!exit || exit.includes(station)) return exit || station;
+  return `${station} ${exit}`;
+}
+
+function polylineObstacleBoxes(points: readonly Point[], radius: number): Box[] {
+  const boxes: Box[] = [];
+  for (let segmentIndex = 1; segmentIndex < points.length; segmentIndex++) {
+    const start = points[segmentIndex - 1];
+    const end = points[segmentIndex];
+    const length = Math.hypot(end.x - start.x, end.y - start.y);
+    const steps = Math.max(1, Math.ceil(length / Math.max(8, radius * 1.5)));
+    for (let index = 0; index <= steps; index++) {
+      const progress = index / steps;
+      const x = start.x + (end.x - start.x) * progress;
+      const y = start.y + (end.y - start.y) * progress;
+      boxes.push({ x: x - radius, y: y - radius, width: radius * 2, height: radius * 2 });
+    }
+  }
+  return boxes;
+}
+
+function pointsToPath(points: readonly Point[]): string {
+  return points
+    .map((point, index) => `${index === 0 ? "M" : "L"}${point.x.toFixed(1)},${point.y.toFixed(1)}`)
+    .join(" ");
 }
 
 function selectTemplateLandmarks(
@@ -320,24 +409,4 @@ function selectTemplateLandmarks(
 
 function clamp01(value: number): number {
   return Math.max(0, Math.min(1, value));
-}
-
-function trimSegment(
-  x1: number,
-  y1: number,
-  x2: number,
-  y2: number,
-  startTrim: number,
-  endTrim: number,
-): StandardSceneSegment | null {
-  const length = Math.hypot(x2 - x1, y2 - y1);
-  if (length <= startTrim + endTrim + 8) return null;
-  const ux = (x2 - x1) / length;
-  const uy = (y2 - y1) / length;
-  return {
-    x1: x1 + ux * startTrim,
-    y1: y1 + uy * startTrim,
-    x2: x2 - ux * endTrim,
-    y2: y2 - uy * endTrim,
-  };
 }

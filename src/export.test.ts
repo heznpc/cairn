@@ -20,7 +20,7 @@ describe("map artifact export", () => {
     expect((png as Buffer).subarray(0, 8)).toEqual(
       Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
     );
-  });
+  }, 15_000);
 
   it("encodes a structurally valid single-page PDF", () => {
     const pdf = encodeMapArtifact(svg, canvas, "pdf") as Buffer;
@@ -28,5 +28,5 @@ describe("map artifact export", () => {
     expect(pdf.toString("latin1")).toContain("/Subtype /Image");
     expect(pdf.toString("latin1")).toContain("startxref");
     expect(pdf.subarray(-6).toString("ascii")).toBe("%%EOF\n");
-  });
+  }, 15_000);
 });

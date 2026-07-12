@@ -30,6 +30,7 @@ export interface ApproachPathOptions {
   coreWidth: number;
   layerDataName?: string;
   lineJoin?: boolean;
+  data?: Readonly<Record<string, string | number | boolean>>;
 }
 
 export function renderApproachPath(
@@ -37,13 +38,14 @@ export function renderApproachPath(
   theme: ThemeSpec,
   options: ApproachPathOptions,
 ): string[] {
-  const { casingWidth, coreWidth, layerDataName, lineJoin = false } = options;
+  const { casingWidth, coreWidth, layerDataName, lineJoin = false, data } = options;
   const casingLayer = layerDataName ? ` data-${layerDataName}="casing"` : "";
   const coreLayer = layerDataName ? ` data-${layerDataName}="core"` : "";
+  const sharedData = svgDataAttributes(data);
   const join = lineJoin ? ` stroke-linejoin="round"` : "";
   return [
-    `<path data-approach-arrow="casing"${casingLayer} d="${path}" fill="none" stroke="${theme.background}" stroke-width="${casingWidth}" stroke-linecap="round"${join}/>`,
-    `<path data-approach-arrow="core"${coreLayer} d="${path}" fill="none" stroke="${theme.destination}" stroke-width="${coreWidth}" stroke-linecap="round"${join} marker-end="url(#cairn-approach-arrowhead)"/>`,
+    `<path data-approach-arrow="casing"${casingLayer}${sharedData} d="${path}" fill="none" stroke="${theme.background}" stroke-width="${casingWidth}" stroke-linecap="round"${join}/>`,
+    `<path data-approach-arrow="core"${coreLayer}${sharedData} d="${path}" fill="none" stroke="${theme.destination}" stroke-width="${coreWidth}" stroke-linecap="round"${join} marker-end="url(#cairn-approach-arrowhead)"/>`,
   ];
 }
 

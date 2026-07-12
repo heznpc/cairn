@@ -7,6 +7,11 @@ versions follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Diagram-mode standard, compact, and schematic maps now infer the final
+  approach over connected visible road axes, with a direct fallback when the
+  displayed graph is disconnected or implausible. SVG output identifies the
+  result as `data-route-mode="inferred-road"` or `"direct"`; inferred output is
+  explicitly documented as a diagram heuristic rather than certified routing.
 - Chat-first iterative editing: `generate_map` now returns its
   `DiagramDocument`, and the new stateless `render_document` MCP tool applies
   validated patches, including explicit start-landmark selection, and returns
@@ -31,13 +36,17 @@ versions follow [Semantic Versioning](https://semver.org/).
   `@yakdo/cairn/types`.
 
 ### Changed
-- The visual audit now checks all 20 template/theme combinations and rejects
-  marker/road overlap and style regressions across the full matrix.
+- The visual audit now checks city and campus fixtures across all 40
+  template/theme combinations and rejects marker/road overlap, duplicate
+  transit clusters, decorative-length approach cues, and style regressions.
 - `generateMap()` now returns the exact editable `document` used to render its
   SVG alongside the existing `svg` and `layout` fields.
 - Standard map layout now produces a testable `StandardMapScene` before SVG
   serialization. Standard, minimal, and badge renderers share document-frame,
   route, marker, destination, attribution, and approach-selection primitives.
+- Nearby station and station-exit landmarks collapse into one actionable
+  transit marker in diagram mode. Korean labels prefer word boundaries, and
+  approach paths participate in label/callout collision avoidance.
 
 ### Fixed
 - MCP JSON Schema and runtime Zod validation now share domain values and

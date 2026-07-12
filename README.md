@@ -26,7 +26,7 @@ Most maps are too accurate to be useful. Korean 약도 (yakdo) and Japanese 略�
 - **Zero-API-key path.** OSM Nominatim + Overpass only. No Mapbox / Google keys, no account, no quota signup.
 - **Road skeleton** in [src/roads.ts](src/roads.ts) — fetches nearby roads, classifies them by importance tier (primary / secondary / tertiary / residential), and simplifies each polyline with Douglas-Peucker ([src/geometry.ts](src/geometry.ts)). This is what turns the output from a scatter of points into an actual 약도: a few roads you navigate along, with the major ones labeled.
 - **Deterministic curation heuristic** in [src/curate.ts](src/curate.ts) — weights importance (transit > civic > shop), targets a ~150 m sweet-spot distance, enforces category diversity, caps at the requested `limit` (default 5).
-- **Pictogram SVG renderer** — curated road bands, category-specific SVG pictograms, station-exit labels, final-approach arrows, deduped road-name labels, destination callouts, and visible OSM attribution tuned for print-style 약도 output.
+- **Pictogram SVG renderer** — curated road bands, category-specific SVG pictograms, coalesced station/exit labels, route-aware final-approach arrows, deduped road-name labels, destination callouts, and visible OSM attribution tuned for print-style 약도 output. Connected visible road axes produce an explicitly marked `inferred-road` cue; it is a diagram heuristic, not certified pedestrian routing.
 - **CLI** with file output, label override, independent template/theme selection, and a `--no-roads` toggle:
   ```bash
   node dist/cli.js "서울 강남구 테헤란로 152" -o office.svg --label "스튜디오"
@@ -51,7 +51,7 @@ Most maps are too accurate to be useful. Korean 약도 (yakdo) and Japanese 略�
 - **Bounded inputs** on public tool/CLI parameters — search radii max out at 5 km, internal radius expansion is clamped back to that same ceiling, and SVG canvas dimensions at 4000 px keep public OSM services and the single-process renderer healthy.
 - **HTTP rate-limiting and timeouts** on outbound calls — 1.1s minimum spacing to Nominatim, 1 req/s to Overpass, per their usage policies.
 - **Tests**: vitest coverage runs on every push.
-- **Visual audit harness**: `npm run visual:audit` rebuilds the package, renders all 20 template/theme combinations, and fails on marker-road overlap, UI-like label chrome, color drift, or excessive road density.
+- **Visual audit harness**: `npm run visual:audit` rebuilds the package, renders 2 deterministic city/campus fixtures across all 5 templates and 4 themes (40 combinations), and fails on marker-road overlap, duplicate transit clusters, illegible approach cues, UI-like label chrome, color drift, or excessive road density.
 
 ## Planned
 
@@ -161,7 +161,7 @@ const svg = renderDiagramDocument(JSON.parse(savedJson));
 2. **Find landmarks** within a configurable radius (Overpass): transit stations, subway exits, schools, parks, recognizable shops, distinctive buildings.
 3. **Find roads** in the same area (Overpass), classify them by importance tier, and simplify each polyline (Douglas-Peucker).
 4. **Curate** the most useful 4–6 landmarks with the heuristic above.
-5. **Render** a pictogram SVG: road skeleton underneath, landmark icons and labels on top, approach arrow and destination callout marked.
+5. **Render** a pictogram SVG: road skeleton underneath, nearby station/exit markers coalesced, landmark labels kept clear, and an inferred visible-road approach or direct fallback leading to the destination callout.
 6. **Output** vector SVG, ready for print or digital embed.
 
 ## MCP tools
