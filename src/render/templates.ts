@@ -25,8 +25,9 @@ export function renderRouteStripSVG(
   template: TemplateSpec,
   themeName: RenderTheme,
   theme: ThemeSpec,
+  approachLandmarkId?: string,
 ): string {
-  const start = chooseRouteStartLandmark(layout.landmarks);
+  const start = chooseRouteStartLandmark(layout.landmarks, approachLandmarkId);
   const roadName = bestRoadName(layout.roads);
   const centerLabel = truncateLabel(layout.center.label, CENTER_LABEL_MAX);
   const startLabel = truncateLabel(start?.name ?? "출발", 9);
@@ -110,8 +111,9 @@ export function renderBadgeSVG(
   template: TemplateSpec,
   themeName: RenderTheme,
   theme: ThemeSpec,
+  approachLandmarkId?: string,
 ): string {
-  const start = chooseRouteStartLandmark(layout.landmarks);
+  const start = chooseRouteStartLandmark(layout.landmarks, approachLandmarkId);
   const roadName = bestRoadName(layout.roads);
   const centerLabel = truncateLabel(layout.center.label, CENTER_LABEL_MAX);
   const startLabel = truncateLabel(start?.name ?? "출발", 8);
@@ -191,7 +193,13 @@ export function renderBadgeSVG(
 
 function chooseRouteStartLandmark(
   landmarks: MapLayout["landmarks"],
+  approachLandmarkId?: string,
 ): MapLayout["landmarks"][number] | null {
+  if (approachLandmarkId) {
+    const approach = landmarks.find((landmark) => landmark.id === approachLandmarkId);
+    if (!approach) throw new Error(`Unknown approach landmark id: ${approachLandmarkId}`);
+    return approach;
+  }
   return [...landmarks]
     .sort((a, b) =>
       APPROACH_RANK[b.category] * 1000 + b.importance * 100 -

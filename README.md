@@ -21,7 +21,8 @@ Most maps are too accurate to be useful. Korean 약도 (yakdo) and Japanese 略�
 
 ## Currently implemented
 
-- **4 MCP tools** over stdio: `generate_map` (one-shot address → SVG), `geocode` (address → coords via Nominatim), `find_landmarks` (coords → POI list via Overpass), `find_roads` (coords → simplified road polylines via Overpass).
+- **5 MCP tools** over stdio: `generate_map` (address → SVG + editable document), `render_document` (patch + re-render without network access), `geocode` (address → coords via Nominatim), `find_landmarks` (coords → POI list via Overpass), and `find_roads` (coords → simplified road polylines via Overpass).
+- **Chat-first wayfinding skill** in [`skills/create-wayfinding-map`](skills/create-wayfinding-map/SKILL.md) — teaches compatible AI hosts to generate, visually inspect, patch, and re-render a map instead of accepting the first SVG draft.
 - **Zero-API-key path.** OSM Nominatim + Overpass only. No Mapbox / Google keys, no account, no quota signup.
 - **Road skeleton** in [src/roads.ts](src/roads.ts) — fetches nearby roads, classifies them by importance tier (primary / secondary / tertiary / residential), and simplifies each polyline with Douglas-Peucker ([src/geometry.ts](src/geometry.ts)). This is what turns the output from a scatter of points into an actual 약도: a few roads you navigate along, with the major ones labeled.
 - **Deterministic curation heuristic** in [src/curate.ts](src/curate.ts) — weights importance (transit > civic > shop), targets a ~150 m sweet-spot distance, enforces category diversity, caps at the requested `limit` (default 5).
@@ -33,11 +34,13 @@ Most maps are too accurate to be useful. Korean 약도 (yakdo) and Japanese 略�
   node dist/cli.js "서울 강남구 테헤란로 152" -o office-badge.svg --template badge --theme invitation
   node dist/cli.js "서울 강남구 테헤란로 152" -o office-focus.svg --focus
   node dist/cli.js "Shibuya Crossing, Tokyo" -o shibuya.svg --layout geographic
+  node dist/cli.js "서울 강남구 테헤란로 152" -o office.svg --save-document office.json
+  node dist/cli.js render office.json -o office-revised.svg
   ```
 - **Layout modes** — `diagram` is the default 약도 layout, keeping only the navigational structure; `geographic` preserves raw road geometry more closely for inspection/debugging.
 - **Composition templates** — `standard` (default) keeps the full curated 약도, `compact` becomes an approach-focused mini-map, `minimal` uses a route strip, `schematic` turns roads into right-angle axes, and `badge` renders a destination-first inset.
 - **Visual themes** — `paper` (default), `mono`, `civic`, and `invitation` independently change color, typography, roads, markers, and callouts without changing the chosen composition.
-- **Editable document model** — `DiagramDocument v1` stores the source map, canvas, template, theme, hidden/relabelled elements, and normalized manual landmark positions. The same JSON can back a local desktop editor, browser editor, or design-tool plugin without changing the rendering core.
+- **Editable document model** — `DiagramDocument v1` stores the source map, canvas, template, theme, explicit approach landmark, hidden/relabelled elements, and normalized manual landmark positions. The same JSON survives multiple chat revisions and can also back optional visual editors without changing the rendering core.
 - **Destination focus** (opt-in `--focus` / `focus: true`) — a radial fisheye that magnifies the area around the destination and compresses the periphery, so the crucial last block reads larger. It applies to the map-skeleton diagram presets (`standard`, `compact`, `schematic`); route-strip and badge templates keep their fixed composition.
 - **Bounded inputs** on public tool/CLI parameters — search radii max out at 5 km, internal radius expansion is clamped back to that same ceiling, and SVG canvas dimensions at 4000 px keep public OSM services and the single-process renderer healthy.
 - **HTTP rate-limiting and timeouts** on outbound calls — 1.1s minimum spacing to Nominatim, 1 req/s to Overpass, per their usage policies.
@@ -46,7 +49,7 @@ Most maps are too accurate to be useful. Korean 약도 (yakdo) and Japanese 略�
 
 ## Planned
 
-- A local-first visual editor over `DiagramDocument`: drag markers and labels, hide/relabel elements, switch template/theme, undo/redo, and export SVG/PNG/PDF. The shell may be desktop, browser, or a design-tool plugin; the core does not require a hosted service.
+- More chat-driven document patches and export formats. A visual editor remains optional rather than the primary product surface.
 - Stronger automatic composition and label layout, using the editor document as an escape hatch when heuristics are not enough.
 - npm publish automation for future releases.
 - More domain templates for campuses, events, invitations, and indoor/game wayfinding.
@@ -100,13 +103,27 @@ roadmap).
 
 Then ask the assistant:
 
-> Make a pictogram map for 서울 강남구 테헤란로 152, label it "스튜디오".
+> Make a pictogram map for 서울 강남구 테헤란로 152, label it "스튜디오". Inspect the result, remove low-value landmarks that hurt readability, and return the final SVG and editable document.
+
+### As an agent skill
+
+The npm package ships the canonical `create-wayfinding-map` skill. Install it
+into the local skills directory used by your compatible AI host:
+
+```bash
+npx -p @yakdo/cairn cairn install-skill <skills-directory>
+```
+
+The installer refuses to overwrite an existing copy. Remove or rename the old
+folder explicitly before upgrading it.
 
 ### As a CLI
 
 ```bash
 npx -p @yakdo/cairn cairn "서울 강남구 테헤란로 152" -o office.svg
 npx -p @yakdo/cairn cairn "1600 Amphitheatre Pkwy, Mountain View" --label "Office" --template compact --theme mono
+npx -p @yakdo/cairn cairn "서울 강남구 테헤란로 152" -o office.svg --save-document office.json
+npx -p @yakdo/cairn cairn render office.json -o office-revised.svg
 ```
 
 ### As an editable document
@@ -144,7 +161,8 @@ const svg = renderDiagramDocument(JSON.parse(savedJson));
 
 | Tool | What it does |
 |---|---|
-| `generate_map` | One-shot: address → SVG (set `roads: false` to skip the skeleton) |
+| `generate_map` | Address → SVG + editable document (set `roads: false` to skip the skeleton) |
+| `render_document` | Apply a minimal patch to an editable document and return revised SVG + document |
 | `geocode` | Address → coordinates |
 | `find_landmarks` | Coordinates → nearby points of interest |
 | `find_roads` | Coordinates → simplified road polylines, classified by tier |

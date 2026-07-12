@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -40,6 +40,60 @@ if (!cliHelp.includes("cairn — pictogram map generator")) {
   throw new Error("installed CLI did not print the expected help text");
 }
 
+const installedPackageDir = join(installDir, "node_modules", "@yakdo", "cairn");
+const installedSkill = join(installedPackageDir, "skills", "create-wayfinding-map", "SKILL.md");
+if (!existsSync(installedSkill)) {
+  throw new Error("installed package is missing the create-wayfinding-map skill");
+}
+const installedSkillText = readFileSync(installedSkill, "utf8");
+if (!installedSkillText.includes("render_document") || /\bTODO\b/.test(installedSkillText)) {
+  throw new Error("installed skill is stale or incomplete");
+}
+const hostSkillsDir = join(installDir, "host-skills");
+const installedByCli = run(process.execPath, [cliPath, "install-skill", hostSkillsDir], {
+  cwd: installDir,
+}).trim();
+if (!existsSync(join(installedByCli, "SKILL.md"))) {
+  throw new Error("installed CLI did not install the packaged skill");
+}
+let overwriteRefused = false;
+try {
+  run(process.execPath, [cliPath, "install-skill", hostSkillsDir], { cwd: installDir });
+} catch {
+  overwriteRefused = true;
+}
+if (!overwriteRefused) throw new Error("skill installer overwrote an existing skill");
+
+const cliDocumentPath = join(installDir, "map.json");
+const cliSvgPath = join(installDir, "map.svg");
+writeFileSync(cliDocumentPath, JSON.stringify({
+  version: 1,
+  map: {
+    center: { lat: 37.5, lon: 127, label: "Destination" },
+    landmarks: [{
+      id: "gate",
+      name: "Main gate",
+      lat: 37.5005,
+      lon: 127.0005,
+      category: "landmark",
+      importance: 1,
+      tags: {},
+    }],
+    roads: [],
+    bbox: { north: 37.501, south: 37.499, east: 127.001, west: 126.999 },
+  },
+  canvas: { width: 600, height: 400 },
+  render: { layout: "diagram", template: "standard", theme: "mono", focus: false },
+  overrides: {},
+}));
+run(process.execPath, [cliPath, "render", cliDocumentPath, "-o", cliSvgPath], {
+  cwd: installDir,
+  stdio: "ignore",
+});
+if (!readFileSync(cliSvgPath, "utf8").includes('data-theme="mono"')) {
+  throw new Error("installed CLI did not re-render DiagramDocument JSON");
+}
+
 const smokePath = join(installDir, "mcp-smoke.mjs");
 writeFileSync(
   smokePath,
@@ -58,7 +112,7 @@ try {
   await client.connect(transport);
   const result = await client.listTools();
   const names = result.tools.map((tool) => tool.name).sort();
-  const expected = ["find_landmarks", "find_roads", "generate_map", "geocode"];
+  const expected = ["find_landmarks", "find_roads", "generate_map", "geocode", "render_document"];
   if (JSON.stringify(names) !== JSON.stringify(expected)) {
     throw new Error(\`unexpected tools: \${names.join(", ")}\`);
   }
@@ -66,6 +120,46 @@ try {
     if (!tool.inputSchema || !tool.outputSchema) {
       throw new Error(\`\${tool.name} is missing inputSchema/outputSchema\`);
     }
+  }
+  const document = {
+    version: 1,
+    map: {
+      center: { lat: 37.5, lon: 127, label: "Destination" },
+      landmarks: [{
+        id: "gate",
+        name: "Main gate",
+        lat: 37.5005,
+        lon: 127.0005,
+        category: "landmark",
+        importance: 1,
+        tags: {},
+      }],
+      roads: [],
+      bbox: { north: 37.501, south: 37.499, east: 127.001, west: 126.999 },
+    },
+    canvas: { width: 600, height: 400 },
+    render: { layout: "diagram", template: "standard", theme: "paper", focus: false },
+    overrides: {},
+  };
+  const rendered = await client.callTool({
+    name: "render_document",
+    arguments: {
+      document,
+      patch: {
+        destinationLabel: "Student Center",
+        render: { theme: "mono", approachLandmarkId: "gate" },
+      },
+    },
+  });
+  if (rendered.isError) throw new Error("installed render_document returned an error");
+  if (rendered.structuredContent?.document?.render?.theme !== "mono") {
+    throw new Error("installed render_document did not return the patched document");
+  }
+  if (rendered.structuredContent?.document?.render?.approachLandmarkId !== "gate") {
+    throw new Error("installed render_document did not preserve the selected start landmark");
+  }
+  if (!rendered.structuredContent?.svg?.includes('data-theme="mono"')) {
+    throw new Error("installed render_document did not return the patched SVG");
   }
 } finally {
   await client.close();

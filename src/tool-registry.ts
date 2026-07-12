@@ -10,10 +10,13 @@ import {
   RENDER_THEMES,
 } from "./options.js";
 import {
+  diagramDocumentJsonSchema,
+  diagramDocumentPatchJsonSchema,
   findLandmarksOutputSchema,
   findRoadsOutputSchema,
   generateMapOutputSchema,
   geocodeOutputSchema,
+  renderDocumentOutputSchema,
 } from "./tool-output-schemas.js";
 
 // `idempotentHint` is deliberately omitted (defaults to false per MCP spec).
@@ -26,13 +29,19 @@ const safeAnnotations = {
   openWorldHint: true, // hits Nominatim / Overpass
 } as const;
 
+const localAnnotations = {
+  readOnlyHint: true,
+  destructiveHint: false,
+  openWorldHint: false,
+} as const;
+
 export const tools = [
   {
     name: "generate_map",
     description:
       "Generate a pictogram-style wayfinding map SVG for an address. " +
-      "Returns ready-to-print SVG suitable for business cards, wedding invitations, " +
-      "or store opening flyers. One-shot: geocode -> find landmarks -> curate -> render.",
+      "Returns ready-to-print SVG plus an editable DiagramDocument suitable for iterative " +
+      "chat revisions. One-shot: geocode -> find landmarks -> curate -> render.",
     inputSchema: {
       type: "object",
       properties: {
@@ -70,6 +79,25 @@ export const tools = [
     },
     outputSchema: generateMapOutputSchema,
     annotations: safeAnnotations,
+  },
+  {
+    name: "render_document",
+    description:
+      "Apply a small patch to a DiagramDocument and render it again without network access. " +
+      "Use after generate_map for conversational edits such as hiding or relabeling landmarks, " +
+      "moving markers, changing template/theme, or resizing the canvas. Returns the updated " +
+      "document for the next edit turn.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        document: diagramDocumentJsonSchema,
+        patch: diagramDocumentPatchJsonSchema,
+      },
+      required: ["document"],
+      additionalProperties: false,
+    },
+    outputSchema: renderDocumentOutputSchema,
+    annotations: localAnnotations,
   },
   {
     name: "geocode",

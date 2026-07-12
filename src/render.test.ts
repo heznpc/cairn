@@ -93,6 +93,17 @@ describe("renderSVG", () => {
     expect(svg).not.toContain("스타벅스");
   });
 
+  it("keeps an explicitly selected approach landmark across restrictive templates", () => {
+    const svg = renderSVG(layout, {
+      template: "minimal",
+      approachLandmarkId: "2",
+    });
+
+    expect(svg).toContain('data-landmark-icon="cafe"');
+    expect(svg).toContain("스타벅스");
+    expect(svg).not.toContain('data-landmark-icon="station"');
+  });
+
   it("makes non-standard presets structurally distinct from standard", () => {
     const roadLayout = {
       ...layout,

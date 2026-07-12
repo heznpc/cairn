@@ -1,7 +1,17 @@
 #!/usr/bin/env node
-import { writeFileSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { generateMap } from "./pipeline.js";
 import { HELP, parseCliRequest } from "./cli-args.js";
+import { parseDiagramDocument } from "./diagram-schema.js";
+import { renderDiagramDocument } from "./diagram-document.js";
 
 async function main() {
   const argv = process.argv.slice(2);
@@ -18,7 +28,58 @@ async function main() {
     process.exit(1);
   }
 
-  const { svg, layout } = await generateMap(request.address, request.options);
+  if (request.kind === "missing-document") {
+    console.error("Error: document path required");
+    console.log(HELP);
+    process.exit(1);
+  }
+
+  if (request.kind === "missing-skill-target") {
+    console.error("Error: host skills directory required");
+    console.log(HELP);
+    process.exit(1);
+  }
+
+  if (request.kind === "install-skill") {
+    const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+    const source = resolve(packageRoot, "skills", "create-wayfinding-map");
+    const destination = resolve(request.target, "create-wayfinding-map");
+    if (!existsSync(source)) throw new Error(`Packaged skill not found: ${source}`);
+    if (existsSync(destination)) {
+      throw new Error(`Skill already exists; refusing to overwrite: ${destination}`);
+    }
+    mkdirSync(request.target, { recursive: true });
+    cpSync(source, destination, { recursive: true, errorOnExist: true, force: false });
+    console.log(destination);
+    return;
+  }
+
+  if (request.kind === "render-document") {
+    const document = parseDiagramDocument(
+      JSON.parse(readFileSync(request.input, "utf8")),
+    );
+    const svg = renderDiagramDocument(document);
+    if (request.output) {
+      writeFileSync(request.output, svg, "utf8");
+      console.error(
+        `✓ ${request.output}  (${document.map.landmarks.length} landmarks · ${document.render.template}/${document.render.theme})`,
+      );
+    } else {
+      process.stdout.write(svg);
+    }
+    return;
+  }
+
+  const { svg, layout, document } = await generateMap(request.address, request.options);
+
+  if (request.documentOutput) {
+    writeFileSync(
+      request.documentOutput,
+      `${JSON.stringify(document, null, 2)}\n`,
+      "utf8",
+    );
+    console.error(`✓ ${request.documentOutput}  (editable document)`);
+  }
 
   if (request.output) {
     writeFileSync(request.output, svg, "utf8");

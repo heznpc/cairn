@@ -10,6 +10,10 @@ import {
   RENDER_TEMPLATES,
   RENDER_THEMES,
 } from "./options.js";
+import {
+  DiagramDocumentPatchSchema,
+  DiagramDocumentSchema,
+} from "./diagram-schema.js";
 
 // `language` is intentionally NOT exposed: render.ts has no localization yet,
 // and advertising a flag that's silently dropped breaks the host-LLM contract.
@@ -43,6 +47,11 @@ export const GenerateMapArgs = z.object({
     .boolean()
     .optional()
     .describe("Fisheye-emphasize the destination area (magnify near, compress far). Map-skeleton diagram presets only; default false."),
+}).strict();
+
+export const RenderDocumentArgs = z.object({
+  document: DiagramDocumentSchema.describe("DiagramDocument returned by generate_map or a previous render_document call"),
+  patch: DiagramDocumentPatchSchema.optional().describe("Minimal changes to apply before rendering"),
 }).strict();
 
 export const GeocodeArgs = z.object({

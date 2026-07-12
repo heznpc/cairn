@@ -7,6 +7,16 @@ versions follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Chat-first iterative editing: `generate_map` now returns its
+  `DiagramDocument`, and the new stateless `render_document` MCP tool applies
+  validated patches, including explicit start-landmark selection, and returns
+  both revised SVG and updated document.
+- CLI document round-tripping with `--save-document` and
+  `cairn render <document.json>`.
+- A packaged `create-wayfinding-map` skill with quality and patch references
+  for compatible AI hosts. Release preflight validates and package smoke-tests
+  the shipped skill; `cairn install-skill <skills-directory>` installs it
+  without overwriting an existing copy.
 - Independent composition templates (`standard`, `compact`, `minimal`,
   `schematic`, `badge`) and visual themes (`paper`, `mono`, `civic`,
   `invitation`). CLI and MCP callers can combine them with `template` and

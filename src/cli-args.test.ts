@@ -31,11 +31,14 @@ describe("parseCliRequest", () => {
         "--focus",
         "--output",
         "out.svg",
+        "--save-document",
+        "out.json",
       ]),
     ).toEqual({
       kind: "generate",
       address: "서울 강남구 테헤란로 152",
       output: "out.svg",
+      documentOutput: "out.json",
       options: {
         label: "사무실",
         radiusMeters: 800,
@@ -54,6 +57,28 @@ describe("parseCliRequest", () => {
 
   it("reports missing address separately so cli.ts can print the help text", () => {
     expect(parseCliRequest(["generate"])).toEqual({ kind: "missing-address" });
+  });
+
+  it("parses a document re-render request", () => {
+    expect(parseCliRequest(["render", "map.json", "-o", "map.svg"])).toEqual({
+      kind: "render-document",
+      input: "map.json",
+      output: "map.svg",
+    });
+  });
+
+  it("reports a missing document path separately", () => {
+    expect(parseCliRequest(["render"])).toEqual({ kind: "missing-document" });
+  });
+
+  it("parses a safe skill installation request", () => {
+    expect(parseCliRequest(["install-skill", "/tmp/host-skills"])).toEqual({
+      kind: "install-skill",
+      target: "/tmp/host-skills",
+    });
+    expect(parseCliRequest(["install-skill"])).toEqual({
+      kind: "missing-skill-target",
+    });
   });
 
   it("rejects flag-like missing values before they are swallowed as values", () => {

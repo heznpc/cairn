@@ -12,10 +12,28 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
   const theme = THEMES[themeName];
   const renderLayout = opts.layout ?? "diagram";
   if (renderLayout === "diagram" && templateName === "minimal") {
-    return renderRouteStripSVG(layout, width, height, templateName, template, themeName, theme);
+    return renderRouteStripSVG(
+      layout,
+      width,
+      height,
+      templateName,
+      template,
+      themeName,
+      theme,
+      opts.approachLandmarkId,
+    );
   }
   if (renderLayout === "diagram" && templateName === "badge") {
-    return renderBadgeSVG(layout, width, height, templateName, template, themeName, theme);
+    return renderBadgeSVG(
+      layout,
+      width,
+      height,
+      templateName,
+      template,
+      themeName,
+      theme,
+      opts.approachLandmarkId,
+    );
   }
 
   const projection = createProjection(layout, width, height, {
@@ -33,5 +51,6 @@ export function renderSVG(layout: MapLayout, opts: RenderOptions = {}): string {
     project: projection.project,
     center: projection.center,
     landmarkPositions: opts.landmarkPositions,
+    approachLandmarkId: opts.approachLandmarkId,
   });
 }

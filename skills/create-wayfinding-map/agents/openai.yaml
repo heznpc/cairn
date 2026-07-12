@@ -1,0 +1,4 @@
+interface:
+  display_name: "Cairn Wayfinding"
+  short_description: "Create and refine readable wayfinding diagrams"
+  default_prompt: "Use $create-wayfinding-map to create and refine a printable wayfinding map from an address."

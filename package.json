@@ -36,6 +36,7 @@
   },
   "files": [
     "dist",
+    "skills",
     "README.md",
     "LICENSE"
   ],
@@ -47,10 +48,11 @@
     "dev:cli": "tsx src/cli.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "skill:check": "node scripts/check-skill.mjs",
     "visual:audit": "npm run build && node scripts/yakdo-visual-audit.mjs",
     "pack:dry": "npm pack --dry-run --json",
     "smoke:package": "node scripts/smoke-package.mjs",
-    "release:preflight": "npm run typecheck && npm test && npm run visual:audit && npm run pack:dry && npm run smoke:package",
+    "release:preflight": "npm run typecheck && npm test && npm run skill:check && npm run visual:audit && npm run pack:dry && npm run smoke:package",
     "prepublishOnly": "npm run release:preflight"
   },
   "keywords": [

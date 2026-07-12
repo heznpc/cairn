@@ -8,7 +8,12 @@ import {
   FindRoadsArgs,
   GenerateMapArgs,
   GeocodeArgs,
+  RenderDocumentArgs,
 } from "./tool-input-schemas.js";
+import {
+  applyDiagramDocumentPatch,
+  renderDiagramDocument,
+} from "./diagram-document.js";
 
 export { tools } from "./tool-registry.js";
 
@@ -49,7 +54,7 @@ export async function dispatchTool(
   try {
     if (name === "generate_map") {
       const input = GenerateMapArgs.parse(args);
-      const { svg, layout } = await generateMap(input.address, input);
+      const { svg, layout, document } = await generateMap(input.address, input);
       // Per MCP spec, populate both content and structuredContent when
       // outputSchema is declared, so older clients still see the SVG.
       return {
@@ -62,7 +67,27 @@ export async function dispatchTool(
               `${layout.center.lat.toFixed(5)}, ${layout.center.lon.toFixed(5)}.`,
           },
         ],
-        structuredContent: { svg, layout },
+        structuredContent: { svg, layout, document },
+      };
+    }
+
+    if (name === "render_document") {
+      const input = RenderDocumentArgs.parse(args);
+      const document = input.patch
+        ? applyDiagramDocumentPatch(input.document, input.patch)
+        : input.document;
+      const svg = renderDiagramDocument(document);
+      return {
+        content: [
+          { type: "text", text: svg },
+          {
+            type: "text",
+            text:
+              `cairn: re-rendered document with ${document.map.landmarks.length} landmarks ` +
+              `using ${document.render.template}/${document.render.theme}.`,
+          },
+        ],
+        structuredContent: { svg, document },
       };
     }
 

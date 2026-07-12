@@ -101,6 +101,9 @@ export interface RenderOptions {
   // 약도. Default off (linear projection); only applies to the map-skeleton
   // diagram presets (`standard`, `compact`, `schematic`).
   focus?: boolean;
+  // Explicit start/approach landmark for chat-driven wayfinding. When omitted,
+  // the renderer chooses the strongest transit-like landmark automatically.
+  approachLandmarkId?: string;
   // Editor-only manual placements keyed by stable landmark IDs. Normalized
   // positions keep documents portable across canvas sizes.
   landmarkPositions?: Record<string, NormalizedPosition>;
@@ -118,6 +121,41 @@ export interface DiagramDocument {
     template: RenderTemplate;
     theme: RenderTheme;
     focus: boolean;
+    approachLandmarkId?: string;
   };
   overrides: DiagramOverrides;
+}
+
+export interface LandmarkOverridePatch {
+  /** null removes the existing override. */
+  hidden?: boolean | null;
+  /** null restores the source landmark name. */
+  label?: string | null;
+  /** null returns the marker to automatic placement. */
+  position?: NormalizedPosition | null;
+  /** null removes the existing lock hint. */
+  locked?: boolean | null;
+}
+
+export interface RoadOverridePatch {
+  /** null removes the existing override. */
+  hidden?: boolean | null;
+  /** null restores the source road name. */
+  label?: string | null;
+}
+
+export interface DiagramDocumentPatch {
+  canvas?: { width?: number; height?: number };
+  render?: {
+    layout?: RenderLayoutMode;
+    template?: RenderTemplate;
+    theme?: RenderTheme;
+    focus?: boolean;
+    /** null restores automatic approach selection. */
+    approachLandmarkId?: string | null;
+  };
+  /** null restores the source destination label. */
+  destinationLabel?: string | null;
+  landmarks?: Record<string, LandmarkOverridePatch>;
+  roads?: Record<string, RoadOverridePatch>;
 }

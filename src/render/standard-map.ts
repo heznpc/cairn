@@ -49,6 +49,7 @@ export interface StandardMapRenderContext {
   project: Projector;
   center: { x: number; y: number };
   landmarkPositions?: Record<string, NormalizedPosition>;
+  approachLandmarkId?: string;
 }
 
 export function renderStandardMapSVG(
@@ -66,6 +67,7 @@ export function renderStandardMapSVG(
     project,
     center: { x: cx, y: cy },
     landmarkPositions,
+    approachLandmarkId,
   } = ctx;
   const roads = layout.roads ?? [];
 
@@ -74,7 +76,11 @@ export function renderStandardMapSVG(
       ? selectGeographicRoads(roads, project, width, height)
       : selectDisplayRoads(roads, project, width, height, { x: cx, y: cy }, template.maxVisibleRoads);
   const skeletonRoads = template.showRoadSkeleton ? displayRoads : [];
-  const landmarks = selectTemplateLandmarks(layout.landmarks, template);
+  const landmarks = selectTemplateLandmarks(
+    layout.landmarks,
+    template,
+    approachLandmarkId,
+  );
   const rawProjectedLandmarks = landmarks.map((lm) => {
     const [anchorX, anchorY] = project(lm.lat, lm.lon);
     const labelLines = wrapLandmarkLabel(lm.name, template.landmarkLabelMax);
@@ -118,7 +124,7 @@ export function renderStandardMapSVG(
     rawProjectedLandmarks.map(({ lm, anchorX, anchorY, fixed }) => ({
       anchorX,
       anchorY,
-      importance: lm.importance,
+      importance: lm.id === approachLandmarkId ? 2 : lm.importance,
       fixed,
     })),
     roadCorridors,
@@ -144,7 +150,7 @@ export function renderStandardMapSVG(
   );
   const approach =
     renderLayout === "diagram"
-      ? chooseApproachLandmark(projectedLandmarks, cx, cy)
+      ? chooseApproachLandmark(projectedLandmarks, cx, cy, approachLandmarkId)
       : null;
   const landmarkMarkerBoxes = projectedLandmarks.map(({ x, y }) => ({
     x: x - 23,
@@ -290,12 +296,20 @@ export function renderStandardMapSVG(
 function selectTemplateLandmarks(
   landmarks: MapLayout["landmarks"],
   template: TemplateSpec,
+  approachLandmarkId?: string,
 ): MapLayout["landmarks"] {
   const preferred = template.preferredCategories
     ? landmarks.filter((lm) => template.preferredCategories!.has(lm.category))
     : [];
   const filtered = preferred.length > 0 ? preferred : landmarks;
-  return filtered.slice(0, template.maxLandmarks);
+  const selected = filtered.slice(0, template.maxLandmarks);
+  if (!approachLandmarkId || selected.some((landmark) => landmark.id === approachLandmarkId)) {
+    return selected;
+  }
+  const approach = landmarks.find((landmark) => landmark.id === approachLandmarkId);
+  if (!approach) throw new Error(`Unknown approach landmark id: ${approachLandmarkId}`);
+  return [approach, ...selected.filter((landmark) => landmark.id !== approach.id)]
+    .slice(0, template.maxLandmarks);
 }
 
 function clamp01(value: number): number {
@@ -306,7 +320,15 @@ function chooseApproachLandmark(
   landmarks: ProjectedLandmark[],
   cx: number,
   cy: number,
+  approachLandmarkId?: string,
 ): ProjectedLandmark | null {
+  if (approachLandmarkId) {
+    const approach = landmarks.find((landmark) => landmark.lm.id === approachLandmarkId);
+    if (!approach) {
+      throw new Error(`Could not place approach landmark: ${approachLandmarkId}`);
+    }
+    return approach;
+  }
   let best: { landmark: ProjectedLandmark; score: number } | null = null;
   for (const landmark of landmarks) {
     const distance = Math.hypot(landmark.x - cx, landmark.y - cy);

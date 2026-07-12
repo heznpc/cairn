@@ -26,9 +26,13 @@ cairn — pictogram map generator
 USAGE
   cairn <address> [options]
   cairn generate <address> [options]
+  cairn render <document.json> [options]
+  cairn install-skill <skills-directory>
 
 OPTIONS
   -o, --output <file>     Write SVG to file (default: stdout)
+      --save-document <file>
+                          Save editable DiagramDocument JSON when generating
   -l, --label <text>      Label for the destination (default: "여기")
   -r, --radius <meters>   Landmark search radius (default: 400, max ${MAX_RADIUS_METERS})
   -n, --limit <count>     Max landmarks to include (default: 5)
@@ -44,6 +48,9 @@ OPTIONS
 
 EXAMPLES
   cairn "서울 강남구 테헤란로 152" -o office.svg
+  cairn "서울 강남구 테헤란로 152" -o office.svg --save-document office.json
+  cairn render office.json -o office-revised.svg
+  cairn install-skill ~/.codex/skills
   cairn "1600 Amphitheatre Pkwy, Mountain View" --label "Office"
   cairn "Shibuya Crossing, Tokyo" -n 4 -r 300
 `;
@@ -51,10 +58,22 @@ EXAMPLES
 export type CliRequest =
   | { kind: "help"; exitCode: 0 | 1 }
   | { kind: "missing-address" }
+  | { kind: "missing-document" }
+  | { kind: "missing-skill-target" }
+  | {
+      kind: "install-skill";
+      target: string;
+    }
+  | {
+      kind: "render-document";
+      input: string;
+      output?: string;
+    }
   | {
       kind: "generate";
       address: string;
       output?: string;
+      documentOutput?: string;
       options: GenerateMapInput;
     };
 
@@ -63,6 +82,22 @@ export function parseCliRequest(argv: string[]): CliRequest {
 
   if (argv.length === 0 || opts.help === "true") {
     return { kind: "help", exitCode: argv.length === 0 ? 1 : 0 };
+  }
+
+  if (positional[0] === "render") {
+    const input = positional[1];
+    if (!input) return { kind: "missing-document" };
+    return {
+      kind: "render-document",
+      input,
+      output: opts.output,
+    };
+  }
+
+  if (positional[0] === "install-skill") {
+    const target = positional[1];
+    if (!target) return { kind: "missing-skill-target" };
+    return { kind: "install-skill", target };
   }
 
   const address =
@@ -76,6 +111,7 @@ export function parseCliRequest(argv: string[]): CliRequest {
     kind: "generate",
     address,
     output: opts.output,
+    documentOutput: opts.documentOutput,
     options: {
       label: opts.label,
       radiusMeters: parseFlag("--radius", opts.radius, 1, MAX_RADIUS_METERS),
@@ -123,6 +159,9 @@ function parse(argv: string[]) {
       case "-l":
       case "--label":
         opts.label = takeValue(a, ++i);
+        break;
+      case "--save-document":
+        opts.documentOutput = takeValue(a, ++i);
         break;
       case "-r":
       case "--radius":
