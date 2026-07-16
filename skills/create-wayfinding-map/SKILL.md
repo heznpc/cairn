@@ -63,8 +63,8 @@ source of truth across edit turns.
 When cairn MCP tools are unavailable but local commands are allowed, use:
 
 ```bash
-npx -p cairn-map cairn "<address>" -o map.svg --save-document map.json
-npx -p cairn-map cairn render map.json -o map-revised.svg
+npx -p cairn-sketch cairn "<address>" -o map.svg --save-document map.json
+npx -p cairn-sketch cairn render map.json -o map-revised.svg
 ```
 
 Edit `map.json` only through the documented `DiagramDocument` fields. Validate

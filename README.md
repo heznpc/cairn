@@ -4,7 +4,7 @@
 > Korean-style 약도, auto-generated, anywhere in the world.
 
 [![ci](https://github.com/heznpc/cairn/actions/workflows/ci.yml/badge.svg)](https://github.com/heznpc/cairn/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/cairn-map.svg)](https://www.npmjs.com/package/cairn-map)
+[![npm](https://img.shields.io/npm/v/cairn-sketch.svg)](https://www.npmjs.com/package/cairn-sketch)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 Part of: **Human-Controlled AI Systems** — the MCP server stays a tool, never an agent. Curation is a deterministic heuristic; an LLM only enters the loop when the *host* (Claude Code, Cursor, Codex CLI, …) chooses to compose it.
@@ -92,7 +92,7 @@ roadmap).
 
 ## Quick start
 
-> **Status:** cairn is published as `cairn-map`. Install from npm with the snippets below, or install from source with `npm install && npm run build` and run `node dist/cli.js`.
+> **Status:** cairn is published as `cairn-sketch`. Install from npm with the snippets below, or install from source with `npm install && npm run build` and run `node dist/cli.js`.
 
 ### As an MCP server
 
@@ -101,7 +101,7 @@ roadmap).
   "mcpServers": {
     "cairn": {
       "command": "npx",
-      "args": ["-y", "-p", "cairn-map", "cairn-mcp"]
+      "args": ["-y", "-p", "cairn-sketch", "cairn-mcp"]
     }
   }
 }
@@ -117,7 +117,7 @@ The npm package ships the canonical `create-wayfinding-map` skill. Install it
 into the local skills directory used by your compatible AI host:
 
 ```bash
-npx -p cairn-map cairn install-skill <skills-directory>
+npx -p cairn-sketch cairn install-skill <skills-directory>
 ```
 
 The installer refuses to overwrite an existing copy. Remove or rename the old
@@ -126,11 +126,11 @@ folder explicitly before upgrading it.
 ### As a CLI
 
 ```bash
-npx -p cairn-map cairn "서울 강남구 테헤란로 152" -o office.svg
-npx -p cairn-map cairn "1600 Amphitheatre Pkwy, Mountain View" --label "Office" --template compact --theme mono
-npx -p cairn-map cairn "서울 강남구 테헤란로 152" -o office.svg --save-document office.json
-npx -p cairn-map cairn render office.json -o office-revised.svg
-npx -p cairn-map cairn render office.json -o office-print.pdf
+npx -p cairn-sketch cairn "서울 강남구 테헤란로 152" -o office.svg
+npx -p cairn-sketch cairn "1600 Amphitheatre Pkwy, Mountain View" --label "Office" --template compact --theme mono
+npx -p cairn-sketch cairn "서울 강남구 테헤란로 152" -o office.svg --save-document office.json
+npx -p cairn-sketch cairn render office.json -o office-revised.svg
+npx -p cairn-sketch cairn render office.json -o office-print.pdf
 ```
 
 ### As an editable document
@@ -139,7 +139,7 @@ npx -p cairn-map cairn render office.json -o office-print.pdf
 import {
   createDiagramDocument,
   renderDiagramDocument,
-} from "cairn-map/document";
+} from "cairn-sketch/document";
 
 const document = createDiagramDocument(mapLayout, {
   template: "schematic",

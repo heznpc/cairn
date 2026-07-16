@@ -31,11 +31,15 @@ versions follow [Semantic Versioning](https://semver.org/).
 - Versioned `DiagramDocument` JSON for editor workflows. It preserves the
   source `MapLayout`, canvas, template, theme, destination/landmark/road label
   overrides, visibility, and normalized manual landmark positions.
-- Public package subpaths for headless integrations: `cairn-map/render`,
-  `cairn-map/document`, `cairn-map/options`, `cairn-map/pipeline`, and
-  `cairn-map/types`.
+- Public package subpaths for headless integrations: `cairn-sketch/render`,
+  `cairn-sketch/document`, `cairn-sketch/options`, `cairn-sketch/pipeline`, and
+  `cairn-sketch/types`.
 
 ### Changed
+- npm package name is now `cairn-sketch` (the bare `cairn` name is taken by an
+  unrelated, long-dormant package). The published binaries stay `cairn` and
+  `cairn-mcp`, the MCP server name stays `cairn`, and the headless subpaths move
+  to `cairn-sketch/*`.
 - The visual audit now checks city and campus fixtures across all 40
   template/theme combinations and rejects marker/road overlap, duplicate
   transit clusters, decorative-length approach cues, and style regressions.
