@@ -1,9 +1,9 @@
 import { z } from "zod";
 import type { GeocodingResult } from "./types.js";
 import { fetchWithTimeout, nominatimGate } from "./http.js";
+import { HTTP_USER_AGENT } from "./metadata.js";
 
 const NOMINATIM_BASE = "https://nominatim.openstreetmap.org/search";
-const USER_AGENT = "cairn-mcp/0.1 (+https://github.com/heznpc/cairn)";
 
 const NominatimResultSchema = z.object({
   lat: z.string(),
@@ -40,7 +40,7 @@ export async function geocode(address: string): Promise<GeocodingResult> {
   await nominatimGate();
   const res = await fetchWithTimeout(url.toString(), {
     headers: {
-      "User-Agent": USER_AGENT,
+      "User-Agent": HTTP_USER_AGENT,
       "Accept-Language": "ko,en;q=0.9,ja;q=0.8",
     },
     timeoutMs: 8000,

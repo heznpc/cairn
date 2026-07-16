@@ -1,5 +1,5 @@
 {
-  "name": "@yakdo/cairn",
+  "name": "cairn-sketch",
   "version": "0.2.0",
   "description": "Type an address, get a pictogram map. Korean-style 약도, auto-generated. MCP server + CLI.",
   "type": "module",
@@ -8,22 +8,55 @@
     "cairn-mcp": "dist/server.js"
   },
   "main": "./dist/server.js",
+  "exports": {
+    ".": {
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js"
+    },
+    "./render": {
+      "types": "./dist/render.d.ts",
+      "import": "./dist/render.js"
+    },
+    "./document": {
+      "types": "./dist/diagram-document.d.ts",
+      "import": "./dist/diagram-document.js"
+    },
+    "./export": {
+      "types": "./dist/export.d.ts",
+      "import": "./dist/export.js"
+    },
+    "./options": {
+      "types": "./dist/options.d.ts",
+      "import": "./dist/options.js"
+    },
+    "./pipeline": {
+      "types": "./dist/pipeline.d.ts",
+      "import": "./dist/pipeline.js"
+    },
+    "./types": {
+      "types": "./dist/types.d.ts",
+      "import": "./dist/types.js"
+    }
+  },
   "files": [
     "dist",
+    "skills",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
     "build": "tsc",
+    "prepack": "npm run build",
     "start": "node dist/server.js",
     "dev:server": "tsx watch src/server.ts",
     "dev:cli": "tsx src/cli.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "skill:check": "node scripts/check-skill.mjs",
     "visual:audit": "npm run build && node scripts/yakdo-visual-audit.mjs",
     "pack:dry": "npm pack --dry-run --json",
     "smoke:package": "node scripts/smoke-package.mjs",
-    "release:preflight": "npm run typecheck && npm test && npm run visual:audit && npm run pack:dry && npm run smoke:package",
+    "release:preflight": "npm run typecheck && npm test && npm run skill:check && npm run visual:audit && npm run pack:dry && npm run smoke:package",
     "prepublishOnly": "npm run release:preflight"
   },
   "keywords": [
@@ -52,6 +85,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
+    "@resvg/resvg-js": "^2.6.2",
     "zod": "^3.23.0"
   },
   "devDependencies": {

@@ -6,6 +6,62 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Diagram-mode standard, compact, and schematic maps now infer the final
+  approach over connected visible road axes, with a direct fallback when the
+  displayed graph is disconnected or implausible. SVG output identifies the
+  result as `data-route-mode="inferred-road"` or `"direct"`; inferred output is
+  explicitly documented as a diagram heuristic rather than certified routing.
+- Chat-first iterative editing: `generate_map` now returns its
+  `DiagramDocument`, and the new stateless `render_document` MCP tool applies
+  validated patches, including explicit start-landmark selection, and returns
+  both revised SVG and updated document.
+- CLI document round-tripping with `--save-document` and
+  `cairn render <document.json>`, with SVG, PNG, and PDF output selected by
+  file extension. SVG remains vector; PDF uses a 4× locally rendered image.
+- A packaged `create-wayfinding-map` skill with quality and patch references
+  plus campus, invitation, monochrome, and custom-topology golden workflows
+  for compatible AI hosts. Release preflight validates and package smoke-tests
+  the shipped skill; `cairn install-skill <skills-directory>` installs it
+  without overwriting an existing copy.
+- Independent composition templates (`standard`, `compact`, `minimal`,
+  `schematic`, `badge`) and visual themes (`paper`, `mono`, `civic`,
+  `invitation`). CLI and MCP callers can combine them with `template` and
+  `theme`; the existing `preset` option remains a compatibility alias.
+- Versioned `DiagramDocument` JSON for editor workflows. It preserves the
+  source `MapLayout`, canvas, template, theme, destination/landmark/road label
+  overrides, visibility, and normalized manual landmark positions.
+- Public package subpaths for headless integrations: `cairn-sketch/render`,
+  `cairn-sketch/document`, `cairn-sketch/options`, `cairn-sketch/pipeline`, and
+  `cairn-sketch/types`.
+
+### Changed
+- npm package name is now `cairn-sketch` (the bare `cairn` name is taken by an
+  unrelated, long-dormant package). The published binaries stay `cairn` and
+  `cairn-mcp`, the MCP server name stays `cairn`, and the headless subpaths move
+  to `cairn-sketch/*`.
+- The visual audit now checks city and campus fixtures across all 40
+  template/theme combinations and rejects marker/road overlap, duplicate
+  transit clusters, decorative-length approach cues, and style regressions.
+- `generateMap()` now returns the exact editable `document` used to render its
+  SVG alongside the existing `svg` and `layout` fields.
+- Standard map layout now produces a testable `StandardMapScene` before SVG
+  serialization. Standard, minimal, and badge renderers share document-frame,
+  route, marker, destination, attribution, and approach-selection primitives.
+- Nearby station and station-exit landmarks collapse into one actionable
+  transit marker in diagram mode. Korean labels prefer word boundaries, and
+  approach paths participate in label/callout collision avoidance.
+
+### Fixed
+- MCP JSON Schema and runtime Zod validation now share domain values and
+  numeric bounds, with acceptance-parity tests. Public document schemas no
+  longer accept empty landmark, road, or explicit approach IDs that runtime
+  validation rejects.
+- Landmark markers now preserve navigational road corridors: glyphs move away
+  from rendered road casing, keep their geographic anchor via an under-road
+  leader, and are omitted when no collision-free placement exists instead of
+  erasing the route.
+
 ## [0.2.0] — 2026-07-07
 
 ### Added
@@ -81,7 +137,7 @@ versions follow [Semantic Versioning](https://semver.org/).
   way into a clean schematic spine, drops short visual stubs, dedupes nearby
   parallel roads, and excludes residential/path roads from dense road sets.
 - npm package name changed from the occupied `cairn-mcp` name to
-  `@yakdo/cairn`; the published binaries stay `cairn` and `cairn-mcp`.
+  `cairn-map`; the published binaries stay `cairn` and `cairn-mcp`.
 - `engines.node` bumped to `>=22` (Node 20 reached EOL 2026-04-30).
 - `vitest` bumped to `^4.1.0` — clears
   [GHSA-67mh-4wv8-2f99](https://github.com/advisories/GHSA-67mh-4wv8-2f99)
@@ -169,7 +225,7 @@ versions follow [Semantic Versioning](https://semver.org/).
 
 ## [0.1.0] — 2026-06-30
 
-Initial public version published to npm under `@yakdo/cairn`.
+Initial public version published to npm under `cairn-map`.
 
 ### Added
 - MCP server (`cairn-mcp` binary) over stdio with three tools:
