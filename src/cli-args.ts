@@ -119,10 +119,10 @@ export function parseCliRequest(argv: string[]): CliRequest {
       // width/height >= 100 — render.ts projection uses (width - 100) as denom.
       width: parseFlag("--width", opts.width, MIN_CANVAS_DIMENSION_PX, MAX_CANVAS_DIMENSION_PX),
       height: parseFlag("--height", opts.height, MIN_CANVAS_DIMENSION_PX, MAX_CANVAS_DIMENSION_PX),
-      layout: parseLayout(opts.layout),
-      template: parseTemplate(opts.template),
-      theme: parseTheme(opts.theme),
-      preset: parsePreset(opts.preset),
+      layout: parseEnum("--layout", opts.layout, isRenderLayoutMode, RENDER_LAYOUTS),
+      template: parseEnum("--template", opts.template, isRenderTemplate, RENDER_TEMPLATES),
+      theme: parseEnum("--theme", opts.theme, isRenderTheme, RENDER_THEMES),
+      preset: parseEnum("--preset", opts.preset, isRenderPreset, RENDER_PRESETS),
       roads: opts.noRoads === "true" ? false : undefined,
       focus: opts.focus === "true" ? true : undefined,
     },
@@ -231,34 +231,17 @@ function parseFlag(
   return n;
 }
 
-function parseLayout(raw: string | undefined) {
+// One validator for every enum-valued flag: the type guard both narrows the
+// return type and drives the error message's choice list.
+function parseEnum<T extends string>(
+  flag: string,
+  raw: string | undefined,
+  guard: (value: string) => value is T,
+  choices: readonly string[],
+): T | undefined {
   if (raw === undefined) return undefined;
-  if (!isRenderLayoutMode(raw)) {
-    throw new Error(`--layout must be ${quotedChoiceList(RENDER_LAYOUTS)} (got: "${raw}")`);
-  }
-  return raw;
-}
-
-function parsePreset(raw: string | undefined) {
-  if (raw === undefined) return undefined;
-  if (!isRenderPreset(raw)) {
-    throw new Error(`--preset must be ${quotedChoiceList(RENDER_PRESETS)} (got: "${raw}")`);
-  }
-  return raw;
-}
-
-function parseTemplate(raw: string | undefined) {
-  if (raw === undefined) return undefined;
-  if (!isRenderTemplate(raw)) {
-    throw new Error(`--template must be ${quotedChoiceList(RENDER_TEMPLATES)} (got: "${raw}")`);
-  }
-  return raw;
-}
-
-function parseTheme(raw: string | undefined) {
-  if (raw === undefined) return undefined;
-  if (!isRenderTheme(raw)) {
-    throw new Error(`--theme must be ${quotedChoiceList(RENDER_THEMES)} (got: "${raw}")`);
+  if (!guard(raw)) {
+    throw new Error(`${flag} must be ${quotedChoiceList(choices)} (got: "${raw}")`);
   }
   return raw;
 }

@@ -4,6 +4,7 @@ import {
   mapLayoutJsonSchema,
   roadItemJsonSchema,
 } from "./diagram-json-schema.js";
+import { LATITUDE_RANGE, LONGITUDE_RANGE } from "./domain-values.js";
 
 // MCP 2025-06-18 spec §tools.outputSchema. Host LLMs validate structuredContent
 // against these and can read results structurally instead of parsing text.
@@ -45,8 +46,8 @@ export const geocodeOutputSchema = {
   required: ["lat", "lon", "displayName"],
   additionalProperties: false,
   properties: {
-    lat: { type: "number", minimum: -90, maximum: 90 },
-    lon: { type: "number", minimum: -180, maximum: 180 },
+    lat: { type: "number", ...LATITUDE_RANGE },
+    lon: { type: "number", ...LONGITUDE_RANGE },
     displayName: { type: "string" },
     // Raw Nominatim payload shape varies across regions.
     raw: { type: "object" },

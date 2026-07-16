@@ -117,6 +117,12 @@ const roadOverrideJsonSchema = {
   },
 } as const;
 
+const canvasDimensionJsonSchema = {
+  type: "integer",
+  minimum: MIN_CANVAS_DIMENSION_PX,
+  maximum: MAX_CANVAS_DIMENSION_PX,
+} as const;
+
 export const diagramDocumentJsonSchema = {
   type: "object",
   description: "Versioned editable map document returned by cairn.",
@@ -130,8 +136,8 @@ export const diagramDocumentJsonSchema = {
       required: ["width", "height"],
       additionalProperties: false,
       properties: {
-        width: { type: "integer", minimum: MIN_CANVAS_DIMENSION_PX, maximum: MAX_CANVAS_DIMENSION_PX },
-        height: { type: "integer", minimum: MIN_CANVAS_DIMENSION_PX, maximum: MAX_CANVAS_DIMENSION_PX },
+        width: canvasDimensionJsonSchema,
+        height: canvasDimensionJsonSchema,
       },
     },
     render: {
@@ -198,8 +204,8 @@ export const diagramDocumentPatchJsonSchema = {
       description: "Resize the output canvas in pixels.",
       additionalProperties: false,
       properties: {
-        width: { type: "integer", minimum: MIN_CANVAS_DIMENSION_PX, maximum: MAX_CANVAS_DIMENSION_PX },
-        height: { type: "integer", minimum: MIN_CANVAS_DIMENSION_PX, maximum: MAX_CANVAS_DIMENSION_PX },
+        width: canvasDimensionJsonSchema,
+        height: canvasDimensionJsonSchema,
       },
     },
     render: {

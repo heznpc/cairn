@@ -2,6 +2,7 @@ export {
   clipSegment,
   clippedRoadLength,
   diagramRoadSpine,
+  pointsToPathData,
   roadPathData,
   roadPathPoints,
   type Point,

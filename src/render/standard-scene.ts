@@ -19,6 +19,7 @@ import {
   roadMarkerCorridors,
 } from "./marker-layout.js";
 import {
+  pointsToPathData,
   roadObstacleBoxes,
   roadPathPoints,
   selectDisplayRoads,
@@ -133,7 +134,7 @@ export function buildStandardMapScene(
       height,
       template.roadGeometry,
     );
-    return points ? [{ source: road, points, path: pointsToPath(points) }] : [];
+    return points ? [{ source: road, points, path: pointsToPathData(points) }] : [];
   });
   const selectedLandmarks = selectTemplateLandmarks(
     layout.landmarks,
@@ -380,12 +381,6 @@ function polylineObstacleBoxes(points: readonly Point[], radius: number): Box[] 
     }
   }
   return boxes;
-}
-
-function pointsToPath(points: readonly Point[]): string {
-  return points
-    .map((point, index) => `${index === 0 ? "M" : "L"}${point.x.toFixed(1)},${point.y.toFixed(1)}`)
-    .join(" ");
 }
 
 function selectTemplateLandmarks(

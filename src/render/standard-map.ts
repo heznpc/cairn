@@ -1,6 +1,6 @@
 import type { MapLayout } from "../types.js";
 import { markerStyle } from "./icons.js";
-import { roadStyle } from "./road-layout.js";
+import { pointsToPathData, roadStyle } from "./road-layout.js";
 import {
   buildStandardMapScene,
   type StandardMapRenderContext,
@@ -71,9 +71,7 @@ export function renderStandardMapSceneSVG(scene: StandardMapScene): string {
   }
 
   if (approach?.points) {
-    const path = approach.points
-      .map((point, index) => `${index === 0 ? "M" : "L"}${point.x.toFixed(1)},${point.y.toFixed(1)}`)
-      .join(" ");
+    const path = pointsToPathData(approach.points);
     lines.push(...renderApproachPath(path, theme, {
       casingWidth: template.approachCasingWidth,
       coreWidth: template.approachWidth,

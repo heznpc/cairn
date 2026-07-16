@@ -15,15 +15,15 @@ export const TRANSIT_INK = "#216f86";
 export const EXIT_INK = "#207665";
 
 // Road hierarchy is load-bearing for a 약도: the reader has to see the main
-// artery at a glance. Widen the width gap and darken the top tiers so primary
-// reads as "the big road you navigate by", while residential/path recede into
-// pale filler. Kept in a warm-gray range so the linework still prints like ink.
-export const BASE_ROAD_STYLE: Record<RoadClass, { width: number; color: string }> = {
-  primary: { width: 12, color: "#a29b8c" },
-  secondary: { width: 7.5, color: "#c1baac" },
-  tertiary: { width: 4, color: "#d8d1c4" },
-  residential: { width: 3, color: "#e6dfd3" },
-  path: { width: 2.5, color: "#ece6db" },
+// artery at a glance. Widen the width gap so primary reads as "the big road you
+// navigate by", while residential/path recede into thin filler. Per-theme road
+// colors live in THEMES[*].roads; only the widths are shared here.
+export const BASE_ROAD_STYLE: Record<RoadClass, { width: number }> = {
+  primary: { width: 12 },
+  secondary: { width: 7.5 },
+  tertiary: { width: 4 },
+  residential: { width: 3 },
+  path: { width: 2.5 },
 };
 
 export const ROAD_RANK: Record<RoadClass, number> = {
@@ -172,11 +172,6 @@ export const TEMPLATES: Record<RenderTemplate, TemplateSpec> = {
     maxVisibleRoads: 0,
   },
 };
-
-/** @deprecated Use TemplateSpec. */
-export type PresetSpec = TemplateSpec;
-/** @deprecated Use TEMPLATES. */
-export const PRESETS = TEMPLATES;
 
 export interface ThemeSpec {
   fontFamily: string;

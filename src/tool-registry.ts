@@ -3,6 +3,7 @@ import {
   MAX_RADIUS_METERS,
   MIN_CANVAS_DIMENSION_PX,
 } from "./limits.js";
+import { LATITUDE_RANGE, LONGITUDE_RANGE } from "./domain-values.js";
 import {
   RENDER_LAYOUTS,
   RENDER_PRESETS,
@@ -121,8 +122,8 @@ export const tools = [
     inputSchema: {
       type: "object",
       properties: {
-        lat: { type: "number", minimum: -90, maximum: 90 },
-        lon: { type: "number", minimum: -180, maximum: 180 },
+        lat: { type: "number", ...LATITUDE_RANGE },
+        lon: { type: "number", ...LONGITUDE_RANGE },
         radiusMeters: { type: "integer", minimum: 1, maximum: MAX_RADIUS_METERS, description: "Default 400, max 5000" },
       },
       required: ["lat", "lon"],
@@ -141,8 +142,8 @@ export const tools = [
     inputSchema: {
       type: "object",
       properties: {
-        lat: { type: "number", minimum: -90, maximum: 90 },
-        lon: { type: "number", minimum: -180, maximum: 180 },
+        lat: { type: "number", ...LATITUDE_RANGE },
+        lon: { type: "number", ...LONGITUDE_RANGE },
         radiusMeters: { type: "integer", minimum: 1, maximum: MAX_RADIUS_METERS, description: "Default 480, max 5000" },
       },
       required: ["lat", "lon"],

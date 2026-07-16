@@ -1,4 +1,7 @@
-import type { Point } from "./road-geometry.js";
+import { polylineLength, type Point } from "./road-geometry.js";
+
+// Re-exported so existing importers (and tests) can keep resolving it here.
+export { polylineLength } from "./road-geometry.js";
 
 const DEFAULT_MAX_SNAP_DISTANCE = 96;
 const DEFAULT_MAX_DETOUR_RATIO = 3.5;
@@ -46,17 +49,6 @@ export function buildApproachRoute(options: ApproachRouteOptions): ApproachRoute
   const route = roadRoute ?? direct;
   const points = trimPolyline(route, options.startTrim, options.endTrim);
   return points ? { points, mode: roadRoute ? "inferred-road" : "direct" } : null;
-}
-
-export function polylineLength(points: readonly Point[]): number {
-  let length = 0;
-  for (let index = 1; index < points.length; index++) {
-    length += Math.hypot(
-      points[index].x - points[index - 1].x,
-      points[index].y - points[index - 1].y,
-    );
-  }
-  return length;
 }
 
 function routeOnVisibleRoads(options: ApproachRouteOptions): Point[] | null {

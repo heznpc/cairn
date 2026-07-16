@@ -35,6 +35,23 @@ function jsonResult<T extends Record<string, unknown>>(structured: T): DispatchR
   };
 }
 
+// Shape an SVG-producing tool result: the SVG itself first (so older clients
+// without outputSchema support still see it), then a human summary, plus the
+// structured payload per the MCP outputSchema contract.
+function svgResult(
+  svg: string,
+  summary: string,
+  structured: Record<string, unknown>,
+): DispatchResult {
+  return {
+    content: [
+      { type: "text", text: svg },
+      { type: "text", text: summary },
+    ],
+    structuredContent: structured,
+  };
+}
+
 // Surface zod issues as `path: message; path: message` instead of the
 // multi-line stringified `err.message` JSON blob — that blob is what host
 // LLMs see otherwise, and it's not actionable.
@@ -55,20 +72,12 @@ export async function dispatchTool(
     if (name === "generate_map") {
       const input = GenerateMapArgs.parse(args);
       const { svg, layout, document } = await generateMap(input.address, input);
-      // Per MCP spec, populate both content and structuredContent when
-      // outputSchema is declared, so older clients still see the SVG.
-      return {
-        content: [
-          { type: "text", text: svg },
-          {
-            type: "text",
-            text:
-              `cairn: rendered ${layout.landmarks.length} landmarks around ` +
-              `${layout.center.lat.toFixed(5)}, ${layout.center.lon.toFixed(5)}.`,
-          },
-        ],
-        structuredContent: { svg, layout, document },
-      };
+      return svgResult(
+        svg,
+        `cairn: rendered ${layout.landmarks.length} landmarks around ` +
+          `${layout.center.lat.toFixed(5)}, ${layout.center.lon.toFixed(5)}.`,
+        { svg, layout, document },
+      );
     }
 
     if (name === "render_document") {
@@ -77,18 +86,12 @@ export async function dispatchTool(
         ? applyDiagramDocumentPatch(input.document, input.patch)
         : input.document;
       const svg = renderDiagramDocument(document);
-      return {
-        content: [
-          { type: "text", text: svg },
-          {
-            type: "text",
-            text:
-              `cairn: re-rendered document with ${document.map.landmarks.length} landmarks ` +
-              `using ${document.render.template}/${document.render.theme}.`,
-          },
-        ],
-        structuredContent: { svg, document },
-      };
+      return svgResult(
+        svg,
+        `cairn: re-rendered document with ${document.map.landmarks.length} landmarks ` +
+          `using ${document.render.template}/${document.render.theme}.`,
+        { svg, document },
+      );
     }
 
     if (name === "geocode") {

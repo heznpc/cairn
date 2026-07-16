@@ -3,6 +3,7 @@ import {
   type TemplateSpec,
   type ThemeSpec,
 } from "./theme.js";
+import { escapeXml } from "./xml.js";
 
 export interface Box {
   x: number;
@@ -151,13 +152,4 @@ export function overlapArea(a: Box, b: Box): number {
   const x = Math.max(0, Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x));
   const y = Math.max(0, Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y));
   return x * y;
-}
-
-function escapeXml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
 }

@@ -5,6 +5,7 @@ import {
   destinationLabel,
   type CenterCallout,
 } from "./text.js";
+import { escapeXml } from "./xml.js";
 
 export interface SvgDocumentFrameOptions {
   width: number;
@@ -99,15 +100,6 @@ function svgDataAttributes(
 ): string {
   if (!attributes) return "";
   return Object.entries(attributes)
-    .map(([name, value]) => ` data-${name}="${escapeXmlAttribute(String(value))}"`)
+    .map(([name, value]) => ` data-${name}="${escapeXml(String(value))}"`)
     .join("");
-}
-
-function escapeXmlAttribute(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
 }

@@ -15,6 +15,27 @@ export interface RoadSpine {
   length: number;
 }
 
+/** Serialize a projected polyline to an SVG path `d` string ("M x,y L x,y …"). */
+export function pointsToPathData(points: readonly Point[]): string {
+  return points
+    .map((point, index) =>
+      `${index === 0 ? "M" : "L"}${point.x.toFixed(1)},${point.y.toFixed(1)}`,
+    )
+    .join(" ");
+}
+
+/** Perpendicular distance from `point` to the segment `start`→`end`. */
+export function pointToSegmentDistance(point: Point, start: Point, end: Point): number {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq === 0) return Math.hypot(point.x - start.x, point.y - start.y);
+  const t = Math.max(0, Math.min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / lenSq));
+  const x = start.x + t * dx;
+  const y = start.y + t * dy;
+  return Math.hypot(point.x - x, point.y - y);
+}
+
 export function roadPathData(
   road: MapLayout["roads"][number],
   project: (lat: number, lon: number) => [number, number],
@@ -32,11 +53,7 @@ export function roadPathData(
     roadGeometry,
   );
   if (!points) return null;
-  return points
-    .map((point, index) =>
-      `${index === 0 ? "M" : "L"}${point.x.toFixed(1)},${point.y.toFixed(1)}`,
-    )
-    .join(" ");
+  return pointsToPathData(points);
 }
 
 export function roadPathPoints(
@@ -205,7 +222,7 @@ function clippedRoadRuns(
   return runs;
 }
 
-function polylineLength(points: Point[]): number {
+export function polylineLength(points: readonly Point[]): number {
   let total = 0;
   for (let i = 1; i < points.length; i++) {
     total += Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y);

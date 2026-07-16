@@ -3,6 +3,7 @@ import { ROAD_RANK } from "./theme.js";
 import {
   clippedRoadLength,
   diagramRoadSpine,
+  pointToSegmentDistance,
   type Point,
   type RoadSpine,
 } from "./road-geometry.js";
@@ -26,6 +27,21 @@ const MAX_GEOGRAPHIC_ROAD_POINTS = 3000;
 const PARALLEL_ROAD_DEDUPE_PX = 28;
 const MINOR_ROAD_FOCUS_DISTANCE_PX = 100;
 
+// Road-importance score: class tier dominates, a name is a tie-breaker bonus,
+// and in-frame length is a capped final term. Kept in one place so the weights
+// stay tuned together across the geographic and diagram selectors.
+const ROAD_RANK_WEIGHT = 1000;
+const NAMED_ROAD_BONUS = 220;
+const MAX_IN_FRAME_LENGTH_SCORE = 1200;
+
+function roadImportanceScore(road: MapLayout["roads"][number], inFrameLength: number): number {
+  return (
+    ROAD_RANK[road.class] * ROAD_RANK_WEIGHT +
+    (road.name ? NAMED_ROAD_BONUS : 0) +
+    Math.min(inFrameLength, MAX_IN_FRAME_LENGTH_SCORE)
+  );
+}
+
 // Bound the geographic-layout road set without discarding raw geometry: keep
 // the full way vertices (that's the point of geographic mode) but cap how many
 // ways render and their combined vertex count. Under budget, the drawable set
@@ -47,10 +63,7 @@ export function selectGeographicRoads(
     .map((road, index) => ({
       road,
       index,
-      score:
-        ROAD_RANK[road.class] * 1000 +
-        (road.name ? 220 : 0) +
-        Math.min(clippedRoadLength(road, project, 0, 0, width, height), 1200),
+      score: roadImportanceScore(road, clippedRoadLength(road, project, 0, 0, width, height)),
     }))
     .sort((a, b) => b.score - a.score || a.index - b.index);
 
@@ -89,10 +102,7 @@ export function selectDisplayRoads(
         road,
         index,
         inFrameLength,
-        score:
-          ROAD_RANK[road.class] * 1000 +
-          (road.name ? 220 : 0) +
-          Math.min(inFrameLength, 1200),
+        score: roadImportanceScore(road, inFrameLength),
       };
     })
     .filter((item) => item.inFrameLength > 0)
@@ -105,7 +115,7 @@ export function selectDisplayRoads(
           road,
           index,
           inFrameLength: 0,
-          score: ROAD_RANK[road.class] * 1000 + (road.name ? 220 : 0),
+          score: roadImportanceScore(road, 0),
         }))
         .sort((a, b) => b.score - a.score || a.index - b.index);
 
@@ -139,17 +149,6 @@ export function selectDisplayRoads(
   }
 
   return picked;
-}
-
-function pointToSegmentDistance(point: Point, start: Point, end: Point): number {
-  const dx = end.x - start.x;
-  const dy = end.y - start.y;
-  const lenSq = dx * dx + dy * dy;
-  if (lenSq === 0) return Math.hypot(point.x - start.x, point.y - start.y);
-  const t = Math.max(0, Math.min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / lenSq));
-  const x = start.x + t * dx;
-  const y = start.y + t * dy;
-  return Math.hypot(point.x - x, point.y - y);
 }
 
 function roadVisualSignature(spine: RoadSpine): { angleBucket: number; offset: number } {

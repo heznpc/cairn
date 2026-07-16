@@ -1,6 +1,10 @@
 import type { MapLayout, RenderOptions } from "../types.js";
 import type { Box } from "./text.js";
-import { roadPathPoints, type Point } from "./road-geometry.js";
+import {
+  pointToSegmentDistance as segmentPointDistance,
+  roadPathPoints,
+  type Point,
+} from "./road-geometry.js";
 import { roadStyle } from "./road-style.js";
 import type { TemplateSpec, ThemeSpec } from "./theme.js";
 
@@ -149,24 +153,7 @@ export function markerLeaderSegment(
 }
 
 export function pointToSegmentDistance(point: Point, segment: RoadCorridor): number {
-  const dx = segment.end.x - segment.start.x;
-  const dy = segment.end.y - segment.start.y;
-  const lengthSquared = dx * dx + dy * dy;
-  if (lengthSquared === 0) {
-    return Math.hypot(point.x - segment.start.x, point.y - segment.start.y);
-  }
-  const t = Math.max(
-    0,
-    Math.min(
-      1,
-      ((point.x - segment.start.x) * dx + (point.y - segment.start.y) * dy) /
-        lengthSquared,
-    ),
-  );
-  return Math.hypot(
-    point.x - (segment.start.x + t * dx),
-    point.y - (segment.start.y + t * dy),
-  );
+  return segmentPointDistance(point, segment.start, segment.end);
 }
 
 function markerCandidates(marker: MarkerAnchor): Point[] {
