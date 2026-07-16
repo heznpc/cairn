@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { Landmark, LandmarkCategory } from "./types.js";
 import { overpassFetch, OVERPASS_TIMEOUT_MS } from "./overpass.js";
+import { MAX_RADIUS_METERS } from "./limits.js";
 
 const IMPORTANCE: Record<LandmarkCategory, number> = {
   station: 1.0,
@@ -39,7 +40,11 @@ export async function findLandmarks(
   lon: number,
   radiusMeters = 400,
 ): Promise<Landmark[]> {
-  const stationRadius = Math.round(radiusMeters * STATION_SEARCH_RADIUS_MULTIPLIER);
+  const baseRadius = Math.min(radiusMeters, MAX_RADIUS_METERS);
+  const stationRadius = Math.min(
+    MAX_RADIUS_METERS,
+    Math.round(baseRadius * STATION_SEARCH_RADIUS_MULTIPLIER),
+  );
 
   const query = `
     [out:json][timeout:25];
@@ -47,12 +52,12 @@ export async function findLandmarks(
       node["public_transport"="station"](around:${stationRadius},${lat},${lon});
       node["railway"="station"](around:${stationRadius},${lat},${lon});
       node["railway"="subway_entrance"](around:${stationRadius},${lat},${lon});
-      node["amenity"~"^(cafe|restaurant|school|university|hospital)$"](around:${radiusMeters},${lat},${lon});
-      node["shop"="convenience"](around:${radiusMeters},${lat},${lon});
-      node["tourism"="attraction"](around:${radiusMeters},${lat},${lon});
-      node["historic"="monument"](around:${radiusMeters},${lat},${lon});
-      node["leisure"="park"](around:${radiusMeters},${lat},${lon});
-      node["highway"="bus_stop"](around:${radiusMeters},${lat},${lon});
+      node["amenity"~"^(cafe|restaurant|school|university|hospital)$"](around:${baseRadius},${lat},${lon});
+      node["shop"="convenience"](around:${baseRadius},${lat},${lon});
+      node["tourism"="attraction"](around:${baseRadius},${lat},${lon});
+      node["historic"="monument"](around:${baseRadius},${lat},${lon});
+      node["leisure"="park"](around:${baseRadius},${lat},${lon});
+      node["highway"="bus_stop"](around:${baseRadius},${lat},${lon});
     );
     out body;
   `.trim();

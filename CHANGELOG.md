@@ -7,6 +7,60 @@ versions follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Diagram-mode standard, compact, and schematic maps now infer the final
+  approach over connected visible road axes, with a direct fallback when the
+  displayed graph is disconnected or implausible. SVG output identifies the
+  result as `data-route-mode="inferred-road"` or `"direct"`; inferred output is
+  explicitly documented as a diagram heuristic rather than certified routing.
+- Chat-first iterative editing: `generate_map` now returns its
+  `DiagramDocument`, and the new stateless `render_document` MCP tool applies
+  validated patches, including explicit start-landmark selection, and returns
+  both revised SVG and updated document.
+- CLI document round-tripping with `--save-document` and
+  `cairn render <document.json>`, with SVG, PNG, and PDF output selected by
+  file extension. SVG remains vector; PDF uses a 4× locally rendered image.
+- A packaged `create-wayfinding-map` skill with quality and patch references
+  plus campus, invitation, monochrome, and custom-topology golden workflows
+  for compatible AI hosts. Release preflight validates and package smoke-tests
+  the shipped skill; `cairn install-skill <skills-directory>` installs it
+  without overwriting an existing copy.
+- Independent composition templates (`standard`, `compact`, `minimal`,
+  `schematic`, `badge`) and visual themes (`paper`, `mono`, `civic`,
+  `invitation`). CLI and MCP callers can combine them with `template` and
+  `theme`; the existing `preset` option remains a compatibility alias.
+- Versioned `DiagramDocument` JSON for editor workflows. It preserves the
+  source `MapLayout`, canvas, template, theme, destination/landmark/road label
+  overrides, visibility, and normalized manual landmark positions.
+- Public package subpaths for headless integrations: `cairn-map/render`,
+  `cairn-map/document`, `cairn-map/options`, `cairn-map/pipeline`, and
+  `cairn-map/types`.
+
+### Changed
+- The visual audit now checks city and campus fixtures across all 40
+  template/theme combinations and rejects marker/road overlap, duplicate
+  transit clusters, decorative-length approach cues, and style regressions.
+- `generateMap()` now returns the exact editable `document` used to render its
+  SVG alongside the existing `svg` and `layout` fields.
+- Standard map layout now produces a testable `StandardMapScene` before SVG
+  serialization. Standard, minimal, and badge renderers share document-frame,
+  route, marker, destination, attribution, and approach-selection primitives.
+- Nearby station and station-exit landmarks collapse into one actionable
+  transit marker in diagram mode. Korean labels prefer word boundaries, and
+  approach paths participate in label/callout collision avoidance.
+
+### Fixed
+- MCP JSON Schema and runtime Zod validation now share domain values and
+  numeric bounds, with acceptance-parity tests. Public document schemas no
+  longer accept empty landmark, road, or explicit approach IDs that runtime
+  validation rejects.
+- Landmark markers now preserve navigational road corridors: glyphs move away
+  from rendered road casing, keep their geographic anchor via an under-road
+  leader, and are omitted when no collision-free placement exists instead of
+  erasing the route.
+
+## [0.2.0] — 2026-07-07
+
+### Added
 - Renderer output presets: `standard` (default, full curated 약도), `compact`
   (reduced low-priority labels/icons), and `minimal` (transit-like approach
   landmarks plus destination only).
@@ -62,6 +116,9 @@ versions follow [Semantic Versioning](https://semver.org/).
 - CI matrix on Node 22 + Node 24, with `permissions: contents: read`
   and a `concurrency` group.
 - Privacy disclosure: addresses are sent to OpenStreetMap servers.
+- Release preflight now runs typecheck, repo-scoped tests, visual audit, npm
+  pack dry-run, and an installed tarball smoke test covering both the CLI and
+  MCP tool registry.
 
 ### Changed
 - Renderer variants now adjust structure rather than palette. `standard`
@@ -92,6 +149,11 @@ versions follow [Semantic Versioning](https://semver.org/).
 - Landmark and road radius expansion heuristics are now named constants
   with regression coverage, so the station-search and road-skeleton
   multipliers stay intentional.
+- Landmark and road radius expansion is clamped after applying those
+  heuristics, so public `radiusMeters <= 5000` means the actual Overpass query
+  radius also stays within 5 km.
+- Vitest discovery now excludes local worktrees and generated output
+  (`.claude`, `tmp`, `dist`) so the public test count is deterministic.
 - SVG rendering now favors a more print-like 약도 style: dense Overpass road
   sets are reduced to a small road skeleton, road strokes use a cased
   diagram line style, landmark labels are shortened, and the destination
@@ -136,6 +198,10 @@ versions follow [Semantic Versioning](https://semver.org/).
   flags and `minimum: 100` on `width` / `height` — earlier the
   inputSchema drifted from zod-side `.positive()` enforcement, letting
   a non-zod host pass zero or negative values.
+- MCP tool input schemas and zod parsers now reject unknown properties instead
+  of silently dropping them.
+- Landmark output schemas now require the `tags` field that runtime has always
+  emitted.
 - `render.ts` clamps width/height to ≥ 100 and the projection span to
   ≥ 1 px so direct pipeline callers cannot produce `Infinity`
   coordinates with degenerate canvas sizes.

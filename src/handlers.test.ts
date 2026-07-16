@@ -20,6 +20,8 @@ import { geocode } from "./geocode.js";
 import { findLandmarks } from "./landmarks.js";
 import { findRoads } from "./roads.js";
 import { generateMap } from "./pipeline.js";
+import { createDiagramDocument } from "./diagram-document.js";
+import type { MapLayout } from "./types.js";
 
 const ajv = new Ajv({ strict: false, allErrors: true });
 
@@ -36,14 +38,18 @@ function toolFor(toolName: string) {
   return tool;
 }
 
+function inputValidatorFor(toolName: string) {
+  return ajv.compile(toolFor(toolName).inputSchema);
+}
+
 beforeEach(() => {
   vi.resetAllMocks();
 });
 
 describe("tool registry", () => {
-  it("exposes exactly the four documented tools", () => {
+  it("exposes exactly the five documented tools", () => {
     expect(tools.map((t) => t.name).sort()).toEqual(
-      ["find_landmarks", "find_roads", "generate_map", "geocode"].sort(),
+      ["find_landmarks", "find_roads", "generate_map", "geocode", "render_document"].sort(),
     );
   });
 
@@ -52,7 +58,16 @@ describe("tool registry", () => {
       expect(t.outputSchema, `outputSchema missing on ${t.name}`).toBeTruthy();
       expect(t.annotations, `annotations missing on ${t.name}`).toMatchObject({
         readOnlyHint: true,
-        openWorldHint: true,
+        openWorldHint: t.name === "render_document" ? false : true,
+      });
+    }
+  });
+
+  it("declares strict object input schemas on every tool", () => {
+    for (const t of tools) {
+      expect(t.inputSchema).toMatchObject({
+        type: "object",
+        additionalProperties: false,
       });
     }
   });
@@ -68,19 +83,40 @@ describe("tool registry", () => {
     expect(generateMapProps.preset).toMatchObject({
       enum: ["standard", "compact", "minimal", "schematic", "badge"],
     });
+    expect(generateMapProps.template).toMatchObject({
+      enum: ["standard", "compact", "minimal", "schematic", "badge"],
+    });
+    expect(generateMapProps.theme).toMatchObject({
+      enum: ["paper", "mono", "civic", "invitation"],
+    });
 
     expect(toolFor("find_landmarks").inputSchema.properties.radiusMeters)
       .toMatchObject({ maximum: 5000 });
     expect(toolFor("find_roads").inputSchema.properties.radiusMeters)
       .toMatchObject({ maximum: 5000 });
   });
+
+  it("publishes the same render_document position bounds enforced at runtime", () => {
+    const layout: MapLayout = {
+      center: { lat: 37.5, lon: 127.0, label: "여기" },
+      landmarks: [],
+      roads: [],
+      bbox: { north: 37.51, south: 37.49, east: 127.01, west: 126.99 },
+    };
+    const validate = inputValidatorFor("render_document");
+    const ok = validate({
+      document: createDiagramDocument(layout),
+      patch: { landmarks: { ghost: { position: { x: 1.1, y: 0.5 } } } },
+    });
+
+    expect(ok).toBe(false);
+    expect(validate.errors?.some((error) => error.keyword === "maximum")).toBe(true);
+  });
 });
 
 describe("dispatchTool — outputSchema ↔ structuredContent contract", () => {
   it("generate_map structuredContent satisfies the declared outputSchema", async () => {
-    vi.mocked(generateMap).mockResolvedValue({
-      svg: "<svg></svg>",
-      layout: {
+    const layout: MapLayout = {
         center: { lat: 37.5, lon: 127.0, label: "여기" },
         landmarks: [
           {
@@ -105,7 +141,11 @@ describe("dispatchTool — outputSchema ↔ structuredContent contract", () => {
           },
         ],
         bbox: { north: 37.51, south: 37.49, east: 127.01, west: 126.99 },
-      },
+    };
+    vi.mocked(generateMap).mockResolvedValue({
+      svg: "<svg></svg>",
+      layout,
+      document: createDiagramDocument(layout),
     });
 
     const result = await dispatchTool("generate_map", { address: "test" });
@@ -133,7 +173,11 @@ describe("dispatchTool — outputSchema ↔ structuredContent contract", () => {
       roads: [],
       bbox: { north: 37.51, south: 37.49, east: 127.01, west: 126.99 },
     };
-    vi.mocked(generateMap).mockResolvedValue({ svg: "<svg></svg>", layout });
+    vi.mocked(generateMap).mockResolvedValue({
+      svg: "<svg></svg>",
+      layout,
+      document: createDiagramDocument(layout),
+    });
 
     const result = await dispatchTool("generate_map", { address: "x" });
     expect(result.isError).toBeFalsy();
@@ -143,6 +187,64 @@ describe("dispatchTool — outputSchema ↔ structuredContent contract", () => {
     expect(summary).toContain(`${layout.landmarks.length} landmarks`);
     expect(summary).toContain(layout.center.lat.toFixed(5));
     expect(summary).toContain(layout.center.lon.toFixed(5));
+  });
+
+  it("render_document applies a patch and satisfies its output schema", async () => {
+    const layout: MapLayout = {
+      center: { lat: 37.5, lon: 127.0, label: "여기" },
+      landmarks: [{
+        id: "gate",
+        name: "정문",
+        lat: 37.5005,
+        lon: 127.0005,
+        category: "landmark",
+        importance: 1,
+        tags: {},
+      }],
+      roads: [],
+      bbox: { north: 37.51, south: 37.49, east: 127.01, west: 126.99 },
+    };
+    const result = await dispatchTool("render_document", {
+      document: createDiagramDocument(layout),
+      patch: {
+        destinationLabel: "학생회관",
+        render: { theme: "mono", approachLandmarkId: "gate" },
+        landmarks: { gate: { label: "후문", position: { x: 0.2, y: 0.3 } } },
+      },
+    });
+
+    expect(result.isError).toBeFalsy();
+    expect(result.structuredContent?.document).toMatchObject({
+      render: { theme: "mono", approachLandmarkId: "gate" },
+      overrides: {
+        destination: { label: "학생회관" },
+        landmarks: { gate: { label: "후문", position: { x: 0.2, y: 0.3 } } },
+      },
+    });
+    const validate = validatorFor("render_document");
+    expect(validate(result.structuredContent), JSON.stringify(validate.errors)).toBe(true);
+  });
+
+  it("render_document rejects invalid positions and unknown IDs", async () => {
+    const layout: MapLayout = {
+      center: { lat: 37.5, lon: 127.0, label: "여기" },
+      landmarks: [],
+      roads: [],
+      bbox: { north: 37.51, south: 37.49, east: 127.01, west: 126.99 },
+    };
+    const invalidPosition = await dispatchTool("render_document", {
+      document: createDiagramDocument(layout),
+      patch: { landmarks: { ghost: { position: { x: 2, y: 0.5 } } } },
+    });
+    const unknownId = await dispatchTool("render_document", {
+      document: createDiagramDocument(layout),
+      patch: { landmarks: { ghost: { hidden: true } } },
+    });
+
+    expect(invalidPosition.isError).toBe(true);
+    expect(invalidPosition.content[0].text).toContain("less than or equal to 1");
+    expect(unknownId.isError).toBe(true);
+    expect(unknownId.content[0].text).toContain("Unknown landmark id: ghost");
   });
 
   it("geocode passes through Nominatim raw payload when present", async () => {
@@ -299,6 +401,25 @@ describe("dispatchTool — outputSchema ↔ structuredContent contract", () => {
     expect(validate.errors?.some((e) => e.keyword === "enum")).toBe(true);
   });
 
+  it("landmark outputSchema requires the OSM tags bag emitted by runtime", () => {
+    const validate = validatorFor("find_landmarks");
+    const ok = validate({
+      landmarks: [
+        {
+          id: "0",
+          name: "역삼역",
+          lat: 37.5,
+          lon: 127.0,
+          category: "station",
+          importance: 1.0,
+        },
+      ],
+    });
+
+    expect(ok).toBe(false);
+    expect(validate.errors?.some((e) => e.keyword === "required" && e.params.missingProperty === "tags")).toBe(true);
+  });
+
   it("outputSchema rejects undeclared top-level properties", () => {
     // additionalProperties:false guard. If schema drift in MapLayout adds a
     // new field that the schema doesn't declare, Ajv must reject it.
@@ -361,6 +482,17 @@ describe("dispatchTool — error paths", () => {
 
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toMatch(/preset/);
+    expect(generateMap).not.toHaveBeenCalled();
+  });
+
+  it("rejects unknown generate_map properties before calling the pipeline", async () => {
+    const result = await dispatchTool("generate_map", {
+      address: "Seoul",
+      language: "ko",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toMatch(/language/);
     expect(generateMap).not.toHaveBeenCalled();
   });
 

@@ -62,6 +62,13 @@ describe("generateMap", () => {
     );
   });
 
+  it("clamps landmark and road search radii after internal expansion", async () => {
+    await generateMap("서울 강남구 테헤란로 152", { radiusMeters: 5000 });
+
+    expect(mockedFindLandmarks).toHaveBeenCalledWith(geo.lat, geo.lon, 5000);
+    expect(mockedFindRoads).toHaveBeenCalledWith(geo.lat, geo.lon, 5000);
+  });
+
   it("does not query roads when roads are disabled", async () => {
     const result = await generateMap("서울 강남구 테헤란로 152", { roads: false });
 
@@ -78,12 +85,25 @@ describe("generateMap", () => {
     );
   });
 
-  it("passes the render preset option through to renderSVG", async () => {
+  it("normalizes the legacy render preset into the document template", async () => {
     await generateMap("서울 강남구 테헤란로 152", { preset: "compact" });
 
     expect(mockedRenderSVG).toHaveBeenCalledWith(
       expect.any(Object),
-      expect.objectContaining({ preset: "compact" }),
+      expect.objectContaining({ template: "compact" }),
     );
+  });
+
+  it("returns the editable document used to render the SVG", async () => {
+    const result = await generateMap("서울 강남구 테헤란로 152", {
+      template: "schematic",
+      theme: "civic",
+    });
+
+    expect(result.document).toMatchObject({
+      version: 1,
+      render: { template: "schematic", theme: "civic" },
+      map: { center: { label: "여기" } },
+    });
   });
 });

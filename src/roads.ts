@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { Road, RoadClass } from "./types.js";
 import { overpassFetch, OVERPASS_TIMEOUT_MS } from "./overpass.js";
 import { douglasPeucker } from "./geometry.js";
+import { MAX_RADIUS_METERS } from "./limits.js";
 
 // Default simplification tolerance: ~4.5 m at city scale. Enough to drop
 // surveyor-grade vertices (every curb bend) while preserving the shape a
@@ -80,10 +81,11 @@ export async function findRoads(
   lon: number,
   radiusMeters = DEFAULT_ROAD_RADIUS,
 ): Promise<Road[]> {
+  const radius = Math.min(radiusMeters, MAX_RADIUS_METERS);
   const query = `
     [out:json][timeout:25];
     (
-      way["highway"~"^(motorway|trunk|primary|secondary|tertiary|residential|unclassified|living_street)(_link)?$"](around:${radiusMeters},${lat},${lon});
+      way["highway"~"^(motorway|trunk|primary|secondary|tertiary|residential|unclassified|living_street)(_link)?$"](around:${radius},${lat},${lon});
     );
     out geom;
   `.trim();

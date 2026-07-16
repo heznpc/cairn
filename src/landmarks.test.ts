@@ -37,6 +37,23 @@ describe("findLandmarks", () => {
     expect(timeoutMs).toBe(30_000);
   });
 
+  it("clamps the effective station and POI search radii to the public maximum", async () => {
+    mockedOverpassFetch.mockResolvedValue([]);
+
+    await findLandmarks(37.5, 127, 5000);
+
+    const [query] = mockedOverpassFetch.mock.calls[0];
+    expect(query).toContain(
+      `node["public_transport"="station"](around:5000,37.5,127);`,
+    );
+    expect(query).toContain(
+      `node["railway"="subway_entrance"](around:5000,37.5,127);`,
+    );
+    expect(query).toContain(
+      `node["amenity"~"^(cafe|restaurant|school|university|hospital)$"](around:5000,37.5,127);`,
+    );
+  });
+
   it("maps supported OSM tags to stable landmark categories and importance", async () => {
     mockedOverpassFetch.mockResolvedValue([
       node(1, { name: "Station", public_transport: "station" }),

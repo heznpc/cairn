@@ -2,8 +2,12 @@ import { geocode } from "./geocode.js";
 import { findLandmarks } from "./landmarks.js";
 import { findRoads } from "./roads.js";
 import { curate } from "./curate.js";
-import { renderSVG } from "./render.js";
-import type { MapLayout, RenderOptions } from "./types.js";
+import {
+  createDiagramDocument,
+  renderDiagramDocument,
+} from "./diagram-document.js";
+import { MAX_RADIUS_METERS } from "./limits.js";
+import type { DiagramDocument, MapLayout, RenderOptions } from "./types.js";
 
 export interface GenerateMapInput extends RenderOptions {
   radiusMeters?: number;
@@ -17,6 +21,7 @@ export interface GenerateMapInput extends RenderOptions {
 export interface GenerateMapResult {
   svg: string;
   layout: MapLayout;
+  document: DiagramDocument;
 }
 
 export const ROAD_SEARCH_RADIUS_MULTIPLIER = 1.2;
@@ -25,7 +30,7 @@ export async function generateMap(
   address: string,
   opts: GenerateMapInput = {},
 ): Promise<GenerateMapResult> {
-  const radius = opts.radiusMeters ?? 400;
+  const radius = Math.min(opts.radiusMeters ?? 400, MAX_RADIUS_METERS);
   const geo = await geocode(address);
   const all = await findLandmarks(geo.lat, geo.lon, radius);
   const picked = curate(
@@ -40,7 +45,11 @@ export async function generateMap(
   const roads =
     opts.roads === false
       ? []
-      : await findRoads(geo.lat, geo.lon, Math.round(radius * ROAD_SEARCH_RADIUS_MULTIPLIER));
+      : await findRoads(
+          geo.lat,
+          geo.lon,
+          Math.min(MAX_RADIUS_METERS, Math.round(radius * ROAD_SEARCH_RADIUS_MULTIPLIER)),
+        );
 
   // bbox is computed from the destination + landmarks only, NOT roads: a road
   // way can run kilometres past the area, and including it would zoom the map
@@ -62,6 +71,7 @@ export async function generateMap(
     },
   };
 
-  const svg = renderSVG(layout, opts);
-  return { svg, layout };
+  const document = createDiagramDocument(layout, opts);
+  const svg = renderDiagramDocument(document);
+  return { svg, layout, document };
 }

@@ -7,7 +7,7 @@ security updates.
 
 | Version | Supported |
 |---|---|
-| 0.1.x (latest `main`) | ✅ |
+| 0.2.x (latest `main`) | ✅ |
 | anything else | ❌ |
 
 ## Reporting a vulnerability
@@ -32,7 +32,7 @@ In scope:
   landmark names cannot inject markup into the rendered file.
 - Outbound calls go only to:
   - `nominatim.openstreetmap.org` (geocoding)
-  - `overpass-api.de` (landmark search)
+  - `overpass-api.de` (landmark and road lookup)
   - Both are accessed over HTTPS with a project User-Agent and the
     Nominatim 1 req/s policy is enforced client-side.
 - No tokens, API keys, or credentials are read from the environment.

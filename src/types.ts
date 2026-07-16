@@ -1,3 +1,11 @@
+import type {
+  LANDMARK_CATEGORIES,
+  RENDER_LAYOUTS,
+  RENDER_TEMPLATES,
+  RENDER_THEMES,
+  ROAD_CLASSES,
+} from "./domain-values.js";
+
 export interface GeocodingResult {
   lat: number;
   lon: number;
@@ -5,18 +13,7 @@ export interface GeocodingResult {
   raw?: unknown;
 }
 
-export type LandmarkCategory =
-  | "station"
-  | "station_exit"
-  | "bus_stop"
-  | "cafe"
-  | "convenience"
-  | "restaurant"
-  | "school"
-  | "hospital"
-  | "park"
-  | "landmark"
-  | "building";
+export type LandmarkCategory = (typeof LANDMARK_CATEGORIES)[number];
 
 export interface Landmark {
   id: string;
@@ -30,12 +27,7 @@ export interface Landmark {
 
 // Road importance tiers, collapsed from OSM's many `highway=*` values.
 // Width / colour in the renderer key off this, not the raw OSM tag.
-export type RoadClass =
-  | "primary" // motorway, trunk, primary — the big roads you navigate by
-  | "secondary"
-  | "tertiary"
-  | "residential" // residential, unclassified, living_street
-  | "path"; // anything else that slipped through
+export type RoadClass = (typeof ROAD_CLASSES)[number];
 
 export interface Road {
   id: string;
@@ -52,8 +44,37 @@ export interface MapLayout {
   bbox: { north: number; south: number; east: number; west: number };
 }
 
-export type RenderLayoutMode = "diagram" | "geographic";
-export type RenderPreset = "standard" | "compact" | "minimal" | "schematic" | "badge";
+export type RenderLayoutMode = (typeof RENDER_LAYOUTS)[number];
+export type RenderTemplate = (typeof RENDER_TEMPLATES)[number];
+/** @deprecated Use RenderTemplate. Kept for v0.1/v0.2 callers. */
+export type RenderPreset = RenderTemplate;
+export type RenderTheme = (typeof RENDER_THEMES)[number];
+
+export interface NormalizedPosition {
+  /** Horizontal canvas position, normalized to 0..1. */
+  x: number;
+  /** Vertical canvas position, normalized to 0..1. */
+  y: number;
+}
+
+export interface LandmarkOverride {
+  hidden?: boolean;
+  label?: string;
+  /** Manual editor position. When present it wins over automatic placement. */
+  position?: NormalizedPosition;
+  locked?: boolean;
+}
+
+export interface RoadOverride {
+  hidden?: boolean;
+  label?: string;
+}
+
+export interface DiagramOverrides {
+  destination?: { label?: string };
+  landmarks?: Record<string, LandmarkOverride>;
+  roads?: Record<string, RoadOverride>;
+}
 
 export interface RenderOptions {
   width?: number;
@@ -61,13 +82,72 @@ export interface RenderOptions {
   // "diagram" (default) keeps only navigational structure; "geographic"
   // preserves the raw road geometry more closely for inspection/debugging.
   layout?: RenderLayoutMode;
-  // Output form, not a colour palette: "standard" (default) keeps the full
-  // curated map; "compact" keeps a shorter road skeleton plus approach
-  // landmarks; "minimal" uses a route-strip template; "schematic" turns
-  // roads into right-angle diagram axes; "badge" renders a destination-first
-  // inset map for small placements.
+  // Composition rules. Templates control structure and density; themes control
+  // the visual vocabulary independently.
+  template?: RenderTemplate;
+  theme?: RenderTheme;
+  /** @deprecated Alias for template. `template` wins when both are present. */
   preset?: RenderPreset;
+  // Opt-in destination emphasis: a radial fisheye that magnifies the area
+  // around the destination and compresses the periphery, like a hand-drawn
+  // 약도. Default off (linear projection); only applies to the map-skeleton
+  // diagram presets (`standard`, `compact`, `schematic`).
+  focus?: boolean;
+  // Explicit start/approach landmark for chat-driven wayfinding. When omitted,
+  // the renderer chooses the strongest transit-like landmark automatically.
+  approachLandmarkId?: string;
+  // Editor-only manual placements keyed by stable landmark IDs. Normalized
+  // positions keep documents portable across canvas sizes.
+  landmarkPositions?: Record<string, NormalizedPosition>;
   // NOTE: `language` is reserved for future localization. render.ts does NOT
   // honor it yet; handlers.ts does NOT expose it to MCP hosts.
   language?: "ko" | "en" | "ja";
+}
+
+export interface DiagramDocument {
+  version: 1;
+  map: MapLayout;
+  canvas: { width: number; height: number };
+  render: {
+    layout: RenderLayoutMode;
+    template: RenderTemplate;
+    theme: RenderTheme;
+    focus: boolean;
+    approachLandmarkId?: string;
+  };
+  overrides: DiagramOverrides;
+}
+
+export interface LandmarkOverridePatch {
+  /** null removes the existing override. */
+  hidden?: boolean | null;
+  /** null restores the source landmark name. */
+  label?: string | null;
+  /** null returns the marker to automatic placement. */
+  position?: NormalizedPosition | null;
+  /** null removes the existing lock hint. */
+  locked?: boolean | null;
+}
+
+export interface RoadOverridePatch {
+  /** null removes the existing override. */
+  hidden?: boolean | null;
+  /** null restores the source road name. */
+  label?: string | null;
+}
+
+export interface DiagramDocumentPatch {
+  canvas?: { width?: number; height?: number };
+  render?: {
+    layout?: RenderLayoutMode;
+    template?: RenderTemplate;
+    theme?: RenderTheme;
+    focus?: boolean;
+    /** null restores automatic approach selection. */
+    approachLandmarkId?: string | null;
+  };
+  /** null restores the source destination label. */
+  destinationLabel?: string | null;
+  landmarks?: Record<string, LandmarkOverridePatch>;
+  roads?: Record<string, RoadOverridePatch>;
 }

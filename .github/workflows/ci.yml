@@ -21,12 +21,12 @@ jobs:
       matrix:
         node-version: ["22", "24"]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node-version }}
           cache: "npm"
       - run: npm ci
-      - run: npm run typecheck
-      - run: npm test
-      - run: npm run build
+      # Runs typecheck, tests, visual audit, npm pack dry-run, and an installed
+      # tarball smoke test for both the CLI and MCP server.
+      - run: npm run release:preflight
