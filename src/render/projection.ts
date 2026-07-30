@@ -54,11 +54,31 @@ export function createProjection(
   const spanY = Math.max(height - 100, MIN_SPAN);
   const { bbox, center } = layout;
 
+  // Equirectangular projection with a cos(latitude) correction, then a single
+  // uniform scale for both axes.
+  //
+  // The naive version stretched the lon/lat bbox independently to fill the
+  // canvas, which silently replaced real shape with the canvas aspect ratio.
+  // Because a degree of longitude shrinks with latitude, the error grew as you
+  // moved away from the equator: at 60°N a degree of longitude covers about
+  // half the ground a degree of latitude does, so Oslo came out stretched ~2x
+  // horizontally and right-angle junctions rendered skewed.
+  //
+  // Scaling both axes by the same factor keeps angles and proportions honest
+  // everywhere, which is what makes the diagram match what the reader sees on
+  // the street. The trade-off is letterboxing: whichever axis is relatively
+  // shorter gets centered in the leftover space instead of being stretched.
+  const lonScale = Math.cos((center.lat * Math.PI) / 180);
+  const metricWidth = Math.max((bbox.east - bbox.west) * lonScale, 1e-9);
+  const metricHeight = Math.max(bbox.north - bbox.south, 1e-9);
+  const scale = Math.min(spanX / metricWidth, spanY / metricHeight);
+  // Center the projected extent in the plotting area.
+  const offsetX = 50 + (spanX - metricWidth * scale) / 2;
+  const offsetY = 50 + (spanY - metricHeight * scale) / 2;
+
   const baseProject: Projector = (lat, lon) => {
-    const denomLon = bbox.east - bbox.west || 1e-6;
-    const denomLat = bbox.north - bbox.south || 1e-6;
-    const x = ((lon - bbox.west) / denomLon) * spanX + 50;
-    const y = ((bbox.north - lat) / denomLat) * spanY + 50;
+    const x = (lon - bbox.west) * lonScale * scale + offsetX;
+    const y = (bbox.north - lat) * scale + offsetY;
     return [x, y];
   };
 

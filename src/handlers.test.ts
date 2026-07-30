@@ -488,7 +488,18 @@ describe("dispatchTool — error paths", () => {
   it("rejects unknown generate_map properties before calling the pipeline", async () => {
     const result = await dispatchTool("generate_map", {
       address: "Seoul",
-      language: "ko",
+      tilt: 30,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toMatch(/tilt/);
+    expect(generateMap).not.toHaveBeenCalled();
+  });
+
+  it("rejects a language cairn cannot spell generated labels in", async () => {
+    const result = await dispatchTool("generate_map", {
+      address: "Seoul",
+      language: "xx",
     });
 
     expect(result.isError).toBe(true);

@@ -1,14 +1,20 @@
 import { z } from "zod";
 import type { GeocodingResult } from "./types.js";
-import { fetchWithTimeout, nominatimGate } from "./http.js";
-import { HTTP_USER_AGENT } from "./metadata.js";
-
-const NOMINATIM_BASE = "https://nominatim.openstreetmap.org/search";
+import { acceptLanguageHeader } from "./locale.js";
+import { fetchUpstreamText, nominatimRequest } from "./upstream.js";
+import { resolveUpstream, type UpstreamOptions } from "./upstream-config.js";
 
 const NominatimResultSchema = z.object({
   lat: z.string(),
   lon: z.string(),
   display_name: z.string(),
+  // addressdetails=1 gives us the country, which drives the default language
+  // for generated labels. Optional + passthrough: a missing address block
+  // degrades to English exits, it must not fail the geocode.
+  address: z
+    .object({ country_code: z.string().optional() })
+    .passthrough()
+    .optional(),
 }).passthrough();
 
 const NominatimResultsSchema = z.array(NominatimResultSchema);
@@ -30,27 +36,41 @@ function parseCoordinate(
   return value;
 }
 
-export async function geocode(address: string): Promise<GeocodingResult> {
-  const url = new URL(NOMINATIM_BASE);
+export interface GeocodeOptions {
+  /**
+   * Preferred language for the returned place names (BCP-47, e.g. "ja").
+   * Omit to get local names — the correct default for wayfinding, since the
+   * reader is standing in front of the local signage.
+   */
+  language?: string;
+  /** Endpoint, cache, and retry policy. Defaults come from the environment. */
+  upstream?: UpstreamOptions;
+}
+
+export async function geocode(
+  address: string,
+  opts: GeocodeOptions = {},
+): Promise<GeocodingResult> {
+  const cfg = resolveUpstream(opts.upstream);
+  const url = new URL(cfg.nominatimUrl);
   url.searchParams.set("q", address);
   url.searchParams.set("format", "json");
   url.searchParams.set("limit", "1");
   url.searchParams.set("addressdetails", "1");
 
-  await nominatimGate();
-  const res = await fetchWithTimeout(url.toString(), {
-    headers: {
-      "User-Agent": HTTP_USER_AGENT,
-      "Accept-Language": "ko,en;q=0.9,ja;q=0.8",
-    },
-    timeoutMs: 8000,
-  });
+  const acceptLanguage = acceptLanguageHeader(opts.language);
+  const text = await fetchUpstreamText(
+    cfg,
+    nominatimRequest(cfg, url.toString(), `"${address}"`, acceptLanguage),
+  );
 
-  if (!res.ok) {
-    throw new Error(`Geocoding failed: ${res.status} ${res.statusText}`);
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    throw new Error("Nominatim returned a body that is not valid JSON");
   }
 
-  const raw = await res.json();
   const parsed = NominatimResultsSchema.safeParse(raw);
   if (!parsed.success) {
     throw new Error(
@@ -64,10 +84,12 @@ export async function geocode(address: string): Promise<GeocodingResult> {
   }
 
   const hit = results[0];
+  const countryCode = hit.address?.country_code?.trim().toLowerCase();
   return {
     lat: parseCoordinate("lat", hit.lat, -90, 90),
     lon: parseCoordinate("lon", hit.lon, -180, 180),
     displayName: hit.display_name,
+    ...(countryCode ? { countryCode } : {}),
     raw: hit,
   };
 }

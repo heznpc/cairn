@@ -3,6 +3,7 @@ import type { Road, RoadClass } from "./types.js";
 import { overpassFetch, OVERPASS_TIMEOUT_MS } from "./overpass.js";
 import { douglasPeucker } from "./geometry.js";
 import { MAX_RADIUS_METERS } from "./limits.js";
+import type { UpstreamOptions } from "./upstream-config.js";
 
 // Default simplification tolerance: ~4.5 m at city scale. Enough to drop
 // surveyor-grade vertices (every curb bend) while preserving the shape a
@@ -80,6 +81,7 @@ export async function findRoads(
   lat: number,
   lon: number,
   radiusMeters = DEFAULT_ROAD_RADIUS,
+  upstream: UpstreamOptions = {},
 ): Promise<Road[]> {
   const radius = Math.min(radiusMeters, MAX_RADIUS_METERS);
   const query = `
@@ -90,6 +92,6 @@ export async function findRoads(
     out geom;
   `.trim();
 
-  const elements = await overpassFetch(query, OVERPASS_TIMEOUT_MS);
+  const elements = await overpassFetch(query, OVERPASS_TIMEOUT_MS, upstream);
   return roadsFromElements(elements);
 }

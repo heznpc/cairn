@@ -30,7 +30,14 @@ const mockedFindRoads = vi.mocked(findRoads);
 const mockedCurate = vi.mocked(curate);
 const mockedRenderSVG = vi.mocked(renderSVG);
 
-const geo = { lat: 37.5, lon: 127.0, displayName: "Test Address" };
+// countryCode is what Nominatim returns for a real Seoul address; it drives
+// the generated-label language, so keep it on the shared fixture.
+const geo = {
+  lat: 37.5,
+  lon: 127.0,
+  displayName: "Test Address",
+  countryCode: "kr",
+};
 const landmark: Landmark = {
   id: "1",
   name: "역삼역",
@@ -54,19 +61,26 @@ describe("generateMap", () => {
   it("expands the road search radius by the named multiplier", async () => {
     await generateMap("서울 강남구 테헤란로 152", { radiusMeters: 333 });
 
-    expect(mockedFindLandmarks).toHaveBeenCalledWith(geo.lat, geo.lon, 333);
+    expect(mockedFindLandmarks).toHaveBeenCalledWith(geo.lat, geo.lon, 333, {
+      language: "ko",
+      upstream: undefined,
+    });
     expect(mockedFindRoads).toHaveBeenCalledWith(
       geo.lat,
       geo.lon,
       Math.round(333 * ROAD_SEARCH_RADIUS_MULTIPLIER),
+      undefined,
     );
   });
 
   it("clamps landmark and road search radii after internal expansion", async () => {
     await generateMap("서울 강남구 테헤란로 152", { radiusMeters: 5000 });
 
-    expect(mockedFindLandmarks).toHaveBeenCalledWith(geo.lat, geo.lon, 5000);
-    expect(mockedFindRoads).toHaveBeenCalledWith(geo.lat, geo.lon, 5000);
+    expect(mockedFindLandmarks).toHaveBeenCalledWith(geo.lat, geo.lon, 5000, {
+      language: "ko",
+      upstream: undefined,
+    });
+    expect(mockedFindRoads).toHaveBeenCalledWith(geo.lat, geo.lon, 5000, undefined);
   });
 
   it("does not query roads when roads are disabled", async () => {
@@ -105,5 +119,42 @@ describe("generateMap", () => {
       render: { template: "schematic", theme: "civic" },
       map: { center: { label: "여기" } },
     });
+  });
+
+  it("derives the generated-label language from the geocoded country", async () => {
+    mockedGeocode.mockResolvedValue({
+      lat: 51.5,
+      lon: -0.12,
+      displayName: "London, United Kingdom",
+      countryCode: "gb",
+    });
+
+    const result = await generateMap("Trafalgar Square, London");
+
+    expect(result.layout.center.label).toBe("Here");
+    expect(mockedFindLandmarks).toHaveBeenCalledWith(51.5, -0.12, 400, {
+      language: "en",
+      upstream: undefined,
+    });
+  });
+
+  it("lets an explicit language override the geocoded country", async () => {
+    const result = await generateMap("서울 강남구 테헤란로 152", {
+      language: "ja",
+    });
+
+    expect(result.layout.center.label).toBe("ここ");
+    expect(mockedGeocode).toHaveBeenCalledWith("서울 강남구 테헤란로 152", {
+      language: "ja",
+    });
+  });
+
+  it("keeps an explicit label regardless of language", async () => {
+    const result = await generateMap("Brandenburger Tor, Berlin", {
+      language: "de",
+      label: "Studio",
+    });
+
+    expect(result.layout.center.label).toBe("Studio");
   });
 });

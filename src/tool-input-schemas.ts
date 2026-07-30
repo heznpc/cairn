@@ -14,22 +14,32 @@ import {
   DiagramDocumentPatchSchema,
   DiagramDocumentSchema,
 } from "./diagram-schema.js";
+import { SUPPORTED_LABEL_LANGUAGES } from "./locale.js";
 
-// `language` is intentionally NOT exposed: render.ts has no localization yet,
-// and advertising a flag that's silently dropped breaks the host-LLM contract.
-// Re-add once render.ts honors it.
+// `language` is a generate-time argument only: it selects the wording for
+// labels cairn generates. render_document takes no language because names are
+// already baked into the document.
 const RadiusArg = z.number().int().min(1).max(MAX_RADIUS_METERS);
 const CanvasDimensionArg = z.number().int().min(MIN_CANVAS_DIMENSION_PX).max(MAX_CANVAS_DIMENSION_PX);
 const LatitudeArg = z.number().finite().min(-90).max(90);
 const LongitudeArg = z.number().finite().min(-180).max(180);
 const RenderLayoutArg = z.enum(RENDER_LAYOUTS);
+// Constrain to the languages we can actually spell the generated labels in, so
+// a host LLM gets a validation error instead of a silent English fallback.
+const LabelLanguageArg = z.enum(
+  SUPPORTED_LABEL_LANGUAGES as [string, ...string[]],
+);
+
 const RenderPresetArg = z.enum(RENDER_PRESETS);
 const RenderTemplateArg = z.enum(RENDER_TEMPLATES);
 const RenderThemeArg = z.enum(RENDER_THEMES);
 
 export const GenerateMapArgs = z.object({
   address: z.string().describe("Street address or place name"),
-  label: z.string().optional().describe('Label for the destination (default: "여기")'),
+  label: z.string().optional().describe('Label for the destination (default: localized "Here")'),
+  language: LabelLanguageArg.optional().describe(
+    'Language for generated labels such as unnamed transit exits ("Exit 3" vs "3번 출구"). Defaults to the destination country\'s language. POI names always stay as OpenStreetMap has them.',
+  ),
   radiusMeters: RadiusArg.optional().describe("Landmark search radius (default 400, max 5000)"),
   limit: z.number().int().min(1).optional().describe("Max landmarks to include (default 5)"),
   // width/height >= 100: render.ts projection uses (width - 100) as denominator.

@@ -104,13 +104,15 @@ describe("renderSVG — roads", () => {
   });
 
   it("does not label residential roads", () => {
+    // Long enough to clear MIN_DIAGRAM_ROAD_RUN_PX: this case is about
+    // labeling, so the geometry must not sit near the drop threshold.
     const residential = {
       id: "r2",
       name: "골목길",
       class: "residential" as const,
       points: [
-        { lat: 37.499, lon: 126.999 },
-        { lat: 37.501, lon: 127.001 },
+        { lat: 37.496, lon: 126.996 },
+        { lat: 37.504, lon: 127.004 },
       ],
     };
     const svg = renderSVG(layoutWithRoads([residential]));

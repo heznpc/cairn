@@ -1,13 +1,20 @@
 import type { MapLayout } from "../types.js";
-import { boxScore, type Box, type CenterCallout } from "./text.js";
+import {
+  BOX_OVERLAP_SCORE_PER_PX,
+  boxScore,
+  overlapArea,
+  type Box,
+  type CenterCallout,
+} from "./text.js";
 
 // Tiny per-index weight that makes candidate selection deterministic: on a
 // score tie the earlier (more-preferred) candidate wins regardless of sort
 // stability. Smaller than any meaningful boxScore difference.
 const CANDIDATE_ORDER_TIE_BREAK = 0.01;
+const CLUTTERED_LABEL_HIDE_SCORE = 1200;
 
 // Score each candidate box, add the order tie-break, and return the lowest —
-// shared by the landmark-label and center-callout placers.
+// used by the center-callout placer.
 function bestByScore<T extends Box>(
   candidates: T[],
   width: number,
@@ -39,6 +46,16 @@ export interface LabelBox extends Box {
   hidden?: boolean;
 }
 
+interface LabelChoice {
+  box: LabelBox;
+  baseScore: number;
+}
+
+interface LabelPlan {
+  boxes: LabelBox[];
+  score: number;
+}
+
 export function placeLandmarkLabels(
   landmarks: ProjectedLandmark[],
   width: number,
@@ -46,38 +63,107 @@ export function placeLandmarkLabels(
   baseObstacles: Box[],
   hideClutteredLabels: boolean,
 ): LabelBox[] {
-  const placed: LabelBox[] = [];
-  for (const lm of landmarks) {
-    if (lm.labelHidden) {
-      placed.push({ x: lm.x, y: lm.y, width: 0, height: 0, hidden: true });
-      continue;
-    }
-    const boxHeight = lm.labelHeight;
-    // Candidate anchor positions: below, above, right, left, then two diagonal
-    // escapes for crowded intersections where only a corner is open.
-    const positions: Array<{ x: number; y: number }> = [
-      { x: lm.x - lm.labelWidth / 2, y: lm.y + 23 },
-      { x: lm.x - lm.labelWidth / 2, y: lm.y - 23 - boxHeight },
-      { x: lm.x + 24, y: lm.y - boxHeight / 2 },
-      { x: lm.x - lm.labelWidth - 24, y: lm.y - boxHeight / 2 },
-      { x: lm.x + 22, y: lm.y + 20 },
-      { x: lm.x - lm.labelWidth - 22, y: lm.y + 20 },
-    ];
-    const candidates: Box[] = positions.map((pos) => ({
-      ...pos,
-      width: lm.labelWidth,
-      height: boxHeight,
-    }));
+  const choiceSets = landmarks.map((landmark) =>
+    landmarkLabelChoices(
+      landmark,
+      width,
+      height,
+      baseObstacles,
+      hideClutteredLabels,
+    )
+  );
 
-    const obstacles = [...baseObstacles, ...placed];
-    const best = bestByScore(candidates, width, height, obstacles);
-    if (hideClutteredLabels && best.score > 1200 && lm.lm.importance < 0.85) {
-      placed.push({ x: lm.x, y: lm.y, width: 0, height: 0, hidden: true });
-      continue;
+  // Template selection caps a scene at five landmarks, so exhaustive search
+  // visits at most 7^5 combinations (six positions plus an optional hidden
+  // choice). Unlike sequential greedy placement, this can move an earlier
+  // label when doing so creates a better arrangement for the whole scene.
+  let bestPlan: LabelPlan | undefined;
+  const visit = (index: number, boxes: LabelBox[], score: number): void => {
+    if (bestPlan && score >= bestPlan.score) return;
+    if (index === choiceSets.length) {
+      bestPlan = { boxes: [...boxes], score };
+      return;
     }
-    placed.push(best.candidate);
+
+    for (const choice of choiceSets[index]) {
+      let incrementalScore = choice.baseScore;
+      if (!choice.box.hidden) {
+        for (const placed of boxes) {
+          if (!placed.hidden) {
+            incrementalScore +=
+              overlapArea(choice.box, placed) * BOX_OVERLAP_SCORE_PER_PX;
+          }
+        }
+      }
+      boxes.push(choice.box);
+      visit(index + 1, boxes, score + incrementalScore);
+      boxes.pop();
+    }
+  };
+
+  visit(0, [], 0);
+  return bestPlan?.boxes ?? [];
+}
+
+function landmarkLabelChoices(
+  landmark: ProjectedLandmark,
+  width: number,
+  height: number,
+  baseObstacles: Box[],
+  hideClutteredLabels: boolean,
+): LabelChoice[] {
+  if (landmark.labelHidden) {
+    return [{
+      box: hiddenLabelBox(landmark),
+      baseScore: 0,
+    }];
   }
-  return placed;
+
+  const boxHeight = landmark.labelHeight;
+  // Candidate anchor positions: below, above, right, left, then two diagonal
+  // escapes for crowded intersections where only a corner is open.
+  const positions: Array<{ x: number; y: number }> = [
+    { x: landmark.x - landmark.labelWidth / 2, y: landmark.y + 23 },
+    { x: landmark.x - landmark.labelWidth / 2, y: landmark.y - 23 - boxHeight },
+    { x: landmark.x + 24, y: landmark.y - boxHeight / 2 },
+    { x: landmark.x - landmark.labelWidth - 24, y: landmark.y - boxHeight / 2 },
+    { x: landmark.x + 22, y: landmark.y + 20 },
+    { x: landmark.x - landmark.labelWidth - 22, y: landmark.y + 20 },
+  ];
+  const choices: LabelChoice[] = positions.map((position, index) => {
+    const box = {
+      ...position,
+      width: landmark.labelWidth,
+      height: boxHeight,
+    };
+    return {
+      box,
+      baseScore:
+        boxScore(box, width, height, baseObstacles) +
+        index * CANDIDATE_ORDER_TIE_BREAK,
+    };
+  });
+
+  if (hideClutteredLabels && landmark.lm.importance < 0.85) {
+    // The hidden choice has the same cost as the old per-label clutter
+    // threshold. It is listed last, so an equally good visible solution wins;
+    // curated input order also keeps earlier, more important labels on ties.
+    choices.push({
+      box: hiddenLabelBox(landmark),
+      baseScore: CLUTTERED_LABEL_HIDE_SCORE,
+    });
+  }
+  return choices;
+}
+
+function hiddenLabelBox(landmark: ProjectedLandmark): LabelBox {
+  return {
+    x: landmark.x,
+    y: landmark.y,
+    width: 0,
+    height: 0,
+    hidden: true,
+  };
 }
 
 export function pickCenterCallout(

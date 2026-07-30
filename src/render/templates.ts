@@ -35,7 +35,10 @@ export function renderRouteStripSVG(
   const start = selectTemplateApproachLandmark(layout.landmarks, approachLandmarkId);
   const roadName = bestRoadName(layout.roads);
   const centerLabel = truncateLabel(layout.center.label, CENTER_LABEL_MAX);
-  const startLabel = truncateLabel(start?.name ?? "출발", 9);
+  // No invented fallback: the renderer has no language (names are already baked
+  // into the document), so a missing start landmark draws the marker without a
+  // label rather than printing a Korean word onto a Lisbon map.
+  const startLabel = start ? truncateLabel(start.name, 9) : undefined;
   const startCategory = start?.category ?? "station_exit";
   const startIsRight = start ? start.lon >= layout.center.lon : false;
   const startIsAbove = start ? start.lat >= layout.center.lat : false;
@@ -93,7 +96,9 @@ export function renderRouteStripSVG(
     category: startCategory,
     theme,
   }));
-  lines.push(labelText(startLabel, sx, sy + 38, 11, theme.ink, 500, theme.background));
+  if (startLabel) {
+    lines.push(labelText(startLabel, sx, sy + 38, 11, theme.ink, 500, theme.background));
+  }
 
   lines.push(...renderDestinationMarker({
     x: dx,
@@ -122,7 +127,7 @@ export function renderBadgeSVG(
   const start = selectTemplateApproachLandmark(layout.landmarks, approachLandmarkId);
   const roadName = bestRoadName(layout.roads);
   const centerLabel = truncateLabel(layout.center.label, CENTER_LABEL_MAX);
-  const startLabel = truncateLabel(start?.name ?? "출발", 8);
+  const startLabel = start ? truncateLabel(start.name, 8) : undefined;
   const startCategory = start?.category ?? "station_exit";
   const startIsRight = start ? start.lon >= layout.center.lon : true;
   const startIsAbove = start ? start.lat >= layout.center.lat : true;
@@ -182,7 +187,9 @@ export function renderBadgeSVG(
     category: startCategory,
     theme,
   }));
-  lines.push(labelText(startLabel, sx, sy + 36, 11, theme.ink, 500, theme.background));
+  if (startLabel) {
+    lines.push(labelText(startLabel, sx, sy + 36, 11, theme.ink, 500, theme.background));
+  }
 
   lines.push(...renderDestinationMarker({
     x: dx,
