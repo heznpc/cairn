@@ -37,12 +37,18 @@ export const ROAD_RANK: Record<RoadClass, number> = {
 export const APPROACH_RANK: Record<LandmarkCategory, number> = {
   station_exit: 10,
   station: 9,
+  // A tram stop or ferry pier is a real arrival point, so it outranks a bus
+  // stop as the start of the final approach.
+  ferry: 8,
+  tram_stop: 8,
   bus_stop: 7,
   landmark: 5,
   hospital: 4,
   school: 4,
+  supermarket: 4,
   park: 3,
   convenience: 3,
+  pharmacy: 3,
   cafe: 2,
   restaurant: 2,
   building: 1,

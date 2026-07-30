@@ -25,16 +25,29 @@ describe("findLandmarks", () => {
     await findLandmarks(37.5, 127, 400);
 
     const [query, timeoutMs] = mockedOverpassFetch.mock.calls[0];
+    const stationRadius = Math.round(400 * STATION_SEARCH_RADIUS_MULTIPLIER);
     expect(query).toContain(
-      `node["public_transport"="station"](around:${Math.round(400 * STATION_SEARCH_RADIUS_MULTIPLIER)},37.5,127);`,
+      `nwr["public_transport"="station"](around:${stationRadius},37.5,127);`,
     );
     expect(query).toContain(
-      `node["railway"="subway_entrance"](around:${Math.round(400 * STATION_SEARCH_RADIUS_MULTIPLIER)},37.5,127);`,
+      `nwr["railway"~"^(subway_entrance|train_station_entrance)$"](around:${stationRadius},37.5,127);`,
     );
-    expect(query).toContain(
-      `node["amenity"~"^(cafe|restaurant|school|university|hospital)$"](around:400,37.5,127);`,
-    );
+    expect(query).toContain(`nwr["railway"="tram_stop"](around:${stationRadius},37.5,127);`);
+    expect(query).toContain(`nwr["highway"="bus_stop"](around:400,37.5,127);`);
+    // Ways and relations need a representative point, not full geometry.
+    expect(query).toContain("out center;");
     expect(timeoutMs).toBe(30_000);
+  });
+
+  it("queries ways and relations, not just nodes", async () => {
+    mockedOverpassFetch.mockResolvedValue([]);
+
+    await findLandmarks(48.86, 2.34, 400);
+
+    const [query] = mockedOverpassFetch.mock.calls[0];
+    // Parks, hospitals and malls are mapped as polygons in most of the world.
+    expect(query).not.toMatch(/(^|\s)node\[/);
+    expect(query).toContain(`nwr["leisure"~"^(park|stadium|sports_centre)$"]`);
   });
 
   it("clamps the effective station and POI search radii to the public maximum", async () => {
@@ -43,15 +56,11 @@ describe("findLandmarks", () => {
     await findLandmarks(37.5, 127, 5000);
 
     const [query] = mockedOverpassFetch.mock.calls[0];
+    expect(query).toContain(`nwr["public_transport"="station"](around:5000,37.5,127);`);
     expect(query).toContain(
-      `node["public_transport"="station"](around:5000,37.5,127);`,
+      `nwr["railway"~"^(subway_entrance|train_station_entrance)$"](around:5000,37.5,127);`,
     );
-    expect(query).toContain(
-      `node["railway"="subway_entrance"](around:5000,37.5,127);`,
-    );
-    expect(query).toContain(
-      `node["amenity"~"^(cafe|restaurant|school|university|hospital)$"](around:5000,37.5,127);`,
-    );
+    expect(query).toContain(`nwr["shop"~"^(convenience|supermarket|mall|department_store)$"](around:5000,37.5,127);`);
   });
 
   it("maps supported OSM tags to stable landmark categories and importance", async () => {
@@ -83,6 +92,74 @@ describe("findLandmarks", () => {
     expect(byId["8"]).toMatchObject({ category: "park", importance: 0.65 });
     expect(byId["9"]).toMatchObject({ category: "landmark", importance: 0.85 });
     expect(byId["10"]).toMatchObject({ category: "building", importance: 0.3 });
+  });
+
+  it("places ways and relations at their center, with type-scoped ids", async () => {
+    mockedOverpassFetch.mockResolvedValue([
+      { id: 5, type: "way", center: { lat: 48.87, lon: 2.35 }, tags: { name: "Jardin", leisure: "park" } },
+      { id: 5, type: "relation", center: { lat: 48.88, lon: 2.36 }, tags: { name: "Hopital", amenity: "hospital" } },
+      // No point to place a marker at, so it is skipped rather than rendered at 0,0.
+      { id: 7, type: "way", tags: { name: "Geometryless", leisure: "park" } },
+    ]);
+
+    const landmarks = await findLandmarks(48.86, 2.34, 400);
+
+    expect(landmarks).toHaveLength(2);
+    expect(landmarks[0]).toMatchObject({
+      id: "way/5",
+      name: "Jardin",
+      lat: 48.87,
+      lon: 2.35,
+      category: "park",
+    });
+    // Same numeric id, different element type: ids must not collide.
+    expect(landmarks[1]).toMatchObject({ id: "relation/5", category: "hospital" });
+  });
+
+  it("drops elements returned twice by overlapping tag filters", async () => {
+    const museum = {
+      id: 9,
+      type: "way",
+      center: { lat: 48.86, lon: 2.34 },
+      tags: { name: "Musee", tourism: "museum", amenity: "museum" },
+    };
+    mockedOverpassFetch.mockResolvedValue([museum, museum]);
+
+    expect(await findLandmarks(48.86, 2.34, 400)).toHaveLength(1);
+  });
+
+  it("classifies transit and shop tags used outside Korea and Japan", async () => {
+    mockedOverpassFetch.mockResolvedValue([
+      node(1, { name: "Tram", railway: "tram_stop" }),
+      node(2, { name: "Pier", amenity: "ferry_terminal" }),
+      node(3, { name: "Entrance", railway: "train_station_entrance" }),
+      node(4, { name: "Apotheke", amenity: "pharmacy" }),
+      node(5, { name: "Mercado", shop: "supermarket" }),
+      node(6, { name: "Mall", shop: "mall" }),
+      node(7, { name: "Kirche", amenity: "place_of_worship" }),
+      node(8, { name: "Bank", amenity: "bank" }),
+      node(9, { name: "Castelo", historic: "castle" }),
+      node(10, { name: "Estadio", leisure: "stadium" }),
+    ]);
+
+    const byId = Object.fromEntries(
+      (await findLandmarks(48.86, 2.34, 400)).map((l) => [l.id, l.category]),
+    );
+
+    expect(byId).toMatchObject({
+      "1": "tram_stop",
+      "2": "ferry",
+      "3": "station_exit",
+      "4": "pharmacy",
+      "5": "supermarket",
+      "6": "supermarket",
+      // No pictogram of its own: folded into the monument-class landmark rather
+      // than inventing denominational iconography.
+      "7": "landmark",
+      "8": "building",
+      "9": "landmark",
+      "10": "park",
+    });
   });
 
   it("labels unnamed transit exits in the requested language", async () => {
