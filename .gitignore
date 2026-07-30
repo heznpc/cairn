@@ -10,6 +10,9 @@ tmp/
 out.svg
 *.local.svg
 
+# Local scratch scripts for poking at renderer edge cases
+test_edge_cases.mjs
+
 # Private handoff notes — local only, not for public repo
 CLAUDE.md
 NOTES.md
