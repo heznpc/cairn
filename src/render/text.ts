@@ -5,6 +5,8 @@ import {
 } from "./theme.js";
 import { escapeXml } from "./xml.js";
 
+export const BOX_OVERLAP_SCORE_PER_PX = 30;
+
 export interface Box {
   x: number;
   y: number;
@@ -143,7 +145,7 @@ export function boxScore(box: Box, width: number, height: number, obstacles: Box
   }
 
   for (const obstacle of obstacles) {
-    score += overlapArea(box, obstacle) * 30;
+    score += overlapArea(box, obstacle) * BOX_OVERLAP_SCORE_PER_PX;
   }
   return score;
 }
