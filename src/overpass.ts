@@ -1,17 +1,17 @@
 import { z } from "zod";
-import { fetchWithTimeout, overpassGate } from "./http.js";
-import { HTTP_USER_AGENT } from "./metadata.js";
+import { fetchUpstreamText, overpassRequest } from "./upstream.js";
+import { resolveUpstream, type UpstreamOptions } from "./upstream-config.js";
 
 /**
- * Shared Overpass API client: rate-limit gate + timeout + envelope validation.
+ * Shared Overpass API client: cache + rate-limit gate + retry + timeout +
+ * envelope validation.
  *
  * Both `landmarks.ts` (POI nodes) and `roads.ts` (highway ways) issue Overpass
- * queries; this centralizes the gate, headers, error handling, and the
- * loose-envelope check. Per-element parsing stays in each caller because the
- * element shapes differ (nodes vs. ways-with-geometry).
+ * queries; this centralizes the transport concerns and the loose-envelope
+ * check. Per-element parsing stays in each caller because the element shapes
+ * differ (nodes vs. ways-with-geometry).
  */
 
-const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
 // Overpass queries carry [timeout:25]; give the client 30s to read the body.
 export const OVERPASS_TIMEOUT_MS = 30_000;
 
@@ -23,31 +23,25 @@ const EnvelopeSchema = z.object({ elements: z.array(z.unknown()) });
 /**
  * Run an Overpass QL query and return the raw `elements` array.
  *
- * Serializes through `overpassGate` (1s spacing) so bursty callers — a host
- * LLM looping over radii, or generate_map issuing landmarks+roads back to
- * back — don't 429 the public instance.
+ * Identical queries are served from the on-disk cache, so a curation loop over
+ * the same area costs one round-trip. Live requests are spaced by the Overpass
+ * gate and retried on 429/5xx, which the public instance returns routinely.
  */
 export async function overpassFetch(
   query: string,
   timeoutMs: number = OVERPASS_TIMEOUT_MS,
+  upstream: UpstreamOptions = {},
 ): Promise<unknown[]> {
-  await overpassGate();
-  const res = await fetchWithTimeout(OVERPASS_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      "User-Agent": HTTP_USER_AGENT,
-      Accept: "application/json",
-    },
-    body: `data=${encodeURIComponent(query)}`,
-    timeoutMs,
-  });
+  const cfg = resolveUpstream(upstream);
+  const text = await fetchUpstreamText(cfg, overpassRequest(cfg, query, timeoutMs));
 
-  if (!res.ok) {
-    throw new Error(`Overpass query failed: ${res.status} ${res.statusText}`);
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    throw new Error("Overpass returned a body that is not valid JSON");
   }
 
-  const raw = await res.json();
   const envelope = EnvelopeSchema.safeParse(raw);
   if (!envelope.success) {
     throw new Error(

@@ -7,6 +7,8 @@ import {
   renderDiagramDocument,
 } from "./diagram-document.js";
 import { MAX_RADIUS_METERS } from "./limits.js";
+import { hereLabel, resolveLabelLanguage } from "./locale.js";
+import type { UpstreamOptions } from "./upstream-config.js";
 import type { DiagramDocument, MapLayout, RenderOptions } from "./types.js";
 
 export interface GenerateMapInput extends RenderOptions {
@@ -16,6 +18,9 @@ export interface GenerateMapInput extends RenderOptions {
   // Draw the road skeleton (default true). Set false to skip the extra
   // Overpass round-trip and render landmarks-only.
   roads?: boolean;
+  // Endpoints, on-disk cache, and retry budget. Defaults come from the
+  // environment, so the zero-config path stays a single argument.
+  upstream?: UpstreamOptions;
 }
 
 export interface GenerateMapResult {
@@ -31,8 +36,12 @@ export async function generateMap(
   opts: GenerateMapInput = {},
 ): Promise<GenerateMapResult> {
   const radius = Math.min(opts.radiusMeters ?? 400, MAX_RADIUS_METERS);
-  const geo = await geocode(address);
-  const all = await findLandmarks(geo.lat, geo.lon, radius);
+  const upstream = opts.upstream;
+  const geo = await geocode(address, { language: opts.language, upstream });
+  // Generated labels follow the destination's country unless the caller asks
+  // for a language: a Seoul map says "3번 출구", a Berlin map "Ausgang 3".
+  const language = resolveLabelLanguage(opts.language, geo.countryCode);
+  const all = await findLandmarks(geo.lat, geo.lon, radius, { language, upstream });
   const picked = curate(
     { lat: geo.lat, lon: geo.lon },
     all,
@@ -49,6 +58,7 @@ export async function generateMap(
           geo.lat,
           geo.lon,
           Math.min(MAX_RADIUS_METERS, Math.round(radius * ROAD_SEARCH_RADIUS_MULTIPLIER)),
+          upstream,
         );
 
   // bbox is computed from the destination + landmarks only, NOT roads: a road
@@ -60,7 +70,7 @@ export async function generateMap(
   const padLon = 0.0012;
 
   const layout: MapLayout = {
-    center: { lat: geo.lat, lon: geo.lon, label: opts.label ?? "여기" },
+    center: { lat: geo.lat, lon: geo.lon, label: opts.label ?? hereLabel(language) },
     landmarks: picked,
     roads,
     bbox: {

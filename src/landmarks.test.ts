@@ -73,7 +73,7 @@ describe("findLandmarks", () => {
     const byId = Object.fromEntries(landmarks.map((l) => [l.id, l]));
 
     expect(byId["1"]).toMatchObject({ category: "station", importance: 1.0 });
-    expect(byId["11"]).toMatchObject({ name: "3번 출구", category: "station_exit", importance: 0.95 });
+    expect(byId["11"]).toMatchObject({ name: "Exit 3", category: "station_exit", importance: 0.95 });
     expect(byId["2"]).toMatchObject({ category: "bus_stop", importance: 0.4 });
     expect(byId["3"]).toMatchObject({ category: "cafe", importance: 0.5 });
     expect(byId["4"]).toMatchObject({ category: "convenience", importance: 0.5 });
@@ -83,6 +83,25 @@ describe("findLandmarks", () => {
     expect(byId["8"]).toMatchObject({ category: "park", importance: 0.65 });
     expect(byId["9"]).toMatchObject({ category: "landmark", importance: 0.85 });
     expect(byId["10"]).toMatchObject({ category: "building", importance: 0.3 });
+  });
+
+  it("labels unnamed transit exits in the requested language", async () => {
+    const exitNode = node(11, { railway: "subway_entrance", ref: "3" });
+
+    mockedOverpassFetch.mockResolvedValue([exitNode]);
+    const [korean] = await findLandmarks(37.5, 127, 400, { language: "ko" });
+    expect(korean.name).toBe("3번 출구");
+
+    mockedOverpassFetch.mockResolvedValue([exitNode]);
+    const [german] = await findLandmarks(52.5, 13.4, 400, { language: "de-DE" });
+    expect(german.name).toBe("Ausgang 3");
+
+    // An OSM `name` always wins over the generated label.
+    mockedOverpassFetch.mockResolvedValue([
+      node(12, { railway: "subway_entrance", ref: "3", name: "Sortie Rivoli" }),
+    ]);
+    const [named] = await findLandmarks(48.86, 2.34, 400, { language: "fr" });
+    expect(named.name).toBe("Sortie Rivoli");
   });
 
   it("keeps the intended priority for multi-tag landmarks", async () => {

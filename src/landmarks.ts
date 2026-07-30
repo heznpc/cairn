@@ -2,6 +2,8 @@ import { z } from "zod";
 import type { Landmark, LandmarkCategory } from "./types.js";
 import { overpassFetch, OVERPASS_TIMEOUT_MS } from "./overpass.js";
 import { MAX_RADIUS_METERS } from "./limits.js";
+import { exitLabel } from "./locale.js";
+import type { UpstreamOptions } from "./upstream-config.js";
 
 const IMPORTANCE: Record<LandmarkCategory, number> = {
   station: 1.0,
@@ -29,16 +31,27 @@ const OverpassNodeSchema = z.object({
   tags: z.record(z.string(), z.string()).optional(),
 });
 
+export interface FindLandmarksOptions {
+  /**
+   * Language (BCP-47) for generated labels, currently unnamed transit exits.
+   * Defaults to English; `pipeline.ts` derives it from the geocoded country.
+   */
+  language?: string;
+  /** Endpoint, cache, and retry policy. Defaults come from the environment. */
+  upstream?: UpstreamOptions;
+}
+
 /**
  * Find nearby points of interest using OpenStreetMap Overpass API.
  *
  * Returns only named POIs, except transit exits where `ref=3` is often the
- * label users actually need ("3번 출구").
+ * label users actually need ("3번 출구" in Seoul, "Exit 3" in London).
  */
 export async function findLandmarks(
   lat: number,
   lon: number,
   radiusMeters = 400,
+  opts: FindLandmarksOptions = {},
 ): Promise<Landmark[]> {
   const baseRadius = Math.min(radiusMeters, MAX_RADIUS_METERS);
   const stationRadius = Math.min(
@@ -62,7 +75,7 @@ export async function findLandmarks(
     out body;
   `.trim();
 
-  const elements = await overpassFetch(query, OVERPASS_TIMEOUT_MS);
+  const elements = await overpassFetch(query, OVERPASS_TIMEOUT_MS, opts.upstream);
 
   const landmarks: Landmark[] = [];
   for (const el of elements) {
@@ -71,7 +84,7 @@ export async function findLandmarks(
     const e = parsed.data;
     if (!e.tags) continue;
     const category = categorize(e.tags);
-    const name = landmarkName(category, e.tags);
+    const name = landmarkName(category, e.tags, opts.language);
     if (!name) continue;
     landmarks.push({
       id: String(e.id),
@@ -100,8 +113,12 @@ function categorize(tags: Record<string, string>): LandmarkCategory {
   return "building";
 }
 
-function landmarkName(category: LandmarkCategory, tags: Record<string, string>): string | null {
+function landmarkName(
+  category: LandmarkCategory,
+  tags: Record<string, string>,
+  language?: string,
+): string | null {
   if (tags.name) return tags.name;
-  if (category === "station_exit" && tags.ref) return `${tags.ref}번 출구`;
+  if (category === "station_exit" && tags.ref) return exitLabel(tags.ref, language);
   return null;
 }

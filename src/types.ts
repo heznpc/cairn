@@ -10,6 +10,8 @@ export interface GeocodingResult {
   lat: number;
   lon: number;
   displayName: string;
+  /** ISO 3166-1 alpha-2, lowercased. Drives the default label language. */
+  countryCode?: string;
   raw?: unknown;
 }
 
@@ -99,9 +101,12 @@ export interface RenderOptions {
   // Editor-only manual placements keyed by stable landmark IDs. Normalized
   // positions keep documents portable across canvas sizes.
   landmarkPositions?: Record<string, NormalizedPosition>;
-  // NOTE: `language` is reserved for future localization. render.ts does NOT
-  // honor it yet; handlers.ts does NOT expose it to MCP hosts.
-  language?: "ko" | "en" | "ja";
+  // Language (BCP-47) for the strings cairn generates: unnamed transit exit
+  // labels and the fallback destination label. POI names always stay as OSM
+  // has them, so this is a generation-time concern, not a render one —
+  // `render_document` needs no language because names are already baked in.
+  // Omit to derive it from the geocoded country.
+  language?: string;
 }
 
 export interface DiagramDocument {

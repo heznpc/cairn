@@ -1,8 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
+  backoffMs,
   nominatimGate,
   _resetNominatimGate,
   _resetOverpassGate,
+  fetchTextWithRetry,
   fetchWithTimeout,
 } from "./http.js";
 
@@ -85,6 +87,85 @@ describe("nominatimGate", () => {
     await vi.advanceTimersByTimeAsync(1100);
     await flushMicrotasks();
     expect(order).toEqual(["a", "b", "c"]);
+  });
+});
+
+describe("fetchTextWithRetry", () => {
+  const policy = {
+    attempts: 2,
+    baseDelayMs: 0,
+    gate: nominatimGate,
+    gateIntervalMs: 0,
+    errorLabel: "Test failed",
+  };
+
+  it("retries a timeout and surfaces it once attempts run out", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(
+      (_url, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () =>
+            reject(new DOMException("Aborted", "AbortError")),
+          );
+        }),
+    );
+
+    await expect(
+      fetchTextWithRetry("https://example.test/slow", {
+        ...policy,
+        init: { timeoutMs: 20 },
+      }),
+    ).rejects.toThrow(/timed out after 20ms/);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops immediately when the caller aborts, without spending retries", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((_url, init) => {
+      if (init?.signal?.aborted) {
+        return Promise.reject(new DOMException("Aborted", "AbortError"));
+      }
+      return Promise.resolve(new Response("late", { status: 200 }));
+    });
+
+    const ac = new AbortController();
+    ac.abort();
+
+    await expect(
+      fetchTextWithRetry("https://example.test/x", {
+        ...policy,
+        init: { signal: ac.signal },
+      }),
+    ).rejects.toThrow();
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("waits out a Retry-After header rather than its own backoff", async () => {
+    let calls = 0;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
+      calls += 1;
+      if (calls === 1) {
+        return new Response("{}", {
+          status: 429,
+          statusText: "Too Many Requests",
+          headers: { "Retry-After": "0" },
+        });
+      }
+      return new Response("done", { status: 200 });
+    });
+
+    await expect(
+      fetchTextWithRetry("https://example.test/x", policy),
+    ).resolves.toBe("done");
+    expect(calls).toBe(2);
+  });
+});
+
+describe("backoffMs", () => {
+  it("grows with each attempt", () => {
+    expect(backoffMs(2, 100)).toBeGreaterThan(backoffMs(1, 100));
+  });
+
+  it("is zero when backoff is disabled", () => {
+    expect(backoffMs(3, 0)).toBe(0);
   });
 });
 
