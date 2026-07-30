@@ -177,7 +177,13 @@ function auditSvg(name, svg, template, themeName, theme, expectations, out) {
 
   const haloCount = count(svg, new RegExp(`stroke="${escapeRegExp(theme.background)}" stroke-width="4"`, "g"));
   const labelFillCount = count(svg, /<text [^>]*fill="(?!none)[^"]*"[^>]*>/g);
-  const minHaloCount = template === "standard" ? 4 : template === "compact" ? 3 : template === "schematic" ? 4 : 2;
+  // `standard` must keep every curated label — that is the quality bar. The
+  // pruning templates are allowed one fewer: `schematic` sets
+  // hideClutteredLabels, so on a dense block it deliberately drops the least
+  // important label rather than printing an unreadable overlap. That became
+  // visible once the projection stopped stretching longitude to fill the
+  // canvas, which packs a dense POI cluster into its true, narrower footprint.
+  const minHaloCount = template === "standard" ? 4 : template === "compact" ? 3 : template === "schematic" ? 3 : 2;
   if (haloCount < minHaloCount) out.push(`${name}: expected at least ${minHaloCount} haloed print labels, got ${haloCount}`);
   if (labelFillCount < haloCount) {
     out.push(`${name}: halo text count (${haloCount}) exceeds filled label count (${labelFillCount})`);
