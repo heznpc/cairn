@@ -27,6 +27,81 @@ function renderContext(
   };
 }
 
+describe("buildStandardMapScene — transit-first templates", () => {
+  // `compact` keeps only two landmarks and prefers the arrival point. A tram
+  // stop or ferry pier is the arrival point in Prague, Istanbul or Amsterdam,
+  // so it must not lose the slot to a café — or to a bus stop that ranks lower.
+  const arrival = (
+    id: string,
+    name: string,
+    category: "tram_stop" | "ferry" | "bus_stop",
+    importance: number,
+  ) => ({
+    id,
+    name,
+    lat: 50.088,
+    lon: 14.4215,
+    category,
+    importance,
+    tags: {},
+  });
+
+  const pragueLayout = {
+    center: { lat: 50.0874, lon: 14.421, label: "Here" },
+    landmarks: [
+      {
+        id: "cafe",
+        name: "Kavarna",
+        lat: 50.0876,
+        lon: 14.4212,
+        category: "cafe" as const,
+        importance: 0.5,
+        tags: {},
+      },
+      arrival("tram", "Staromestska", "tram_stop", 0.8),
+      arrival("bus", "Bus stop", "bus_stop", 0.4),
+    ],
+    roads: [],
+    bbox: { north: 50.0885, south: 50.0865, east: 14.4225, west: 14.4198 },
+  };
+
+  // The shared helper projects the default fixture, so build a projection from
+  // the layout under test or its coordinates land off-canvas.
+  const compactContext = (layout: typeof pragueLayout) => {
+    const projection = createProjection(layout, 600, 400, { layout: "diagram" });
+    return renderContext({
+      templateName: "compact",
+      template: TEMPLATES.compact,
+      project: projection.project,
+      center: projection.center,
+    });
+  };
+
+  it("keeps a tram stop over a cafe in compact", () => {
+    const scene = buildStandardMapScene(pragueLayout, compactContext(pragueLayout));
+
+    expect(scene.landmarks.map((landmark) => landmark.lm.id)).toContain("tram");
+    expect(scene.landmarks.map((landmark) => landmark.lm.id)).not.toContain("cafe");
+  });
+
+  it("starts the approach from the tram stop, not the lower-ranked bus stop", () => {
+    const scene = buildStandardMapScene(pragueLayout, compactContext(pragueLayout));
+
+    expect(scene.approach?.landmarkId).toBe("tram");
+  });
+
+  it("treats a ferry pier as an arrival point too", () => {
+    const istanbul = {
+      ...pragueLayout,
+      landmarks: [pragueLayout.landmarks[0], arrival("pier", "Karakoy", "ferry", 0.8)],
+    };
+
+    const scene = buildStandardMapScene(istanbul, compactContext(istanbul));
+
+    expect(scene.landmarks.map((landmark) => landmark.lm.id)).toContain("pier");
+  });
+});
+
 describe("buildStandardMapScene", () => {
   it("exposes layout decisions without parsing SVG", () => {
     const context = renderContext();
