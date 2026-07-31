@@ -54,6 +54,19 @@ export const APPROACH_RANK: Record<LandmarkCategory, number> = {
   building: 1,
 };
 
+// Arrival points the space-constrained templates build their map around. This
+// has to stay in step with APPROACH_RANK: a tram stop in Prague or a ferry pier
+// in Istanbul carries the same "this is where you get off" weight as a subway
+// exit in Seoul, and leaving them out here made `compact`/`minimal`/`badge`
+// prefer a bus stop — or fall back to cafés — over the tram the reader arrives on.
+const TRANSIT_ARRIVAL_CATEGORIES: ReadonlySet<LandmarkCategory> = new Set([
+  "station_exit",
+  "station",
+  "tram_stop",
+  "ferry",
+  "bus_stop",
+]);
+
 export interface TemplateSpec {
   roadScale: number;
   roadGeometry: "spine" | "orthogonal";
@@ -112,7 +125,7 @@ export const TEMPLATES: Record<RenderTemplate, TemplateSpec> = {
     landmarkLabelMax: 8,
     labelImportanceMin: 0.85,
     maxLandmarks: 2,
-    preferredCategories: new Set(["station_exit", "station", "bus_stop"]),
+    preferredCategories: TRANSIT_ARRIVAL_CATEGORIES,
     showRoadLabels: true,
     avoidRoadLabels: true,
     hideClutteredLabels: true,
@@ -132,7 +145,7 @@ export const TEMPLATES: Record<RenderTemplate, TemplateSpec> = {
     landmarkLabelMax: 8,
     labelImportanceMin: 0.9,
     maxLandmarks: 1,
-    preferredCategories: new Set(["station_exit", "station", "bus_stop"]),
+    preferredCategories: TRANSIT_ARRIVAL_CATEGORIES,
     showRoadLabels: false,
     avoidRoadLabels: true,
     hideClutteredLabels: true,
@@ -171,7 +184,7 @@ export const TEMPLATES: Record<RenderTemplate, TemplateSpec> = {
     landmarkLabelMax: 8,
     labelImportanceMin: 0.9,
     maxLandmarks: 1,
-    preferredCategories: new Set(["station_exit", "station", "bus_stop"]),
+    preferredCategories: TRANSIT_ARRIVAL_CATEGORIES,
     showRoadLabels: false,
     avoidRoadLabels: true,
     hideClutteredLabels: true,

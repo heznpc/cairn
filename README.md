@@ -54,7 +54,7 @@ Most maps are too accurate to be useful. Korean 약도 (yakdo) and Japanese 略�
 - **Destination focus** (opt-in `--focus` / `focus: true`) — a radial fisheye that magnifies the area around the destination and compresses the periphery, so the crucial last block reads larger. It applies to the map-skeleton diagram presets (`standard`, `compact`, `schematic`); route-strip and badge templates keep their fixed composition.
 - **Bounded inputs** on public tool/CLI parameters — search radii max out at 5 km, internal radius expansion is clamped back to that same ceiling, and SVG canvas dimensions at 4000 px keep public OSM services and the single-process renderer healthy.
 - **HTTP rate-limiting, retries, and timeouts** on outbound calls — 1.1s minimum spacing to Nominatim, 1 req/s to Overpass per their usage policies, with the gate re-acquired on every retry. Spacing is configurable for a server you host yourself, where those policies don't apply.
-- **Tests**: vitest coverage runs on every push.
+- **Tests**: the full vitest suite runs on every push, on Node 22 and 24. No coverage threshold is enforced.
 - **Visual audit harness**: `npm run visual:audit` rebuilds the package, renders 2 deterministic city/campus fixtures across all 5 templates and 4 themes (40 combinations), and fails on marker-road overlap, duplicate transit clusters, illegible approach cues, UI-like label chrome, color drift, or excessive road density.
 
 ## Planned
@@ -81,11 +81,16 @@ cairn sends the address you type to two OpenStreetMap services in order to
 do its job: [Nominatim](https://nominatim.openstreetmap.org/) for geocoding
 and [Overpass](https://overpass-api.de/) for landmark and road lookup. Both run on
 the OSM Foundation's public infrastructure and follow the OSMF [privacy
-policy](https://wiki.osmfoundation.org/wiki/Privacy_Policy). cairn itself
-stores nothing, has no telemetry, and reads no environment variables for
-credentials. If your address is sensitive, run a self-hosted Nominatim /
-Overpass instance and point cairn at it (custom-endpoint support is on the
-roadmap).
+policy](https://wiki.osmfoundation.org/wiki/Privacy_Policy). cairn has no
+telemetry, no account, and reads no credentials from the environment.
+
+It does cache upstream responses on local disk by default, so a repeated
+address is answered without another request. That cache holds the raw
+Nominatim and Overpass bodies for your queries, unencrypted, under
+`~/.cache/cairn` (or `$XDG_CACHE_HOME/cairn`) for 7 days. If the address is
+sensitive, disable it with `--no-cache` or `CAIRN_CACHE_MODE=off`, or point
+cairn at a self-hosted Nominatim / Overpass instance with `--nominatim-url` /
+`--overpass-url`.
 
 ## Non-goals
 
@@ -164,7 +169,9 @@ const svg = renderDiagramDocument(JSON.parse(savedJson));
 1. **Geocode** the address (Nominatim — no API key).
 2. **Find landmarks** within a configurable radius (Overpass): transit stations, subway exits, schools, parks, recognizable shops, distinctive buildings.
 3. **Find roads** in the same area (Overpass), classify them by importance tier, and simplify each polyline (Douglas-Peucker).
-4. **Curate** the most useful 4–6 landmarks with the heuristic above.
+4. **Curate** up to `limit` landmarks with the heuristic above (default 5).
+   Category diversity caps each category at two, so a sparse or single-category
+   area yields fewer rather than padding the map.
 5. **Render** a pictogram SVG: road skeleton underneath, nearby station/exit markers coalesced, landmark labels kept clear, and an inferred visible-road approach or direct fallback leading to the destination callout.
 6. **Output** vector SVG, ready for print or digital embed.
 

@@ -30,12 +30,21 @@ sockets.
 In scope:
 - SVG output is escaped (`escapeXml` in `src/render.ts`) so address and
   landmark names cannot inject markup into the rendered file.
-- Outbound calls go only to:
+- By default, outbound calls go only to:
   - `nominatim.openstreetmap.org` (geocoding)
   - `overpass-api.de` (landmark and road lookup)
   - Both are accessed over HTTPS with a project User-Agent and the
     Nominatim 1 req/s policy is enforced client-side.
-- No tokens, API keys, or credentials are read from the environment.
+- Those endpoints are configurable, for self-hosted or mirrored deployments,
+  via `--nominatim-url` / `--overpass-url` and `CAIRN_NOMINATIM_URL` /
+  `CAIRN_OVERPASS_URL`. Only `http:` and `https:` are accepted. They are
+  deliberately *not* MCP tool arguments: a host LLM choosing the URL would be
+  an SSRF path, so the endpoint stays the operator's decision.
+- Upstream responses are cached on local disk by default (raw bodies,
+  unencrypted, under `~/.cache/cairn`, 7-day TTL). Disable with `--no-cache` or
+  `CAIRN_CACHE_MODE=off`.
+- No tokens, API keys, or credentials are read from the environment. The
+  `CAIRN_*` variables configure endpoints, cache, and retry behavior only.
 
 Out of scope:
 - Trustworthiness of OpenStreetMap data itself. Names returned by OSM

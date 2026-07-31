@@ -3,6 +3,11 @@
 Pass the latest full document as `document` and only changed fields as
 `patch`. Use IDs copied from `document.map`.
 
+Never invent an ID. Copy it verbatim from `document.map.landmarks[].id` or
+`document.map.roads[].id`. OSM nodes give a bare number (`"101"`), while ways
+and relations are namespaced (`"way/101"`, `"relation/101"`). An unknown ID is
+rejected rather than ignored.
+
 ## Relabel and hide
 
 ```json
@@ -10,8 +15,8 @@ Pass the latest full document as `document` and only changed fields as
   "patch": {
     "destinationLabel": "학생회관",
     "landmarks": {
-      "node/101": { "label": "정문" },
-      "node/205": { "hidden": true }
+      "101": { "label": "정문" },
+      "205": { "hidden": true }
     }
   }
 }
@@ -35,7 +40,7 @@ Copy the ID from `document.map.landmarks`.
 ```json
 {
   "patch": {
-    "render": { "approachLandmarkId": "node/101" }
+    "render": { "approachLandmarkId": "101" }
   }
 }
 ```
@@ -48,7 +53,7 @@ Use `null` to return to automatic start selection.
 {
   "patch": {
     "landmarks": {
-      "node/101": {
+      "101": {
         "position": { "x": 0.22, "y": 0.36 },
         "locked": true
       }
@@ -67,7 +72,7 @@ placement.
   "patch": {
     "destinationLabel": null,
     "landmarks": {
-      "node/101": { "label": null, "position": null, "locked": null }
+      "101": { "label": null, "position": null, "locked": null }
     }
   }
 }

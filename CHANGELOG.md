@@ -78,6 +78,21 @@ versions follow [Semantic Versioning](https://semver.org/).
   approach paths participate in label/callout collision avoidance.
 
 ### Fixed
+- `compact`, `minimal`, and `badge` now treat tram stops and ferry piers as
+  arrival points. The three templates filter to a preferred category set that
+  still listed only subway/rail/bus, so in Prague, Istanbul, or Amsterdam the
+  tram or ferry the reader actually arrives on lost its slot to a bus stop — or
+  fell through to a café — despite outranking both in importance and approach
+  rank. The set is now shared with a named constant so the two stay in step.
+- Documentation now matches the implementation: README no longer claims cairn
+  "stores nothing" (it caches upstream responses on disk by default) or that
+  custom endpoints are "on the roadmap" (they ship), and it states the real
+  curation ceiling instead of "4–6 landmarks". SECURITY.md records the
+  configurable endpoints and the on-disk cache. The CLI help lists
+  `CAIRN_RETRY_BASE_DELAY_MS`, and the skill's patch reference uses real ID
+  shapes (bare numbers for nodes, `way/` and `relation/` prefixes otherwise).
+- `npm run build` clears `dist` first. Stale output with no corresponding
+  source (`dist/tool-contracts.*`) was being published in the tarball.
 - Projection now applies a cos(latitude) correction and a single uniform scale
   for both axes. It previously stretched the lon/lat bbox independently to fill
   the canvas, replacing real shape with the canvas aspect ratio; because a

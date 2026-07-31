@@ -197,6 +197,8 @@ import { createDiagramDocument, renderDiagramDocument } from "${packageName}/doc
 import { artifactFormatFromPath, encodeMapArtifact } from "${packageName}/export";
 import { renderSVG } from "${packageName}/render";
 import { RENDER_TEMPLATES, RENDER_THEMES } from "${packageName}/options";
+import { generateMap } from "${packageName}/pipeline";
+import * as types from "${packageName}/types";
 
 const map = {
   center: { lat: 37.5, lon: 127, label: "Destination" },
@@ -232,6 +234,15 @@ if (artifactFormatFromPath("map.pdf") !== "pdf") {
 }
 if (!Buffer.isBuffer(encodeMapArtifact(svg, document.canvas, "png"))) {
   throw new Error("export subpath did not encode PNG");
+}
+// Both declared subpaths must at least resolve and load. \`pipeline\` reaches the
+// network, so only its shape is asserted here; \`types\` is type-only and
+// therefore resolves to an empty namespace at runtime.
+if (typeof generateMap !== "function") {
+  throw new Error("pipeline subpath did not export generateMap");
+}
+if (typeof types !== "object") {
+  throw new Error("types subpath did not resolve");
 }
 `,
   "utf8",
