@@ -7,6 +7,31 @@ versions follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Generated labels follow the destination's country. Unnamed transit exits and
+  the fallback destination label are localized (15 languages with verified
+  strings), so Seoul still reads `여기` / `3번 출구` while Berlin reads `Hier` /
+  `Ausgang 3` and Stockholm `Här`. OpenStreetMap POI and road names are never
+  translated — a 약도 should read like the signs around it. `--language` and the
+  `generate_map` `language` argument override the country default; unsupported
+  values fail loudly rather than silently falling back.
+- On-disk response cache, so iterating on one address costs one set of network
+  calls instead of one per attempt. Entries are content-addressed and keyed on
+  endpoint plus `Accept-Language`, written atomically, and best-effort — an
+  unwritable cache degrades to no caching, never to a failed map. `--offline`
+  renders from cache only, `--refresh` re-fetches, `--no-cache` disables both. A
+  cold London render takes 5.2s and a warm one 0.27s, byte-identical.
+- Transient upstream failures (429, 408, 425, 5xx) now retry with exponential
+  backoff, honoring `Retry-After`. The public Overpass instance returns 429 and
+  504 routinely on dense queries, which previously failed the whole render.
+- Configurable endpoints and rate-limit spacing for self-hosted or mirrored
+  deployments, via `--nominatim-url` / `--overpass-url` and the `CAIRN_*`
+  environment variables. Endpoints are deliberately not MCP tool arguments:
+  letting a host LLM choose a URL would be an SSRF path, and the endpoint is the
+  operator's decision. Non-http(s) schemes are rejected.
+- POI coverage beyond Korea and Japan: `tram_stop`, `ferry`, `supermarket`, and
+  `pharmacy` categories with pictograms in the existing stroked grammar. Tags
+  that need no icon of their own fold into the closest existing category, so a
+  bank reads as a building and a place of worship as a monument-class landmark.
 - Diagram-mode standard, compact, and schematic maps now infer the final
   approach over connected visible road axes, with a direct fallback when the
   displayed graph is disconnected or implausible. SVG output identifies the
@@ -53,6 +78,35 @@ versions follow [Semantic Versioning](https://semver.org/).
   approach paths participate in label/callout collision avoidance.
 
 ### Fixed
+- Projection now applies a cos(latitude) correction and a single uniform scale
+  for both axes. It previously stretched the lon/lat bbox independently to fill
+  the canvas, replacing real shape with the canvas aspect ratio; because a
+  degree of longitude shrinks with latitude, Stockholm and Oslo rendered
+  stretched about 2× horizontally and right-angle junctions came out skewed.
+  Areas now keep their true proportions worldwide, at the cost of letterboxing —
+  roads clip to the viewport rather than the bbox, so the margins fill with
+  surrounding context.
+- Landmark labels are placed by a global search over all candidate positions
+  instead of one label at a time. Sequential placement let an early label take
+  the slot a later, more important one needed, and the result depended on
+  curation order. On a seeded crowding fixture this cuts total overlap cost by
+  47.8%, deterministically.
+- Label widths are measured by East-Asian-Width class rather than "ASCII or
+  not". Cyrillic `Выход` previously reserved 5 em instead of 2.8, so Russian and
+  Greek labels claimed ~70% more space than they draw and were pushed or hidden
+  for no reason. Nonspacing and enclosing marks now carry zero advance, which
+  fixes Devanagari, Thai, and Arabic label sizing.
+- Overpass POI lookups query `nwr` with `out center` instead of nodes only.
+  Outside dense Asian city centers, parks, hospitals, schools, and malls are
+  mapped as ways or relations, so they were invisible across most of Europe and
+  North America. Element IDs are namespaced by type, since a way and a relation
+  can share a number and `DiagramDocument` overrides key on the ID.
+- `minimal` and `badge` templates no longer print `출발` when no start landmark
+  is selected. The renderer has no language by design, so the marker draws
+  without a label instead of inventing a Korean word on a Lisbon map.
+- Unit tests no longer read or write the real user cache. A stored response
+  could satisfy a later test's mocked fetch, which made three geocode
+  assertions pass against stale data.
 - MCP JSON Schema and runtime Zod validation now share domain values and
   numeric bounds, with acceptance-parity tests. Public document schemas no
   longer accept empty landmark, road, or explicit approach IDs that runtime

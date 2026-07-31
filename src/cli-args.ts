@@ -5,6 +5,15 @@ import {
   MIN_CANVAS_DIMENSION_PX,
 } from "./limits.js";
 import {
+  isSupportedLabelLanguage,
+  SUPPORTED_LABEL_LANGUAGES,
+} from "./locale.js";
+import {
+  defaultCacheDir,
+  isCacheMode,
+  type UpstreamOptions,
+} from "./upstream-config.js";
+import {
   isRenderLayoutMode,
   isRenderPreset,
   isRenderTemplate,
@@ -33,7 +42,9 @@ OPTIONS
   -o, --output <file>     Write SVG, PNG, or PDF by extension (default: SVG stdout)
       --save-document <file>
                           Save editable DiagramDocument JSON when generating
-  -l, --label <text>      Label for the destination (default: "여기")
+  -l, --label <text>      Label for the destination (default: localized "Here")
+      --language <tag>    Language for generated labels, e.g. ko, ja, de
+                          (default: derived from the destination's country)
   -r, --radius <meters>   Landmark search radius (default: 400, max ${MAX_RADIUS_METERS})
   -n, --limit <count>     Max landmarks to include (default: 5)
   -w, --width <px>        SVG width (default: 600, ${MIN_CANVAS_DIMENSION_PX}-${MAX_CANVAS_DIMENSION_PX})
@@ -46,6 +57,23 @@ OPTIONS
       --focus             Fisheye-emphasize the destination area (standard/compact/schematic)
       --help              Show this help
 
+NETWORK & CACHE
+  Responses are cached on disk, so re-running the same address costs no
+  requests. Defaults suit the public OSM endpoints; override for a mirror.
+      --offline           Use cached responses only; fail instead of fetching
+      --refresh           Ignore cached responses and fetch fresh ones
+      --no-cache          Neither read nor write the cache
+      --cache-dir <dir>   Cache location (default: ${defaultCacheDir()})
+      --nominatim-url <url>
+                          Geocoding endpoint (self-hosted or mirror)
+      --overpass-url <url>
+                          Overpass endpoint (self-hosted or mirror)
+
+ENVIRONMENT
+  CAIRN_NOMINATIM_URL, CAIRN_OVERPASS_URL, CAIRN_CACHE_MODE, CAIRN_CACHE_DIR,
+  CAIRN_CACHE_TTL_HOURS, CAIRN_ATTEMPTS, CAIRN_NOMINATIM_MIN_INTERVAL_MS,
+  CAIRN_OVERPASS_MIN_INTERVAL_MS
+
 EXAMPLES
   cairn "서울 강남구 테헤란로 152" -o office.svg
   cairn "서울 강남구 테헤란로 152" -o office.svg --save-document office.json
@@ -53,6 +81,9 @@ EXAMPLES
   cairn install-skill ~/.codex/skills
   cairn "1600 Amphitheatre Pkwy, Mountain View" --label "Office"
   cairn "Shibuya Crossing, Tokyo" -n 4 -r 300
+  cairn "Brandenburger Tor, Berlin" --language de -o berlin.svg
+  cairn "Sergels torg, Stockholm" --offline -o stockholm.svg
+  cairn "Piccadilly Circus, London" --overpass-url https://overpass.private/api/interpreter
 `;
 
 export type CliRequest =
@@ -114,6 +145,7 @@ export function parseCliRequest(argv: string[]): CliRequest {
     documentOutput: opts.documentOutput,
     options: {
       label: opts.label,
+      language: parseLanguage("--language", opts.language),
       radiusMeters: parseFlag("--radius", opts.radius, 1, MAX_RADIUS_METERS),
       limit: parseFlag("--limit", opts.limit),
       // width/height >= 100 — render.ts projection uses (width - 100) as denom.
@@ -125,8 +157,25 @@ export function parseCliRequest(argv: string[]): CliRequest {
       preset: parseEnum("--preset", opts.preset, isRenderPreset, RENDER_PRESETS),
       roads: opts.noRoads === "true" ? false : undefined,
       focus: opts.focus === "true" ? true : undefined,
+      upstream: parseUpstream(opts),
     },
   };
+}
+
+// Collapse the network flags into an UpstreamOptions, or undefined when none
+// were given so `resolveUpstream` falls through to environment defaults.
+function parseUpstream(opts: Record<string, string>): UpstreamOptions | undefined {
+  const upstream: UpstreamOptions = {};
+  if (opts.cacheMode !== undefined) {
+    if (!isCacheMode(opts.cacheMode)) {
+      throw new Error(`Invalid cache mode: "${opts.cacheMode}"`);
+    }
+    upstream.cacheMode = opts.cacheMode;
+  }
+  if (opts.cacheDir !== undefined) upstream.cacheDir = opts.cacheDir;
+  if (opts.nominatimUrl !== undefined) upstream.nominatimUrl = opts.nominatimUrl;
+  if (opts.overpassUrl !== undefined) upstream.overpassUrl = opts.overpassUrl;
+  return Object.keys(upstream).length > 0 ? upstream : undefined;
 }
 
 function parse(argv: string[]) {
@@ -159,6 +208,9 @@ function parse(argv: string[]) {
       case "-l":
       case "--label":
         opts.label = takeValue(a, ++i);
+        break;
+      case "--language":
+        opts.language = takeValue(a, ++i);
         break;
       case "--save-document":
         opts.documentOutput = takeValue(a, ++i);
@@ -193,6 +245,24 @@ function parse(argv: string[]) {
         break;
       case "--no-roads":
         opts.noRoads = "true";
+        break;
+      case "--offline":
+        opts.cacheMode = "offline";
+        break;
+      case "--refresh":
+        opts.cacheMode = "refresh";
+        break;
+      case "--no-cache":
+        opts.cacheMode = "off";
+        break;
+      case "--cache-dir":
+        opts.cacheDir = takeValue(a, ++i);
+        break;
+      case "--nominatim-url":
+        opts.nominatimUrl = takeValue(a, ++i);
+        break;
+      case "--overpass-url":
+        opts.overpassUrl = takeValue(a, ++i);
         break;
       case "--focus":
         opts.focus = "true";
@@ -229,6 +299,19 @@ function parseFlag(
     throw new Error(`${flag} must be an integer ≤ ${max} (got: "${raw}")`);
   }
   return n;
+}
+
+// Fail loudly on an unsupported --language rather than silently falling back
+// to English: someone who typed a tag wants that language, and a wrong exit
+// label is easy to miss on a printed card.
+function parseLanguage(flag: string, raw: string | undefined): string | undefined {
+  if (raw === undefined) return undefined;
+  if (!isSupportedLabelLanguage(raw)) {
+    throw new Error(
+      `${flag} must be one of ${SUPPORTED_LABEL_LANGUAGES.join(", ")} (got: "${raw}")`,
+    );
+  }
+  return raw;
 }
 
 // One validator for every enum-valued flag: the type guard both narrows the

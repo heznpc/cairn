@@ -4,6 +4,7 @@ import {
   MIN_CANVAS_DIMENSION_PX,
 } from "./limits.js";
 import { LATITUDE_RANGE, LONGITUDE_RANGE } from "./domain-values.js";
+import { SUPPORTED_LABEL_LANGUAGES } from "./locale.js";
 import {
   RENDER_LAYOUTS,
   RENDER_PRESETS,
@@ -47,7 +48,12 @@ export const tools = [
       type: "object",
       properties: {
         address: { type: "string", description: "Street address or place name" },
-        label: { type: "string", description: 'Destination label (default: "여기")' },
+        label: { type: "string", description: 'Destination label (default: localized "Here")' },
+        language: {
+          type: "string",
+          enum: SUPPORTED_LABEL_LANGUAGES,
+          description: 'Language for labels cairn generates, such as unnamed transit exits ("Exit 3" vs "3번 출구"). Defaults to the destination country\'s language. OpenStreetMap POI names are never translated.',
+        },
         radiusMeters: { type: "integer", minimum: 1, maximum: MAX_RADIUS_METERS, description: "Landmark search radius (default 400, max 5000)" },
         limit: { type: "integer", minimum: 1, description: "Max landmarks (default 5)" },
         width: { type: "integer", minimum: MIN_CANVAS_DIMENSION_PX, maximum: MAX_CANVAS_DIMENSION_PX, description: "SVG width in px (default 600, 100-4000)" },

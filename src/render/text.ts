@@ -5,6 +5,8 @@ import {
 } from "./theme.js";
 import { escapeXml } from "./xml.js";
 
+export const BOX_OVERLAP_SCORE_PER_PX = 30;
+
 export interface Box {
   x: number;
   y: number;
@@ -123,11 +125,53 @@ function wrapAtWordBoundary(label: string, maxPerLine: number): string[] | null 
   return [best.line1, line2];
 }
 
+// Advance-width estimate per character, in em. Real widths need the font's
+// glyph metrics, but cairn ships no font library, so this approximates by
+// East-Asian-Width class — the same trade-off, and the same buckets, as the
+// dac/text.py measurement in the diagram-as-code project.
+//
+// The previous rule was "ASCII 0.58 em, everything else 1.0 em". That is right
+// for Hangul and CJK and wrong for every other non-Latin script: Cyrillic
+// "Выход" reserved 5 em instead of ~2.8, so Russian and Greek labels claimed
+// ~70% more space than they draw and got pushed or hidden for no reason.
+const NARROW_ASCII = new Set("iIl.,:;'!|()[]{}/\\");
+const WIDE_ASCII = new Set("mwMW@");
+// Nonspacing and enclosing marks have zero advance: they stack onto the
+// previous glyph. Devanagari matras, Thai vowel/tone marks and Arabic harakat
+// are all in here, and counting them as full characters inflated those labels.
+const COMBINING_MARK = /\p{Mn}|\p{Me}/u;
+
+function isWideCodePoint(codePoint: number): boolean {
+  return (
+    (codePoint >= 0x1100 && codePoint <= 0x115f) || // Hangul Jamo
+    (codePoint >= 0x2e80 && codePoint <= 0xa4cf) || // CJK radicals through Yi
+    (codePoint >= 0xac00 && codePoint <= 0xd7a3) || // Hangul syllables
+    (codePoint >= 0xf900 && codePoint <= 0xfaff) || // CJK compatibility
+    (codePoint >= 0xfe30 && codePoint <= 0xfe4f) || // CJK compatibility forms
+    (codePoint >= 0xff00 && codePoint <= 0xff60) || // Fullwidth forms
+    (codePoint >= 0xffe0 && codePoint <= 0xffe6) ||
+    (codePoint >= 0x1f300 && codePoint <= 0x1faff) || // Pictographs
+    (codePoint >= 0x20000 && codePoint <= 0x3fffd) // CJK extensions B+
+  );
+}
+
+export function charEm(ch: string): number {
+  if (COMBINING_MARK.test(ch)) return 0;
+  const codePoint = ch.codePointAt(0);
+  if (codePoint !== undefined && isWideCodePoint(codePoint)) return 1;
+  if (ch === " ") return 0.3;
+  if (NARROW_ASCII.has(ch)) return 0.34;
+  if (WIDE_ASCII.has(ch)) return 0.86;
+  return 0.56;
+}
+
+export function textEmWidth(label: string): number {
+  // Array.from iterates code points, so astral characters count once.
+  return Array.from(label).reduce((sum, ch) => sum + charEm(ch), 0);
+}
+
 export function textBoxWidth(label: string, fontSize: number, padding: number): number {
-  const units = Array.from(label).reduce((sum, ch) => {
-    return sum + (ch.charCodeAt(0) < 128 ? 0.58 : 1);
-  }, 0);
-  return Math.max(28, Math.ceil(units * fontSize + padding));
+  return Math.max(28, Math.ceil(textEmWidth(label) * fontSize + padding));
 }
 
 export function boxScore(box: Box, width: number, height: number, obstacles: Box[]): number {
@@ -143,7 +187,7 @@ export function boxScore(box: Box, width: number, height: number, obstacles: Box
   }
 
   for (const obstacle of obstacles) {
-    score += overlapArea(box, obstacle) * 30;
+    score += overlapArea(box, obstacle) * BOX_OVERLAP_SCORE_PER_PX;
   }
   return score;
 }
