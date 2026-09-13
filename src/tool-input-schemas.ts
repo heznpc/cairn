@@ -36,6 +36,7 @@ const RenderThemeArg = z.enum(RENDER_THEMES);
 
 export const GenerateMapArgs = z.object({
   address: z.string().describe("Street address or place name"),
+  candidateId: z.string().min(1).optional().describe("Stable candidateId returned by geocode. Required when multiple locations match."),
   label: z.string().optional().describe('Label for the destination (default: localized "Here")'),
   language: LabelLanguageArg.optional().describe(
     'Language for generated labels such as unnamed transit exits ("Exit 3" vs "3번 출구"). Defaults to the destination country\'s language. POI names always stay as OpenStreetMap has them.',

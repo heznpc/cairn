@@ -394,7 +394,7 @@ describe("renderSVG — roads", () => {
     expect(compact).not.toContain('data-landmark-icon="station"');
     expect(compact).toContain("역삼역");
     expect(compact).toContain("7번 출구");
-    expect(compact).toContain('data-route-mode="inferred-road"');
+    expect(compact).toContain('data-route-mode="direct"');
     expect(compact).not.toContain('data-landmark-icon="hospital"');
     expect(compact.indexOf('data-approach-arrow="core"'))
       .toBeLessThan(compact.lastIndexOf(">논현로</text>"));

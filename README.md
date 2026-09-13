@@ -28,7 +28,7 @@ Most maps are too accurate to be useful. Korean 약도 (yakdo) and Japanese 略�
 - **Cache, offline, and mirrors.** Responses are cached on disk, so iterating on one address costs one set of network calls (a cold London render takes 5.2s, a warm one 0.27s, byte-identical). `--offline` renders from cache alone, `--refresh` re-fetches, and transient 429/5xx responses from the public endpoints retry with backoff. `--nominatim-url` / `--overpass-url` point at a self-hosted or mirrored deployment; endpoints are CLI/environment settings only, never MCP tool arguments, so a host LLM can't aim cairn at an arbitrary URL.
 - **Road skeleton** in [src/roads.ts](src/roads.ts) — fetches nearby roads, classifies them by importance tier (primary / secondary / tertiary / residential), and simplifies each polyline with Douglas-Peucker ([src/geometry.ts](src/geometry.ts)). This is what turns the output from a scatter of points into an actual 약도: a few roads you navigate along, with the major ones labeled.
 - **Deterministic curation heuristic** in [src/curate.ts](src/curate.ts) — weights importance (transit > civic > shop), targets a ~150 m sweet-spot distance, enforces category diversity, caps at the requested `limit` (default 5).
-- **Pictogram SVG renderer** — curated road bands, category-specific SVG pictograms, coalesced station/exit labels, route-aware final-approach arrows, deduped road-name labels, destination callouts, and visible OSM attribution tuned for print-style 약도 output. Connected visible road axes produce an explicitly marked `inferred-road` cue; it is a diagram heuristic, not certified pedestrian routing.
+- **Pictogram SVG renderer** — curated road bands, category-specific SVG pictograms, coalesced station/exit labels, route-aware final-approach arrows, deduped road-name labels, destination callouts, and visible OSM attribution tuned for print-style 약도 output. Original OSM node adjacency produces an `osm-network` approach independently of the simplified display roads. Its node-connected portion is solid; unverified endpoint connectors and direction-only (`direct`) cues are dashed. These remain diagram hints, not certified pedestrian routing.
 - **CLI** with file output, label override, independent template/theme selection, and a `--no-roads` toggle:
   ```bash
   node dist/cli.js "서울 강남구 테헤란로 152" -o office.svg --label "스튜디오"
@@ -55,7 +55,7 @@ Most maps are too accurate to be useful. Korean 약도 (yakdo) and Japanese 略�
 - **Bounded inputs** on public tool/CLI parameters — search radii max out at 5 km, internal radius expansion is clamped back to that same ceiling, and SVG canvas dimensions at 4000 px keep public OSM services and the single-process renderer healthy.
 - **HTTP rate-limiting, retries, and timeouts** on outbound calls — 1.1s minimum spacing to Nominatim, 1 req/s to Overpass per their usage policies, with the gate re-acquired on every retry. Spacing is configurable for a server you host yourself, where those policies don't apply.
 - **Tests**: the full vitest suite runs on every push, on Node 22 and 24. No coverage threshold is enforced.
-- **Visual audit harness**: `npm run visual:audit` rebuilds the package, renders 2 deterministic city/campus fixtures across all 5 templates and 4 themes (40 combinations), and fails on marker-road overlap, duplicate transit clusters, illegible approach cues, UI-like label chrome, color drift, or excessive road density.
+- **Visual audit harness**: `npm run visual:audit` rebuilds the package, renders 3 deterministic city/campus/pedestrian-network fixtures across all 5 templates and 4 themes (60 combinations), and fails on marker-road overlap, duplicate transit clusters, illegible approach cues, UI-like label chrome, color drift, or excessive road density.
 
 ## Planned
 
@@ -166,14 +166,41 @@ const svg = renderDiagramDocument(JSON.parse(savedJson));
 
 ## How it works
 
-1. **Geocode** the address (Nominatim — no API key).
+1. **Geocode** the address (Nominatim — no API key), checking up to five matches.
+   Multiple distinct candidates stop generation before any local-data requests.
+   Retry with a fuller address or the returned `candidateId` (`--candidate` in
+   the CLI). Selection follows the candidate identity, not its ranking position.
 2. **Find landmarks** within a configurable radius (Overpass): transit stations, subway exits, schools, parks, recognizable shops, distinctive buildings.
 3. **Find roads** in the same area (Overpass), classify them by importance tier, and simplify each polyline (Douglas-Peucker).
 4. **Curate** up to `limit` landmarks with the heuristic above (default 5).
    Category diversity caps each category at two, so a sparse or single-category
    area yields fewer rather than padding the map.
-5. **Render** a pictogram SVG: road skeleton underneath, nearby station/exit markers coalesced, landmark labels kept clear, and an inferred visible-road approach or direct fallback leading to the destination callout.
+5. **Render** a pictogram SVG: road skeleton underneath, nearby station/exit markers coalesced, landmark labels kept clear, and a node-connected approach or visibly dashed direction-only cue leading to the destination callout.
 6. **Output** vector SVG, ready for print or digital embed.
+
+Approaches use the original OSM way nodes, including `footway`, `pedestrian`,
+`steps`, `path`, and `service` ways. Display simplification and road budgets do
+not create or remove graph connections. Roads retain optional `nodes` and raw
+`tags` alongside their simplified `points` in `DiagramDocument v1`; existing
+v1 documents without topology or fetched node metadata still render, using direction-only cues. Older
+cairn builds with strict schemas may reject documents containing the new fields.
+
+A shared OSM node is required to change ways: crossing lines alone never join,
+while a bridge can connect to a ground-level way at a shared endpoint. The
+way-level filter honors `foot` over `access`, excludes restrictions and motorway/
+trunk defaults, and skips unsupported conditional, pedestrian one-way, indoor,
+and area semantics. The query also retrieves node tags and barrier ways sharing
+road nodes. Locked gates, restricted access, exit-only/emergency/sealed doors,
+and unsupported conditional or opening-hour restrictions block network traversal.
+Other barriers require explicit pedestrian permission or a mapped opening;
+missing node metadata never counts as unrestricted access. Blocked segments
+remain snap candidates so endpoints cannot silently jump beyond a barrier.
+These checks reflect OSM data; current on-site conditions, local access defaults,
+unmapped barriers and endpoint connectors are not established by that data.
+No connected route, an off-canvas/excessive detour, or a
+network exceeding 12,000 segments yields a dashed direction cue. The `minimal`
+and `badge` compositions always show schematic, dashed cues. Hiding a road in a
+document also removes it from the available approach network.
 
 ## MCP tools
 
@@ -181,7 +208,7 @@ const svg = renderDiagramDocument(JSON.parse(savedJson));
 |---|---|
 | `generate_map` | Address → SVG + editable document (set `roads: false` to skip the skeleton) |
 | `render_document` | Apply a minimal patch to an editable document and return revised SVG + document |
-| `geocode` | Address → coordinates |
+| `geocode` | Address → ranked coordinates, candidates, and ambiguity flag |
 | `find_landmarks` | Coordinates → nearby points of interest |
 | `find_roads` | Coordinates → simplified road polylines, classified by tier |
 

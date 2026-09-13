@@ -1,4 +1,4 @@
-import Ajv from "ajv";
+import { Ajv } from "ajv";
 import { describe, expect, it } from "vitest";
 import {
   LANDMARK_CATEGORIES,
@@ -87,6 +87,30 @@ function expectSameAcceptance(
 }
 
 describe("DiagramDocument public/runtime schema contract", () => {
+  it("round-trips topology through both schemas and rejects malformed node data", () => {
+    const document = changedDocument((candidate) => {
+      candidate.map.roads[0].nodes = [
+        { id: "10", lat: 37.499, lon: 126.999 },
+        { id: "11", lat: 37.5, lon: 127, tags: { barrier: "gate", foot: "yes" },
+          barriers: [{ id: "fence", tags: { barrier: "fence" } }] },
+        { id: "12", lat: 37.501, lon: 127.001 },
+      ];
+      candidate.map.roads[0].tags = { highway: "footway", bridge: "yes", layer: "1" };
+    });
+    expect(validateDocument(document)).toBe(true);
+    expect(DiagramDocumentSchema.parse(document)).toEqual(document);
+    for (const invalidNodes of [
+      [], [{ id: "10", lat: 37.5, lon: 127 }],
+      [{ id: "", lat: 37.5, lon: 127 }, { id: "11", lat: 37.5, lon: 127 }],
+      [{ id: "10", lat: 91, lon: 127 }, { id: "11", lat: 37.5, lon: 127 }],
+    ]) {
+      const invalid = structuredClone(document) as DiagramDocument;
+      invalid.map.roads[0].nodes = invalidNodes;
+      expect(validateDocument(invalid)).toBe(false);
+      expect(DiagramDocumentSchema.safeParse(invalid).success).toBe(false);
+    }
+  });
+
   it("shares non-empty identifier constraints", () => {
     expect(landmarkItemJsonSchema.properties.id.minLength).toBe(1);
     expect(roadItemJsonSchema.properties.id.minLength).toBe(1);

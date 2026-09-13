@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { generateMap } from "./pipeline.js";
-import { geocode } from "./geocode.js";
+import { searchGeocode } from "./geocode.js";
 import { findLandmarks } from "./landmarks.js";
 import { findRoads } from "./roads.js";
 import {
@@ -96,13 +96,9 @@ export async function dispatchTool(
 
     if (name === "geocode") {
       const input = GeocodeArgs.parse(args);
-      const { lat, lon, displayName, raw } = await geocode(input.address);
-      // `raw` is the Nominatim payload (addressdetails=1) — host LLMs use it
-      // for follow-up reasoning (city, country_code, road, suburb). Only
-      // included when it's a record-shaped object so the schema check passes.
-      const body: Record<string, unknown> = { lat, lon, displayName };
-      if (raw && typeof raw === "object") body.raw = raw;
-      return jsonResult(body);
+      const result = await searchGeocode(input.address);
+      // Keep top-level coordinates for existing granular consumers.
+      return jsonResult({ ...result.candidates[0], ...result });
     }
 
     if (name === "find_landmarks") {

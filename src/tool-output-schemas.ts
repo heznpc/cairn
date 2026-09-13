@@ -41,7 +41,7 @@ export const renderDocumentOutputSchema = {
   },
 } as const;
 
-export const geocodeOutputSchema = {
+const geocodeCandidateSchema = {
   type: "object",
   required: ["lat", "lon", "displayName"],
   additionalProperties: false,
@@ -49,8 +49,23 @@ export const geocodeOutputSchema = {
     lat: { type: "number", ...LATITUDE_RANGE },
     lon: { type: "number", ...LONGITUDE_RANGE },
     displayName: { type: "string" },
+    candidateId: { type: "string", minLength: 1 },
+    kind: { type: "string" },
+    countryCode: { type: "string" },
     // Raw Nominatim payload shape varies across regions.
     raw: { type: "object" },
+  },
+} as const;
+
+export const geocodeOutputSchema = {
+  ...geocodeCandidateSchema,
+  properties: {
+    ...geocodeCandidateSchema.properties,
+    candidates: {
+      type: "array", minItems: 1, maxItems: 5,
+      items: { ...geocodeCandidateSchema, required: ["candidateId", "lat", "lon", "displayName"] },
+    },
+    ambiguous: { type: "boolean" },
   },
 } as const;
 

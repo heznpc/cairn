@@ -45,6 +45,17 @@ const Road = z.object({
   name: z.string().optional(),
   class: z.enum(ROAD_CLASSES),
   points: z.array(z.object({ lat: Latitude, lon: Longitude }).strict()),
+  nodes: z.array(z.object({
+    id: z.string().min(IDENTIFIER_MIN_LENGTH),
+    lat: Latitude,
+    lon: Longitude,
+    tags: z.record(z.string()).optional(),
+    barriers: z.array(z.object({
+      id: z.string().min(IDENTIFIER_MIN_LENGTH),
+      tags: z.record(z.string()),
+    }).strict()).optional(),
+  }).strict()).min(2).optional(),
+  tags: z.record(z.string()).optional(),
 }).strict();
 
 const MapLayout = z.object({

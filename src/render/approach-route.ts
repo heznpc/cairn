@@ -1,3 +1,4 @@
+import type { Road } from "../types.js";
 import { polylineLength, type Point } from "./road-geometry.js";
 
 // Re-exported so existing importers (and tests) can keep resolving it here.
@@ -6,12 +7,15 @@ export { polylineLength } from "./road-geometry.js";
 const DEFAULT_MAX_SNAP_DISTANCE = 96;
 const DEFAULT_MAX_DETOUR_RATIO = 3.5;
 const EPSILON = 1e-6;
+const MAX_NETWORK_SEGMENTS = 12000;
 
 export interface ApproachRouteOptions {
   start: Point;
   startAnchor?: Point;
   destination: Point;
-  roads: readonly (readonly Point[])[];
+  roads: readonly Road[];
+  project: (lat: number, lon: number) => [number, number];
+  bounds?: { width: number; height: number };
   startTrim: number;
   endTrim: number;
   maxSnapDistance?: number;
@@ -20,10 +24,19 @@ export interface ApproachRouteOptions {
 
 export interface ApproachRoute {
   points: Point[];
-  mode: "inferred-road" | "direct";
+  mode: "osm-network" | "direct";
+  /** Only the node-connected portion, excluding unverified endpoint connectors. */
+  networkPoints?: Point[];
+}
+
+interface NetworkRoute {
+  points: Point[];
+  networkStart: number;
+  networkEnd: number;
 }
 
 interface SegmentStop {
+  key: string;
   point: Point;
   progress: number;
 }
@@ -32,6 +45,7 @@ interface RouteSegment {
   start: Point;
   end: Point;
   stops: SegmentStop[];
+  traversable: boolean;
 }
 
 interface SegmentSnap extends SegmentStop {
@@ -40,27 +54,39 @@ interface SegmentSnap extends SegmentStop {
 }
 
 /**
- * Route over the simplified road axes visible in the diagram. If those axes
- * do not form a credible connected path, fall back to a direct approach cue.
+ * Follow original OSM node adjacency, independently of display simplification
+ * and road selection. A shared coordinate or screen intersection is not an edge.
+ * Snapping and access defaults remain heuristic: this is not verified routing.
  */
 export function buildApproachRoute(options: ApproachRouteOptions): ApproachRoute | null {
   const direct = [options.start, options.destination];
-  const roadRoute = routeOnVisibleRoads(options);
-  const route = roadRoute ?? direct;
-  const points = trimPolyline(route, options.startTrim, options.endTrim);
-  return points ? { points, mode: roadRoute ? "inferred-road" : "direct" } : null;
+  const roadRoute = routeOnOsmNetwork(options);
+  if (roadRoute) {
+    const length = polylineLength(roadRoute.points);
+    const from = Math.max(options.startTrim, roadRoute.networkStart);
+    const to = Math.min(length - options.endTrim, roadRoute.networkEnd);
+    const points = trimPolyline(roadRoute.points, options.startTrim, options.endTrim);
+    if (points && to - from > 8) {
+      const afterStart = trimPolylineStart(roadRoute.points, from);
+      const networkPoints = dedupePoints(trimPolylineStart([...afterStart].reverse(), length - to).reverse());
+      return { points, mode: "osm-network", networkPoints };
+    }
+  }
+  const points = trimPolyline(direct, options.startTrim, options.endTrim);
+  return points ? { points, mode: "direct" } : null;
 }
 
-function routeOnVisibleRoads(options: ApproachRouteOptions): Point[] | null {
-  const segments = buildSegments(options.roads);
-  if (segments.length === 0) return null;
-  addIntersections(segments);
+function routeOnOsmNetwork(options: ApproachRouteOptions): NetworkRoute | null {
+  const segments = buildSegments(options);
+  if (!segments?.length) return null;
 
   const startSnap = nearestSegmentSnap(options.startAnchor ?? options.start, segments);
   const destinationSnap = nearestSegmentSnap(options.destination, segments);
   const maxSnapDistance = options.maxSnapDistance ?? DEFAULT_MAX_SNAP_DISTANCE;
   if (
     !startSnap || !destinationSnap ||
+    !segments[startSnap.segmentIndex].traversable ||
+    !segments[destinationSnap.segmentIndex].traversable ||
     startSnap.distance > maxSnapDistance ||
     destinationSnap.distance > maxSnapDistance
   ) {
@@ -72,11 +98,15 @@ function routeOnVisibleRoads(options: ApproachRouteOptions): Point[] | null {
   const graph = buildGraph(segments);
   const networkKeys = shortestPath(
     graph.edges,
-    pointKey(startSnap.point),
-    pointKey(destinationSnap.point),
+    startSnap.key,
+    destinationSnap.key,
   );
   if (!networkKeys) return null;
   const networkPoints = networkKeys.map((key) => graph.points.get(key)!);
+  if (polylineLength(networkPoints) <= EPSILON) return null;
+  if (options.bounds && networkPoints.some(({ x, y }) =>
+    x < 0 || y < 0 || x > options.bounds!.width || y > options.bounds!.height
+  )) return null;
   const route = dedupePoints([
     options.start,
     startSnap.point,
@@ -92,74 +122,95 @@ function routeOnVisibleRoads(options: ApproachRouteOptions): Point[] | null {
   if (directLength <= EPSILON || polylineLength(route) > directLength * maxDetourRatio) {
     return null;
   }
-  return route;
+  const networkStart = Math.hypot(options.start.x - startSnap.point.x, options.start.y - startSnap.point.y);
+  return { points: route, networkStart, networkEnd: networkStart + polylineLength(networkPoints) };
 }
 
-function buildSegments(roads: readonly (readonly Point[])[]): RouteSegment[] {
+/** Conservative way-level access filter. Preserve raw tags for future routing adapters. */
+export function canInferFootAccess(road: Road): boolean {
+  const tags = road.tags;
+  if (!tags?.highway || tags.area === "yes") return false;
+  // Conditions, directions and indoor levels need a richer routing model.
+  // Do not silently treat them as an unrestricted bidirectional street.
+  if (
+    tags["foot:conditional"] || tags["access:conditional"] || tags.opening_hours ||
+    tags["foot:forward"] || tags["foot:backward"] || tags["access:forward"] || tags["access:backward"] ||
+    (tags["oneway:foot"] && tags["oneway:foot"] !== "no") ||
+    tags.indoor === "yes"
+  ) return false;
+  const access = tags.foot ?? tags.access;
+  if (access && !["yes", "designated", "permissive", "official"].includes(access)) return false;
+  if (tags.foot) return true;
+  return /^(primary|secondary|tertiary)(_link)?$/.test(tags.highway) ||
+    ["residential", "unclassified", "living_street", "service", "footway", "pedestrian", "steps", "path"].includes(tags.highway);
+}
+
+/** Node metadata must have been fetched, even when OSM has no tags on it. */
+export function canInferNodeFootAccess(tags: Record<string, string> | undefined): boolean {
+  if (!tags) return false;
+  if (
+    (tags.locked && tags.locked !== "no") ||
+    tags["foot:conditional"] || tags["access:conditional"] ||
+    tags["locked:conditional"] || tags.opening_hours ||
+    tags["foot:forward"] || tags["foot:backward"] || tags["access:forward"] || tags["access:backward"] ||
+    (tags["oneway:foot"] && tags["oneway:foot"] !== "no")
+  ) return false;
+  // Exit-only/emergency/sealed doors are never bidirectional entrances.
+  if (["no", "exit", "emergency"].includes(tags.entrance ?? "")) return false;
+  const access = tags.foot ?? tags.access;
+  if (access && !["yes", "designated", "permissive", "official"].includes(access)) return false;
+  // An affirmative access tag cannot turn a solid wall into a passage.
+  if (["wall", "fence", "retaining_wall", "city_wall", "hedge", "block", "jersey_barrier"].includes(tags.barrier ?? "")) return false;
+  if (access) return true;
+  if (tags.entrance && !["yes", "main", "staircase", "shop"].includes(tags.entrance)) return false;
+  // A mapped opening implies passage; other barriers need explicit permission.
+  if (tags.barrier && !["no", "entrance"].includes(tags.barrier)) return false;
+  return true;
+}
+
+function canTraverseNode(node: NonNullable<Road["nodes"]>[number]): boolean {
+  if (!canInferNodeFootAccess(node.tags)) return false;
+  return (node.barriers ?? []).every((barrier) => canInferNodeFootAccess({
+    ...barrier.tags, ...node.tags,
+    // A tagged doorway represents an opening in a linear wall.
+    ...(node.tags?.entrance && !node.tags.barrier ? { barrier: "entrance" } : {}),
+  }));
+}
+
+function buildSegments(options: ApproachRouteOptions): RouteSegment[] | null {
   const segments: RouteSegment[] = [];
-  for (const road of roads) {
-    for (let index = 1; index < road.length; index++) {
-      const start = road[index - 1];
-      const end = road[index];
-      if (Math.hypot(end.x - start.x, end.y - start.y) <= EPSILON) continue;
+  const nodePoints = new Map<string, Point>();
+  // One restrictive copy wins across all ways, including caller-edited documents.
+  const blockedNodes = new Set(options.roads.flatMap((road) =>
+    road.nodes?.filter((node) => !canTraverseNode(node)).map((node) => node.id) ?? [],
+  ));
+  for (const road of options.roads) {
+    if (!road.nodes || !canInferFootAccess(road)) continue;
+    if (segments.length + road.nodes.length - 1 > MAX_NETWORK_SEGMENTS) return null;
+    const stops = road.nodes.map((node) => {
+      const [x, y] = options.project(node.lat, node.lon);
+      return { key: `osm:${node.id}`, point: { x, y } };
+    });
+    for (const stop of stops) {
+      if (!Number.isFinite(stop.point.x) || !Number.isFinite(stop.point.y)) return null;
+      const previous = nodePoints.get(stop.key);
+      // Conflicting copies of a node must not teleport the route between ways.
+      if (previous && Math.hypot(previous.x - stop.point.x, previous.y - stop.point.y) > EPSILON) return null;
+      nodePoints.set(stop.key, stop.point);
+    }
+    for (let index = 1; index < stops.length; index++) {
+      const start = stops[index - 1];
+      const end = stops[index];
+      if (Math.hypot(end.point.x - start.point.x, end.point.y - start.point.y) <= EPSILON) continue;
       segments.push({
-        start,
-        end,
-        stops: [
-          { point: start, progress: 0 },
-          { point: end, progress: 1 },
-        ],
+        start: start.point,
+        end: end.point,
+        stops: [{ ...start, progress: 0 }, { ...end, progress: 1 }],
+        traversable: !blockedNodes.has(road.nodes[index - 1].id) && !blockedNodes.has(road.nodes[index].id),
       });
     }
   }
   return segments;
-}
-
-function addIntersections(segments: RouteSegment[]): void {
-  for (let first = 0; first < segments.length; first++) {
-    for (let second = first + 1; second < segments.length; second++) {
-      const intersection = segmentIntersection(segments[first], segments[second]);
-      if (!intersection) continue;
-      segments[first].stops.push({
-        point: intersection.point,
-        progress: intersection.firstProgress,
-      });
-      segments[second].stops.push({
-        point: intersection.point,
-        progress: intersection.secondProgress,
-      });
-    }
-  }
-}
-
-function segmentIntersection(
-  first: RouteSegment,
-  second: RouteSegment,
-): { point: Point; firstProgress: number; secondProgress: number } | null {
-  const firstDx = first.end.x - first.start.x;
-  const firstDy = first.end.y - first.start.y;
-  const secondDx = second.end.x - second.start.x;
-  const secondDy = second.end.y - second.start.y;
-  const denominator = firstDx * secondDy - firstDy * secondDx;
-  if (Math.abs(denominator) <= EPSILON) return null;
-  const offsetX = second.start.x - first.start.x;
-  const offsetY = second.start.y - first.start.y;
-  const firstProgress = (offsetX * secondDy - offsetY * secondDx) / denominator;
-  const secondProgress = (offsetX * firstDy - offsetY * firstDx) / denominator;
-  if (
-    firstProgress < -EPSILON || firstProgress > 1 + EPSILON ||
-    secondProgress < -EPSILON || secondProgress > 1 + EPSILON
-  ) {
-    return null;
-  }
-  return {
-    point: {
-      x: first.start.x + firstDx * firstProgress,
-      y: first.start.y + firstDy * firstProgress,
-    },
-    firstProgress: clamp01(firstProgress),
-    secondProgress: clamp01(secondProgress),
-  };
 }
 
 function nearestSegmentSnap(point: Point, segments: RouteSegment[]): SegmentSnap | null {
@@ -167,7 +218,10 @@ function nearestSegmentSnap(point: Point, segments: RouteSegment[]): SegmentSnap
   for (const [segmentIndex, segment] of segments.entries()) {
     const snap = projectPointToSegment(point, segment.start, segment.end);
     if (!best || snap.distance < best.distance) {
-      best = { ...snap, segmentIndex };
+      const key = snap.progress <= EPSILON ? segment.stops[0].key
+        : snap.progress >= 1 - EPSILON ? segment.stops[1].key
+        : `snap:${segmentIndex}:${snap.progress.toFixed(9)}`;
+      best = { ...snap, segmentIndex, key };
     }
   }
   return best;
@@ -177,7 +231,7 @@ function projectPointToSegment(
   point: Point,
   start: Point,
   end: Point,
-): Omit<SegmentSnap, "segmentIndex"> {
+): Omit<SegmentSnap, "segmentIndex" | "key"> {
   const dx = end.x - start.x;
   const dy = end.y - start.y;
   const lengthSquared = dx * dx + dy * dy;
@@ -199,12 +253,13 @@ function buildGraph(segments: RouteSegment[]): {
   const points = new Map<string, Point>();
   const edges = new Map<string, Map<string, number>>();
   for (const segment of segments) {
+    if (!segment.traversable) continue;
     const stops = uniqueStops(segment.stops).sort((a, b) => a.progress - b.progress);
     for (let index = 1; index < stops.length; index++) {
       const start = stops[index - 1].point;
       const end = stops[index].point;
-      const startKey = pointKey(start);
-      const endKey = pointKey(end);
+      const startKey = stops[index - 1].key;
+      const endKey = stops[index].key;
       const distance = Math.hypot(end.x - start.x, end.y - start.y);
       points.set(startKey, start);
       points.set(endKey, end);
@@ -216,9 +271,9 @@ function buildGraph(segments: RouteSegment[]): {
 }
 
 function uniqueStops(stops: SegmentStop[]): SegmentStop[] {
-  const byProgress = new Map<string, SegmentStop>();
-  for (const stop of stops) byProgress.set(stop.progress.toFixed(6), stop);
-  return [...byProgress.values()];
+  const byKey = new Map<string, SegmentStop>();
+  for (const stop of stops) byKey.set(stop.key, stop);
+  return [...byKey.values()];
 }
 
 function addEdge(
@@ -241,34 +296,25 @@ function shortestPath(
   if (!graph.has(start) || !graph.has(destination)) return null;
   const distances = new Map<string, number>([[start, 0]]);
   const previous = new Map<string, string>();
-  const unvisited = new Set(graph.keys());
-
-  while (unvisited.size > 0) {
-    let current: string | null = null;
-    let currentDistance = Infinity;
-    for (const key of unvisited) {
-      const distance = distances.get(key) ?? Infinity;
-      if (distance < currentDistance) {
-        current = key;
-        currentDistance = distance;
-      }
-    }
-    if (!current || currentDistance === Infinity) break;
-    unvisited.delete(current);
+  const queue = new DistanceQueue();
+  queue.push(start, 0);
+  for (let entry = queue.pop(); entry; entry = queue.pop()) {
+    const { key: current, distance: currentDistance } = entry;
+    if (currentDistance !== distances.get(current)) continue;
     if (current === destination) break;
     for (const [neighbor, edgeDistance] of graph.get(current) ?? []) {
-      if (!unvisited.has(neighbor)) continue;
       const candidate = currentDistance + edgeDistance;
       if (candidate < (distances.get(neighbor) ?? Infinity)) {
         distances.set(neighbor, candidate);
         previous.set(neighbor, current);
+        queue.push(neighbor, candidate);
       }
     }
   }
   if (start !== destination && !previous.has(destination)) return null;
   const path = [destination];
-  while (path[0] !== start) path.unshift(previous.get(path[0])!);
-  return path;
+  while (path[path.length - 1] !== start) path.push(previous.get(path[path.length - 1])!);
+  return path.reverse();
 }
 
 function trimPolyline(points: readonly Point[], startTrim: number, endTrim: number): Point[] | null {
@@ -312,8 +358,38 @@ function dedupePoints(points: readonly Point[]): Point[] {
   return deduped;
 }
 
-function pointKey(point: Point): string {
-  return `${point.x.toFixed(3)},${point.y.toFixed(3)}`;
+// A binary heap keeps a dense pedestrian graph from making Dijkstra quadratic.
+class DistanceQueue {
+  private entries: Array<{ key: string; distance: number }> = [];
+
+  push(key: string, distance: number): void {
+    const entry = { key, distance };
+    let index = this.entries.length;
+    this.entries.push(entry);
+    while (index > 0) {
+      const parent = (index - 1) >> 1;
+      if (this.entries[parent].distance <= distance) break;
+      this.entries[index] = this.entries[parent];
+      index = parent;
+    }
+    this.entries[index] = entry;
+  }
+
+  pop(): { key: string; distance: number } | undefined {
+    const first = this.entries[0];
+    const last = this.entries.pop();
+    if (!last || this.entries.length === 0) return first;
+    let index = 0;
+    while (index * 2 + 1 < this.entries.length) {
+      let child = index * 2 + 1;
+      if (child + 1 < this.entries.length && this.entries[child + 1].distance < this.entries[child].distance) child++;
+      if (last.distance <= this.entries[child].distance) break;
+      this.entries[index] = this.entries[child];
+      index = child;
+    }
+    this.entries[index] = last;
+    return first;
+  }
 }
 
 function clamp01(value: number): number {

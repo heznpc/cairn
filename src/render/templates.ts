@@ -87,6 +87,7 @@ export function renderRouteStripSVG(
     coreWidth: 4.4,
     layerDataName: "strip-route",
     lineJoin: true,
+    data: { "route-mode": "direct" },
   }));
 
   lines.push(...renderLandmarkMarker({
@@ -178,6 +179,7 @@ export function renderBadgeSVG(
     coreWidth: 4,
     layerDataName: "badge-route",
     lineJoin: true,
+    data: { "route-mode": "direct" },
   }));
 
   lines.push(...renderLandmarkMarker({

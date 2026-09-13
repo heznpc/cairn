@@ -41,6 +41,32 @@ export const roadItemJsonSchema = {
     id: { type: "string", minLength: IDENTIFIER_MIN_LENGTH },
     name: { type: "string" },
     class: { type: "string", enum: ROAD_CLASSES },
+    nodes: {
+      type: "array",
+      minItems: 2,
+      items: {
+        type: "object",
+        required: ["id", "lat", "lon"],
+        additionalProperties: false,
+        properties: {
+          id: { type: "string", minLength: IDENTIFIER_MIN_LENGTH },
+          lat: { type: "number", ...LATITUDE_RANGE },
+          lon: { type: "number", ...LONGITUDE_RANGE },
+          tags: { type: "object", additionalProperties: { type: "string" } },
+          barriers: {
+            type: "array",
+            items: {
+              type: "object", required: ["id", "tags"], additionalProperties: false,
+              properties: {
+                id: { type: "string", minLength: IDENTIFIER_MIN_LENGTH },
+                tags: { type: "object", additionalProperties: { type: "string" } },
+              },
+            },
+          },
+        },
+      },
+    },
+    tags: { type: "object", additionalProperties: { type: "string" } },
     points: {
       type: "array",
       items: {

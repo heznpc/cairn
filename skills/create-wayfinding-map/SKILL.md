@@ -23,6 +23,10 @@ source of truth across edit turns.
 2. Generate the first document.
    - Call `generate_map` for an address. Retain `document` from
      `structuredContent`; do not reconstruct it from SVG.
+   - If several locations match, use the candidate addresses and the user's
+     stated location to choose a returned `candidateId`, then retry. Request a
+     location clarification when the supplied context cannot distinguish them.
+     Never substitute the first-ranked result or invent a candidate ID.
    - Start with `standard/paper` for general print use, then use the selection
      guidance in [references/quality.md](references/quality.md).
    - Use `geocode`, `find_landmarks`, and `find_roads` only when host-side

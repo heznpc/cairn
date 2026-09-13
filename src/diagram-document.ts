@@ -66,6 +66,8 @@ export function applyDiagramOverrides(
         ...road,
         name: override?.label ?? road.name,
         points: road.points.map((point) => ({ ...point })),
+        ...(road.nodes ? { nodes: road.nodes.map((node) => ({ ...node })) } : {}),
+        ...(road.tags ? { tags: { ...road.tags } } : {}),
       }];
     }),
     bbox: { ...map.bbox },
@@ -182,6 +184,8 @@ function cloneMap(map: MapLayout): MapLayout {
     roads: map.roads.map((road) => ({
       ...road,
       points: road.points.map((point) => ({ ...point })),
+      ...(road.nodes ? { nodes: road.nodes.map((node) => ({ ...node })) } : {}),
+      ...(road.tags ? { tags: { ...road.tags } } : {}),
     })),
     bbox: { ...map.bbox },
   };

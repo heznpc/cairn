@@ -19,7 +19,7 @@ const fixtures = [
     height: 400,
     expectations: {
       roadLabel: "테헤란로",
-      routeMode: "inferred-road",
+      routeMode: "direct",
       transitCluster: { station: "역삼역", exit: "7번 출구" },
     },
     layout: {
@@ -72,7 +72,7 @@ const fixtures = [
     height: 400,
     expectations: {
       roadLabel: "관악로",
-      routeMode: "inferred-road",
+      routeMode: "direct",
     },
     layout: {
       center: { lat: 37.46, lon: 126.95, label: "학생회관" },
@@ -105,6 +105,26 @@ const fixtures = [
     },
   },
 ];
+
+// A source footway that is deliberately omitted by the visual road budget.
+// Its two ways share a node even though the background axes are unrelated.
+const topologyFixture = structuredClone(fixtures[0]);
+topologyFixture.name = "pedestrian-topology";
+topologyFixture.expectations.routeMode = "osm-network";
+const topologyNodes = [
+  { id: "fixture-exit", lat: 37.50055, lon: 127.00045, tags: {} },
+  { id: "fixture-junction", lat: 37.50055, lon: 127, tags: {} },
+  { id: "fixture-destination", lat: 37.5, lon: 127, tags: {} },
+];
+for (const index of [0, 1]) {
+  const nodes = topologyNodes.slice(index, index + 2);
+  topologyFixture.layout.roads.push({
+    id: `walkway-${index}`, class: "path", nodes,
+    points: nodes.map(({ lat, lon }) => ({ lat, lon })),
+    tags: { highway: "footway", foot: "yes" },
+  });
+}
+fixtures.push(topologyFixture);
 
 const failures = [];
 
@@ -159,7 +179,20 @@ function road(id, name, roadClass, points) {
 }
 
 function auditSvg(name, svg, template, themeName, theme, expectations, out) {
-  expectNot(name, svg, 'stroke-dasharray=', "dashed connector lines make the map read like AI relationship UI", out);
+  // Direction-only cues must be visibly distinct from node-connected approaches.
+  for (const match of svg.matchAll(/<path data-approach-arrow="core"[^>]*>/g)) {
+    const path = match[0];
+    if (path.includes('data-route-mode="direct"')) {
+      expect(name, path, 'stroke-dasharray="7 6"', "direction-only cue needs a dashed line", out);
+      expect(name, path, 'url(#cairn-direction-arrowhead)', "direction-only cue needs an open arrowhead", out);
+    } else {
+      expect(name, path, 'data-route-mode="osm-network"', "solid approach requires OSM connectivity", out);
+      expect(name, svg, 'data-approach-network="true"', "network approach needs a solid node-connected portion", out);
+    }
+  }
+  for (const match of svg.matchAll(/<(?:path|line) [^>]*stroke-dasharray=[^>]*>/g)) {
+    expect(name, match[0], 'data-approach-arrow="core"', "only directional cues may use dashed lines", out);
+  }
   expectNot(name, svg, 'fill="#fffdf8" stroke="#e3ddd0"', "rounded label pills are UI chrome, not print yakdo labeling", out);
   expectNot(name, svg, 'rx="3" fill="#d63b31"', "destination label must not regress to a rounded UI chip", out);
   expect(name, svg, `data-template="${template}"`, "SVG should identify its composition template", out);
@@ -269,7 +302,7 @@ function auditMarkerRoadSeparation(name, svg, out) {
     id: match[4],
   }));
   const roads = [...svg.matchAll(
-    /<path data-road-layer="casing" d="([^"]+)"[^>]*stroke-width="([\d.]+)"[^>]*>/g,
+    /<path (?:data-road-layer="casing"|data-approach-network="true") d="([^"]+)"[^>]*stroke-width="([\d.]+)"[^>]*>/g,
   )].flatMap((match) => {
     const points = [...match[1].matchAll(/[ML](-?[\d.]+),(-?[\d.]+)/g)]
       .map((point) => ({ x: Number(point[1]), y: Number(point[2]) }));

@@ -85,8 +85,9 @@ export interface StandardMapScene {
   landmarks: StandardSceneLandmark[];
   approach: {
     landmarkId: string;
-    mode: "inferred-road" | "direct";
+    mode: "osm-network" | "direct";
     points: Point[] | null;
+    networkPoints?: Point[];
   } | null;
   destination: {
     x: number;
@@ -200,9 +201,9 @@ export function buildStandardMapScene(
       obstacles: roadLabelObstacles,
     },
   );
-  const projectedLandmarks: ProjectedLandmark[] = rawProjectedLandmarks.flatMap(
+  const projectMarkers = (positions: ReturnType<typeof placeLandmarkMarkers>): ProjectedLandmark[] => rawProjectedLandmarks.flatMap(
     (landmark, index) => {
-      const position = markerPositions[index];
+      const position = positions[index];
       return position
         ? [{
             ...landmark,
@@ -213,6 +214,7 @@ export function buildStandardMapScene(
         : [];
     },
   );
+  let projectedLandmarks = projectMarkers(markerPositions);
   const approachLandmark = renderLayout === "diagram"
     ? selectApproachLandmark(
         projectedLandmarks.map((landmark) => ({
@@ -234,11 +236,35 @@ export function buildStandardMapScene(
         start: { x: approachLandmark.x, y: approachLandmark.y },
         startAnchor: { x: approachLandmark.anchorX, y: approachLandmark.anchorY },
         destination: { x: cx, y: cy },
-        roads: sceneRoads.map((road) => road.points),
+        roads: sourceRoads,
+        project,
+        bounds: { width, height },
         startTrim: template.approachStartTrim,
         endTrim: template.approachEndTrim,
       })
     : null;
+  // The source-node path can differ from the simplified background axes.
+  // Protect it in a second, bounded placement pass so an unrelated marker
+  // cannot erase a turn. Keep the selected start fixed to preserve its cue.
+  if (approachRoute?.networkPoints && approachLandmark) {
+    const routeCorridors = approachRoute.points.slice(1).map((end, index) => ({
+      start: approachRoute.points[index],
+      end,
+      halfWidth: template.approachCasingWidth / 2,
+    }));
+    projectedLandmarks = projectMarkers(placeLandmarkMarkers(
+      rawProjectedLandmarks.map(({ lm, anchorX, anchorY, fixed }) => ({
+        anchorX,
+        anchorY,
+        importance: lm.importance,
+        fixed: lm.id === approachLandmark.lm.id
+          ? { x: approachLandmark.x, y: approachLandmark.y }
+          : fixed,
+      })),
+      [...roadCorridors, ...routeCorridors],
+      { width, height, destination: { x: cx, y: cy }, obstacles: roadLabelObstacles },
+    ));
+  }
   const approachObstacles = approachRoute
     ? polylineObstacleBoxes(approachRoute.points, template.approachCasingWidth / 2 + 4)
     : [];
@@ -309,6 +335,7 @@ export function buildStandardMapScene(
           landmarkId: approachLandmark.lm.id,
           mode: approachRoute?.mode ?? "direct",
           points: approachRoute?.points ?? null,
+          networkPoints: approachRoute?.networkPoints,
         }
       : null,
     destination: { x: cx, y: cy, label: centerLabel, callout: centerCallout },
