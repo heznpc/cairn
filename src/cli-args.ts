@@ -43,6 +43,7 @@ OPTIONS
       --save-document <file>
                           Save editable DiagramDocument JSON when generating
   -l, --label <text>      Label for the destination (default: localized "Here")
+      --candidate <id>    Select a location ID listed by an ambiguous-address error
       --language <tag>    Language for generated labels, e.g. ko, ja, de
                           (default: derived from the destination's country)
   -r, --radius <meters>   Landmark search radius (default: 400, max ${MAX_RADIUS_METERS})
@@ -145,6 +146,7 @@ export function parseCliRequest(argv: string[]): CliRequest {
     documentOutput: opts.documentOutput,
     options: {
       label: opts.label,
+      candidateId: opts.candidateId,
       language: parseLanguage("--language", opts.language),
       radiusMeters: parseFlag("--radius", opts.radius, 1, MAX_RADIUS_METERS),
       limit: parseFlag("--limit", opts.limit),
@@ -211,6 +213,9 @@ function parse(argv: string[]) {
         break;
       case "--language":
         opts.language = takeValue(a, ++i);
+        break;
+      case "--candidate":
+        opts.candidateId = takeValue(a, ++i);
         break;
       case "--save-document":
         opts.documentOutput = takeValue(a, ++i);

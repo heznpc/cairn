@@ -88,9 +88,9 @@ writeFileSync(cliDocumentPath, JSON.stringify({
       id: "walkway", class: "path", tags: { highway: "footway", foot: "yes" },
       points: [{ lat: 37.5005, lon: 127.0005 }, { lat: 37.5, lon: 127 }],
       nodes: [
-        { id: "1", lat: 37.5005, lon: 127.0005 },
-        { id: "2", lat: 37.5005, lon: 127 },
-        { id: "3", lat: 37.5, lon: 127 },
+        { id: "1", lat: 37.5005, lon: 127.0005, tags: {} },
+        { id: "2", lat: 37.5005, lon: 127, tags: {} },
+        { id: "3", lat: 37.5, lon: 127, tags: {} },
       ],
     }],
     bbox: { north: 37.501, south: 37.499, east: 127.001, west: 126.999 },
@@ -170,9 +170,9 @@ try {
       id: "walkway", class: "path", tags: { highway: "footway", foot: "yes" },
       points: [{ lat: 37.5005, lon: 127.0005 }, { lat: 37.5, lon: 127 }],
       nodes: [
-        { id: "1", lat: 37.5005, lon: 127.0005 },
-        { id: "2", lat: 37.5005, lon: 127 },
-        { id: "3", lat: 37.5, lon: 127 },
+        { id: "1", lat: 37.5005, lon: 127.0005, tags: {} },
+        { id: "2", lat: 37.5005, lon: 127, tags: {} },
+        { id: "3", lat: 37.5, lon: 127, tags: {} },
       ],
     }],
       bbox: { north: 37.501, south: 37.499, east: 127.001, west: 126.999 },
@@ -277,4 +277,7 @@ if (typeof types !== "object") {
 );
 
 run(process.execPath, [documentSmokePath], { cwd: installDir, stdio: "inherit" });
+const upstreamSmokePath = join(installDir, "upstream-smoke.mjs");
+writeFileSync(upstreamSmokePath, readFileSync(join(root, "scripts", "smoke-upstream.mjs")));
+run(process.execPath, [upstreamSmokePath, packageName], { cwd: installDir, stdio: "inherit" });
 console.log(`package smoke passed: ${tarball}`);

@@ -45,6 +45,7 @@ interface RouteSegment {
   start: Point;
   end: Point;
   stops: SegmentStop[];
+  traversable: boolean;
 }
 
 interface SegmentSnap extends SegmentStop {
@@ -84,6 +85,8 @@ function routeOnOsmNetwork(options: ApproachRouteOptions): NetworkRoute | null {
   const maxSnapDistance = options.maxSnapDistance ?? DEFAULT_MAX_SNAP_DISTANCE;
   if (
     !startSnap || !destinationSnap ||
+    !segments[startSnap.segmentIndex].traversable ||
+    !segments[destinationSnap.segmentIndex].traversable ||
     startSnap.distance > maxSnapDistance ||
     destinationSnap.distance > maxSnapDistance
   ) {
@@ -130,7 +133,8 @@ export function canInferFootAccess(road: Road): boolean {
   // Conditions, directions and indoor levels need a richer routing model.
   // Do not silently treat them as an unrestricted bidirectional street.
   if (
-    tags["foot:conditional"] || tags["access:conditional"] ||
+    tags["foot:conditional"] || tags["access:conditional"] || tags.opening_hours ||
+    tags["foot:forward"] || tags["foot:backward"] || tags["access:forward"] || tags["access:backward"] ||
     (tags["oneway:foot"] && tags["oneway:foot"] !== "no") ||
     tags.indoor === "yes"
   ) return false;
@@ -141,9 +145,45 @@ export function canInferFootAccess(road: Road): boolean {
     ["residential", "unclassified", "living_street", "service", "footway", "pedestrian", "steps", "path"].includes(tags.highway);
 }
 
+/** Node metadata must have been fetched, even when OSM has no tags on it. */
+export function canInferNodeFootAccess(tags: Record<string, string> | undefined): boolean {
+  if (!tags) return false;
+  if (
+    (tags.locked && tags.locked !== "no") ||
+    tags["foot:conditional"] || tags["access:conditional"] ||
+    tags["locked:conditional"] || tags.opening_hours ||
+    tags["foot:forward"] || tags["foot:backward"] || tags["access:forward"] || tags["access:backward"] ||
+    (tags["oneway:foot"] && tags["oneway:foot"] !== "no")
+  ) return false;
+  // Exit-only/emergency/sealed doors are never bidirectional entrances.
+  if (["no", "exit", "emergency"].includes(tags.entrance ?? "")) return false;
+  const access = tags.foot ?? tags.access;
+  if (access && !["yes", "designated", "permissive", "official"].includes(access)) return false;
+  // An affirmative access tag cannot turn a solid wall into a passage.
+  if (["wall", "fence", "retaining_wall", "city_wall", "hedge", "block", "jersey_barrier"].includes(tags.barrier ?? "")) return false;
+  if (access) return true;
+  if (tags.entrance && !["yes", "main", "staircase", "shop"].includes(tags.entrance)) return false;
+  // A mapped opening implies passage; other barriers need explicit permission.
+  if (tags.barrier && !["no", "entrance"].includes(tags.barrier)) return false;
+  return true;
+}
+
+function canTraverseNode(node: NonNullable<Road["nodes"]>[number]): boolean {
+  if (!canInferNodeFootAccess(node.tags)) return false;
+  return (node.barriers ?? []).every((barrier) => canInferNodeFootAccess({
+    ...barrier.tags, ...node.tags,
+    // A tagged doorway represents an opening in a linear wall.
+    ...(node.tags?.entrance && !node.tags.barrier ? { barrier: "entrance" } : {}),
+  }));
+}
+
 function buildSegments(options: ApproachRouteOptions): RouteSegment[] | null {
   const segments: RouteSegment[] = [];
   const nodePoints = new Map<string, Point>();
+  // One restrictive copy wins across all ways, including caller-edited documents.
+  const blockedNodes = new Set(options.roads.flatMap((road) =>
+    road.nodes?.filter((node) => !canTraverseNode(node)).map((node) => node.id) ?? [],
+  ));
   for (const road of options.roads) {
     if (!road.nodes || !canInferFootAccess(road)) continue;
     if (segments.length + road.nodes.length - 1 > MAX_NETWORK_SEGMENTS) return null;
@@ -166,6 +206,7 @@ function buildSegments(options: ApproachRouteOptions): RouteSegment[] | null {
         start: start.point,
         end: end.point,
         stops: [{ ...start, progress: 0 }, { ...end, progress: 1 }],
+        traversable: !blockedNodes.has(road.nodes[index - 1].id) && !blockedNodes.has(road.nodes[index].id),
       });
     }
   }
@@ -212,6 +253,7 @@ function buildGraph(segments: RouteSegment[]): {
   const points = new Map<string, Point>();
   const edges = new Map<string, Map<string, number>>();
   for (const segment of segments) {
+    if (!segment.traversable) continue;
     const stops = uniqueStops(segment.stops).sort((a, b) => a.progress - b.progress);
     for (let index = 1; index < stops.length; index++) {
       const start = stops[index - 1].point;

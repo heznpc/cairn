@@ -166,7 +166,10 @@ const svg = renderDiagramDocument(JSON.parse(savedJson));
 
 ## How it works
 
-1. **Geocode** the address (Nominatim — no API key).
+1. **Geocode** the address (Nominatim — no API key), checking up to five matches.
+   Multiple distinct candidates stop generation before any local-data requests.
+   Retry with a fuller address or the returned `candidateId` (`--candidate` in
+   the CLI). Selection follows the candidate identity, not its ranking position.
 2. **Find landmarks** within a configurable radius (Overpass): transit stations, subway exits, schools, parks, recognizable shops, distinctive buildings.
 3. **Find roads** in the same area (Overpass), classify them by importance tier, and simplify each polyline (Douglas-Peucker).
 4. **Curate** up to `limit` landmarks with the heuristic above (default 5).
@@ -179,15 +182,22 @@ Approaches use the original OSM way nodes, including `footway`, `pedestrian`,
 `steps`, `path`, and `service` ways. Display simplification and road budgets do
 not create or remove graph connections. Roads retain optional `nodes` and raw
 `tags` alongside their simplified `points` in `DiagramDocument v1`; existing
-v1 documents without topology still render, using direction-only cues. Older
+v1 documents without topology or fetched node metadata still render, using direction-only cues. Older
 cairn builds with strict schemas may reject documents containing the new fields.
 
 A shared OSM node is required to change ways: crossing lines alone never join,
 while a bridge can connect to a ground-level way at a shared endpoint. The
 way-level filter honors `foot` over `access`, excludes restrictions and motorway/
 trunk defaults, and skips unsupported conditional, pedestrian one-way, indoor,
-and area semantics. Node barriers, entrances, local access defaults and endpoint
-snaps remain unverified. No connected route, an off-canvas/excessive detour, or a
+and area semantics. The query also retrieves node tags and barrier ways sharing
+road nodes. Locked gates, restricted access, exit-only/emergency/sealed doors,
+and unsupported conditional or opening-hour restrictions block network traversal.
+Other barriers require explicit pedestrian permission or a mapped opening;
+missing node metadata never counts as unrestricted access. Blocked segments
+remain snap candidates so endpoints cannot silently jump beyond a barrier.
+These checks reflect OSM data; current on-site conditions, local access defaults,
+unmapped barriers and endpoint connectors are not established by that data.
+No connected route, an off-canvas/excessive detour, or a
 network exceeding 12,000 segments yields a dashed direction cue. The `minimal`
 and `badge` compositions always show schematic, dashed cues. Hiding a road in a
 document also removes it from the available approach network.
@@ -198,7 +208,7 @@ document also removes it from the available approach network.
 |---|---|
 | `generate_map` | Address → SVG + editable document (set `roads: false` to skip the skeleton) |
 | `render_document` | Apply a minimal patch to an editable document and return revised SVG + document |
-| `geocode` | Address → coordinates |
+| `geocode` | Address → ranked coordinates, candidates, and ambiguity flag |
 | `find_landmarks` | Coordinates → nearby points of interest |
 | `find_roads` | Coordinates → simplified road polylines, classified by tier |
 

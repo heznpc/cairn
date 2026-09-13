@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import Ajv from "ajv";
+import { Ajv } from "ajv";
 
 // Mocks must be declared BEFORE importing the module under test.
 vi.mock("./geocode.js", () => ({
-  geocode: vi.fn(),
+  searchGeocode: vi.fn(),
 }));
 vi.mock("./landmarks.js", () => ({
   findLandmarks: vi.fn(),
@@ -16,7 +16,7 @@ vi.mock("./pipeline.js", () => ({
 }));
 
 import { tools, dispatchTool } from "./handlers.js";
-import { geocode } from "./geocode.js";
+import { searchGeocode } from "./geocode.js";
 import { findLandmarks } from "./landmarks.js";
 import { findRoads } from "./roads.js";
 import { generateMap } from "./pipeline.js";
@@ -254,12 +254,9 @@ describe("dispatchTool — outputSchema ↔ structuredContent contract", () => {
     const raw = {
       address: { city: "Seoul", country_code: "kr", road: "테헤란로" },
     };
-    vi.mocked(geocode).mockResolvedValue({
-      lat: 37.5,
-      lon: 127.0,
-      displayName: "Seoul",
-      raw,
-    });
+    vi.mocked(searchGeocode).mockResolvedValue({ ambiguous: false, candidates: [{
+      candidateId: "relation:1", lat: 37.5, lon: 127.0, displayName: "Seoul", raw,
+    }] });
 
     const result = await dispatchTool("geocode", { address: "Seoul" });
     expect(result.isError).toBeFalsy();
@@ -269,11 +266,9 @@ describe("dispatchTool — outputSchema ↔ structuredContent contract", () => {
   });
 
   it("geocode structuredContent satisfies the declared outputSchema", async () => {
-    vi.mocked(geocode).mockResolvedValue({
-      lat: 37.5,
-      lon: 127.0,
-      displayName: "Seoul",
-    });
+    vi.mocked(searchGeocode).mockResolvedValue({ ambiguous: false, candidates: [{
+      candidateId: "relation:1", lat: 37.5, lon: 127.0, displayName: "Seoul",
+    }] });
 
     const result = await dispatchTool("geocode", { address: "Seoul" });
 
@@ -537,7 +532,7 @@ describe("dispatchTool — error paths", () => {
   });
 
   it("downstream throw becomes isError, not an unhandled rejection", async () => {
-    vi.mocked(geocode).mockRejectedValue(new Error("Nominatim down"));
+    vi.mocked(searchGeocode).mockRejectedValue(new Error("Nominatim down"));
     const result = await dispatchTool("geocode", { address: "Seoul" });
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain("Nominatim down");

@@ -49,6 +49,14 @@ const RoadWaySchema = z.object({
   })).optional(),
 });
 
+const RoadNodeSchema = z.object({
+  type: z.literal("node"),
+  id: z.number().int().nonnegative().safe(),
+  lat: z.number().finite().min(-90).max(90),
+  lon: z.number().finite().min(-180).max(180),
+  tags: z.record(z.string(), z.string()).default({}),
+});
+
 /**
  * Convert raw Overpass way elements into simplified Road objects.
  *
@@ -60,6 +68,23 @@ export function roadsFromElements(
   epsilon = DEFAULT_SIMPLIFY_EPSILON,
 ): Road[] {
   const roads: Road[] = [];
+  const nodeDetails = new Map<number, z.infer<typeof RoadNodeSchema>>();
+  for (const el of elements) {
+    const node = RoadNodeSchema.safeParse(el);
+    if (node.success) nodeDetails.set(node.data.id, node.data);
+  }
+  const barriers = new Map<number, Map<string, { id: string; tags: Record<string, string> }>>();
+  for (const el of elements) {
+    const way = RoadWaySchema.safeParse(el);
+    if (!way.success || !way.data.tags?.barrier) continue;
+    for (const nodeId of way.data.nodes ?? []) {
+      if (!nodeDetails.has(nodeId)) continue;
+      const atNode = barriers.get(nodeId) ?? new Map();
+      const id = String(way.data.id);
+      atNode.set(id, { id, tags: { ...way.data.tags } });
+      barriers.set(nodeId, atNode);
+    }
+  }
   for (const el of elements) {
     const parsed = RoadWaySchema.safeParse(el);
     if (!parsed.success) continue;
@@ -78,10 +103,17 @@ export function roadsFromElements(
       ...(e.tags ? { tags: { ...e.tags } } : {}),
       // Never guess node/coordinate alignment for partial or malformed data.
       ...(e.nodes?.length === e.geometry.length ? {
-        nodes: e.geometry.map((point, index) => ({
-          id: String(e.nodes![index]),
-          ...point,
-        })),
+        nodes: e.geometry.map((point, index) => {
+          const id = e.nodes![index];
+          const detail = nodeDetails.get(id);
+          return {
+            id: String(id), ...point,
+            // Missing/misaligned metadata stays unknown, never an empty tag set.
+            ...(detail && detail.lat === point.lat && detail.lon === point.lon
+              ? { tags: { ...detail.tags } } : {}),
+            ...(barriers.has(id) ? { barriers: [...barriers.get(id)!.values()] } : {}),
+          };
+        }),
       } : {}),
     });
   }
@@ -105,8 +137,12 @@ export async function findRoads(
     [out:json][timeout:25];
     (
       way["highway"~"^((motorway|trunk|primary|secondary|tertiary)(_link)?|residential|unclassified|living_street|footway|pedestrian|steps|path|service)$"](around:${radius},${lat},${lon});
-    );
-    out geom;
+    )->.roads;
+    .roads out body geom;
+    node(w.roads)->.roadNodes;
+    .roadNodes out body;
+    way(bn.roadNodes)["barrier"];
+    out body;
   `.trim();
 
   const elements = await overpassFetch(query, OVERPASS_TIMEOUT_MS, upstream);

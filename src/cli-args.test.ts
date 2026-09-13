@@ -121,4 +121,11 @@ describe("parseCliRequest", () => {
       '--theme must be "paper", "mono", "civic", or "invitation" (got: "neon")',
     );
   });
+
+  it("accepts a stable location candidate and rejects a missing candidate value", () => {
+    expect(parseCliRequest(["Springfield", "--candidate", "relation:2"])).toMatchObject({
+      kind: "generate", options: { candidateId: "relation:2" },
+    });
+    expect(() => parseCliRequest(["Springfield", "--candidate"])).toThrow(/requires a value/);
+  });
 });

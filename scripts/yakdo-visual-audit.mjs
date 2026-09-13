@@ -112,9 +112,9 @@ const topologyFixture = structuredClone(fixtures[0]);
 topologyFixture.name = "pedestrian-topology";
 topologyFixture.expectations.routeMode = "osm-network";
 const topologyNodes = [
-  { id: "fixture-exit", lat: 37.50055, lon: 127.00045 },
-  { id: "fixture-junction", lat: 37.50055, lon: 127 },
-  { id: "fixture-destination", lat: 37.5, lon: 127 },
+  { id: "fixture-exit", lat: 37.50055, lon: 127.00045, tags: {} },
+  { id: "fixture-junction", lat: 37.50055, lon: 127, tags: {} },
+  { id: "fixture-destination", lat: 37.5, lon: 127, tags: {} },
 ];
 for (const index of [0, 1]) {
   const nodes = topologyNodes.slice(index, index + 2);

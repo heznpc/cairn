@@ -15,6 +15,8 @@ export interface GenerateMapInput extends RenderOptions {
   radiusMeters?: number;
   limit?: number;
   label?: string;
+  /** Select an identity returned by geocode when an address has multiple matches. */
+  candidateId?: string;
   // Draw the road skeleton (default true). Set false to skip the extra
   // Overpass round-trip and render landmarks-only.
   roads?: boolean;
@@ -37,7 +39,7 @@ export async function generateMap(
 ): Promise<GenerateMapResult> {
   const radius = Math.min(opts.radiusMeters ?? 400, MAX_RADIUS_METERS);
   const upstream = opts.upstream;
-  const geo = await geocode(address, { language: opts.language, upstream });
+  const geo = await geocode(address, { language: opts.language, upstream, candidateId: opts.candidateId });
   // Generated labels follow the destination's country unless the caller asks
   // for a language: a Seoul map says "3번 출구", a Berlin map "Ausgang 3".
   const language = resolveLabelLanguage(opts.language, geo.countryCode);

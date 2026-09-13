@@ -91,7 +91,8 @@ describe("DiagramDocument public/runtime schema contract", () => {
     const document = changedDocument((candidate) => {
       candidate.map.roads[0].nodes = [
         { id: "10", lat: 37.499, lon: 126.999 },
-        { id: "11", lat: 37.5, lon: 127 },
+        { id: "11", lat: 37.5, lon: 127, tags: { barrier: "gate", foot: "yes" },
+          barriers: [{ id: "fence", tags: { barrier: "fence" } }] },
         { id: "12", lat: 37.501, lon: 127.001 },
       ];
       candidate.map.roads[0].tags = { highway: "footway", bridge: "yes", layer: "1" };

@@ -33,6 +33,19 @@ const line = [
 ];
 
 describe("roadsFromElements", () => {
+  it("joins node restrictions and intersecting barrier ways without inventing missing metadata", () => {
+    const source = { ...way(1, "footway", line), nodes: [10, 11] };
+    const gate = { type: "node", id: 10, ...line[0], tags: { barrier: "gate", foot: "yes" } };
+    const fence = { type: "way", id: 20, nodes: [10, 99], tags: { barrier: "fence" } };
+    const [road] = roadsFromElements([source, gate, fence]);
+    expect(road.nodes![0]).toMatchObject({ tags: gate.tags, barriers: [{ id: "20", tags: fence.tags }] });
+    expect(road.nodes![1].tags).toBeUndefined();
+    const [complete] = roadsFromElements([source, gate, { type: "node", id: 11, ...line[1] }]);
+    expect(complete.nodes![1].tags).toEqual({});
+    const [misaligned] = roadsFromElements([source, { ...gate, lat: 0 }]);
+    expect(misaligned.nodes![0].tags).toBeUndefined();
+  });
+
   it("preserves original nodes and routing tags independently of simplified points", () => {
     const geometry = [line[0], { lat: 37.5005, lon: 127.0005 }, line[1]];
     const source = { ...way(1, "footway", geometry), nodes: [10, 11, 12],
@@ -155,7 +168,9 @@ describe("findRoads", () => {
       expect(highway.test(value), value).toBe(true);
     }
     expect(highway.test("construction")).toBe(false);
-    expect(query).toContain("out geom;");
+    expect(query).toContain(".roads out body geom;");
+    expect(query).toContain("node(w.roads)->.roadNodes;");
+    expect(query).toContain('way(bn.roadNodes)["barrier"]');
   });
 
   it("clamps the effective Overpass radius to the public maximum", async () => {

@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { geocode } from "./geocode.js";
+import { geocode, searchGeocode, AmbiguousGeocodeError } from "./geocode.js";
 import { _resetNominatimGate, _resetOverpassGate } from "./http.js";
 
 function mockFetchJson(body: unknown, init: ResponseInit = {}) {
-  return vi.spyOn(globalThis, "fetch").mockResolvedValue(
+  return vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
     new Response(JSON.stringify(body), {
       status: init.status ?? 200,
       statusText: init.statusText,
@@ -22,6 +22,50 @@ afterEach(() => {
 });
 
 describe("geocode", () => {
+  const matches = [
+    { osm_type: "relation", osm_id: 1, lat: "42.1", lon: "-72.6", display_name: "Springfield, Massachusetts" },
+    { osm_type: "relation", osm_id: 2, lat: "39.8", lon: "-89.6", display_name: "Springfield, Illinois" },
+  ];
+
+  it("returns candidate identities and refuses to silently choose an ambiguous address", async () => {
+    const fetch = mockFetchJson(matches);
+    const result = await searchGeocode("Springfield");
+    expect(result.ambiguous).toBe(true);
+    expect(result.candidates.map((candidate) => candidate.candidateId)).toEqual(["relation:1", "relation:2"]);
+    expect(String(fetch.mock.calls[0][0])).toContain("limit=5");
+    await expect(geocode("Springfield")).rejects.toBeInstanceOf(AmbiguousGeocodeError);
+    await expect(geocode("Springfield")).rejects.toThrow(/--candidate.*\nrelation:1:.*\nrelation:2:/);
+  });
+
+  it("selects the same OSM identity after search ranking changes", async () => {
+    mockFetchJson([...matches].reverse());
+    expect(await geocode("Springfield", { candidateId: "relation:1" })).toMatchObject({
+      lat: 42.1, lon: -72.6, displayName: "Springfield, Massachusetts",
+    });
+  });
+
+  it("rejects a stale candidate instead of substituting the first result", async () => {
+    mockFetchJson([matches[1]]);
+    await expect(geocode("Springfield", { candidateId: "relation:1" })).rejects.toThrow(/no longer in the results/);
+  });
+
+  it("deduplicates the same OSM object without collapsing nearby distinct places", async () => {
+    mockFetchJson([matches[0], matches[0]]);
+    expect((await searchGeocode("Springfield")).ambiguous).toBe(false);
+    mockFetchJson([matches[0], { ...matches[0], osm_id: 3, lon: "-72.60001" }]);
+    expect((await searchGeocode("nearby")).ambiguous).toBe(true);
+  });
+
+  it("keeps interpolated house numbers on the same OSM way selectable separately", async () => {
+    mockFetchJson([
+      { osm_type: "way", osm_id: 1, class: "place", type: "house", lat: "37.5", lon: "127", display_name: "10 Example Street" },
+      { osm_type: "way", osm_id: 1, class: "place", type: "house", lat: "37.5001", lon: "127", display_name: "12 Example Street" },
+    ]);
+    const result = await searchGeocode("Example Street");
+    expect(result.ambiguous).toBe(true);
+    expect(new Set(result.candidates.map((candidate) => candidate.candidateId)).size).toBe(2);
+  });
+
   it("parses the first Nominatim hit and preserves the raw payload", async () => {
     const raw = {
       lat: "37.566535",

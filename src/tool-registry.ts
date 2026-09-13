@@ -43,11 +43,13 @@ export const tools = [
     description:
       "Generate a pictogram-style wayfinding map SVG for an address. " +
       "Returns ready-to-print SVG plus an editable DiagramDocument suitable for iterative " +
-      "chat revisions. One-shot: geocode -> find landmarks -> curate -> render.",
+      "chat revisions. If multiple locations match, returns an error listing candidates; " +
+      "retry with a chosen candidateId or a more specific address.",
     inputSchema: {
       type: "object",
       properties: {
         address: { type: "string", description: "Street address or place name" },
+        candidateId: { type: "string", minLength: 1, description: "Stable candidateId returned by geocode; selects a location when the address is ambiguous." },
         label: { type: "string", description: 'Destination label (default: localized "Here")' },
         language: {
           type: "string",
@@ -110,7 +112,8 @@ export const tools = [
     name: "geocode",
     description:
       "Convert an address or place name to coordinates via OpenStreetMap Nominatim. " +
-      "No API key required. Use this when you want to do landmark curation in the host LLM.",
+      "Returns up to five candidates and an ambiguous flag. Top-level coordinates are the first " +
+      "ranked match, not a confirmed selection. Pass the chosen candidateId to generate_map. No API key required.",
     inputSchema: {
       type: "object",
       properties: { address: { type: "string" } },

@@ -106,9 +106,9 @@ describe("buildStandardMapScene — transit-first templates", () => {
 describe("buildStandardMapScene", () => {
   it("keeps automatic markers clear of source-network turns", () => {
     const nodes = [
-      { id: "a", lat: 37.5005, lon: 127.0005 },
-      { id: "b", lat: 37.5005, lon: 127 },
-      { id: "c", lat: 37.5, lon: 127 },
+      { id: "a", lat: 37.5005, lon: 127.0005, tags: {} },
+      { id: "b", lat: 37.5005, lon: 127, tags: {} },
+      { id: "c", lat: 37.5, lon: 127, tags: {} },
     ];
     const layout = {
       ...baseRenderLayout,
