@@ -72,9 +72,14 @@ export function renderStandardMapSceneSVG(scene: StandardMapScene): string {
 
   if (approach?.points) {
     const path = pointsToPathData(approach.points);
+    const end = approach.points[approach.points.length - 1];
+    const networkEnd = approach.networkPoints?.[approach.networkPoints.length - 1];
+    const endsOnNetwork = networkEnd && Math.hypot(end.x - networkEnd.x, end.y - networkEnd.y) < 0.01;
     lines.push(...renderApproachPath(path, theme, {
       casingWidth: template.approachCasingWidth,
       coreWidth: template.approachWidth,
+      directional: !endsOnNetwork,
+      networkPath: approach.networkPoints ? pointsToPathData(approach.networkPoints) : undefined,
       data: { "route-mode": approach.mode },
     }));
   }

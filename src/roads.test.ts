@@ -33,6 +33,37 @@ const line = [
 ];
 
 describe("roadsFromElements", () => {
+  it("preserves original nodes and routing tags independently of simplified points", () => {
+    const geometry = [line[0], { lat: 37.5005, lon: 127.0005 }, line[1]];
+    const source = { ...way(1, "footway", geometry), nodes: [10, 11, 12],
+      tags: { highway: "footway", foot: "yes", bridge: "yes", layer: "1" } };
+    const [road] = roadsFromElements([source]);
+    expect(road.points).toHaveLength(2);
+    expect(road.nodes).toEqual(geometry.map((point, index) => ({ id: String(index + 10), ...point })));
+    expect(road.tags).toEqual(source.tags);
+    road.nodes![0].lat = 0;
+    road.tags!.foot = "no";
+    expect(source.geometry[0].lat).toBe(37.5);
+    expect(source.tags.foot).toBe("yes");
+  });
+
+  it("keeps a drawable way but omits topology when node IDs cannot be aligned", () => {
+    const [road] = roadsFromElements([{ ...way(1, "footway", line), nodes: [1] }]);
+    expect(road.points).toEqual(line);
+    expect(road.nodes).toBeUndefined();
+  });
+
+  it("rejects unsafe IDs and non-geographic coordinates without dropping valid neighbors", () => {
+    const roads = roadsFromElements([
+      way(1, "footway", [{ lat: Infinity, lon: 0 }, line[0]]),
+      way(2, "path", [{ lat: 91, lon: 0 }, line[0]]),
+      { ...way(3, "steps", line), nodes: [Number.MAX_SAFE_INTEGER + 1, 1] },
+      way(4, "service", line),
+    ]);
+    expect(roads.map((road) => road.id)).toEqual(["4"]);
+    expect(roads[0].class).toBe("residential");
+  });
+
   it("maps OSM highway values to RoadClass tiers", () => {
     const roads = roadsFromElements([
       way(1, "motorway", line),
@@ -115,6 +146,18 @@ describe("roadsFromElements", () => {
 });
 
 describe("findRoads", () => {
+  it("queries the pedestrian network as well as the road skeleton", async () => {
+    mockedOverpassFetch.mockResolvedValue([]);
+    await findRoads(37.5, 127);
+    const [query] = mockedOverpassFetch.mock.calls[0];
+    const highway = new RegExp(query.match(/\["highway"~"([^"]+)"\]/)![1]);
+    for (const value of ["footway", "pedestrian", "steps", "path", "service", "residential", "motorway_link"]) {
+      expect(highway.test(value), value).toBe(true);
+    }
+    expect(highway.test("construction")).toBe(false);
+    expect(query).toContain("out geom;");
+  });
+
   it("clamps the effective Overpass radius to the public maximum", async () => {
     mockedOverpassFetch.mockResolvedValue([]);
 

@@ -6,6 +6,7 @@ import {
   type StandardMapRenderContext,
 } from "./standard-scene.js";
 import { TEMPLATES, THEMES } from "./theme.js";
+import { pointToSegmentDistance } from "./road-geometry.js";
 
 function renderContext(
   overrides: Partial<StandardMapRenderContext> = {},
@@ -103,6 +104,33 @@ describe("buildStandardMapScene — transit-first templates", () => {
 });
 
 describe("buildStandardMapScene", () => {
+  it("keeps automatic markers clear of source-network turns", () => {
+    const nodes = [
+      { id: "a", lat: 37.5005, lon: 127.0005 },
+      { id: "b", lat: 37.5005, lon: 127 },
+      { id: "c", lat: 37.5, lon: 127 },
+    ];
+    const layout = {
+      ...baseRenderLayout,
+      landmarks: [baseRenderLayout.landmarks[0], {
+        ...baseRenderLayout.landmarks[1], lat: 37.5005, lon: 127,
+      }],
+      roads: [{
+        id: "walkway", class: "path" as const, nodes,
+        tags: { highway: "footway" },
+        points: [nodes[0], nodes[2]].map(({ lat, lon }) => ({ lat, lon })),
+      }],
+    };
+    const scene = buildStandardMapScene(layout, renderContext({ approachLandmarkId: "1" }));
+    const cafe = scene.landmarks.find(({ lm }) => lm.id === "2");
+    expect(scene.approach?.mode).toBe("osm-network");
+    expect(cafe).toBeDefined();
+    const points = scene.approach!.networkPoints!;
+    for (let index = 1; index < points.length; index++) {
+      expect(pointToSegmentDistance(cafe!, points[index - 1], points[index])).toBeGreaterThan(21);
+    }
+  });
+
   it("exposes layout decisions without parsing SVG", () => {
     const context = renderContext();
     const scene = buildStandardMapScene(baseRenderLayout, context);

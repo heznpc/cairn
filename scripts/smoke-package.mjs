@@ -84,7 +84,15 @@ writeFileSync(cliDocumentPath, JSON.stringify({
       importance: 1,
       tags: {},
     }],
-    roads: [],
+    roads: [{
+      id: "walkway", class: "path", tags: { highway: "footway", foot: "yes" },
+      points: [{ lat: 37.5005, lon: 127.0005 }, { lat: 37.5, lon: 127 }],
+      nodes: [
+        { id: "1", lat: 37.5005, lon: 127.0005 },
+        { id: "2", lat: 37.5005, lon: 127 },
+        { id: "3", lat: 37.5, lon: 127 },
+      ],
+    }],
     bbox: { north: 37.501, south: 37.499, east: 127.001, west: 126.999 },
   },
   canvas: { width: 600, height: 400 },
@@ -111,6 +119,11 @@ if (!readFileSync(cliPngPath).subarray(1, 4).equals(Buffer.from("PNG"))) {
 }
 if (readFileSync(cliPdfPath).subarray(0, 8).toString("ascii") !== "%PDF-1.4") {
   throw new Error("installed CLI did not export PDF");
+}
+
+const cliSvg = readFileSync(cliSvgPath, "utf8");
+if (!cliSvg.includes('data-route-mode="osm-network"') || !cliSvg.includes('data-approach-network="true"')) {
+  throw new Error("installed CLI lost the node-connected approach");
 }
 
 const smokePath = join(installDir, "mcp-smoke.mjs");
@@ -153,7 +166,15 @@ try {
         importance: 1,
         tags: {},
       }],
-      roads: [],
+      roads: [{
+      id: "walkway", class: "path", tags: { highway: "footway", foot: "yes" },
+      points: [{ lat: 37.5005, lon: 127.0005 }, { lat: 37.5, lon: 127 }],
+      nodes: [
+        { id: "1", lat: 37.5005, lon: 127.0005 },
+        { id: "2", lat: 37.5005, lon: 127 },
+        { id: "3", lat: 37.5, lon: 127 },
+      ],
+    }],
       bbox: { north: 37.501, south: 37.499, east: 127.001, west: 126.999 },
     },
     canvas: { width: 600, height: 400 },
@@ -176,6 +197,13 @@ try {
   }
   if (rendered.structuredContent?.document?.render?.approachLandmarkId !== "gate") {
     throw new Error("installed render_document did not preserve the selected start landmark");
+  }
+  const returnedRoad = rendered.structuredContent?.document?.map?.roads?.[0];
+  if (returnedRoad?.nodes?.length !== 3 || returnedRoad?.tags?.foot !== "yes") {
+    throw new Error("installed render_document dropped road topology/access tags");
+  }
+  if (!rendered.structuredContent?.svg?.includes('data-approach-network="true"')) {
+    throw new Error("installed render_document lost the node-connected approach");
   }
   if (!rendered.structuredContent?.svg?.includes('data-theme="mono"')) {
     throw new Error("installed render_document did not return the patched SVG");

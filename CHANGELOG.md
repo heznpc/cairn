@@ -32,11 +32,17 @@ versions follow [Semantic Versioning](https://semver.org/).
   `pharmacy` categories with pictograms in the existing stroked grammar. Tags
   that need no icon of their own fold into the closest existing category, so a
   bank reads as a building and a place of worship as a monument-class landmark.
-- Diagram-mode standard, compact, and schematic maps now infer the final
-  approach over connected visible road axes, with a direct fallback when the
-  displayed graph is disconnected or implausible. SVG output identifies the
-  result as `data-route-mode="inferred-road"` or `"direct"`; inferred output is
-  explicitly documented as a diagram heuristic rather than certified routing.
+- Topology-aware diagram approaches: roads retain original OSM nodes and tags
+  independently of display geometry. The road query now includes footways,
+  pedestrian ways, steps, paths and service roads; way-level pedestrian access
+  restrictions are filtered before building a bounded node-adjacency graph.
+  Geometric crossings never create connections. Solid `osm-network` portions
+  follow OSM nodes; endpoint connectors and `direct` direction cues use dashed
+  lines and open arrowheads. Existing documents without topology remain readable
+  and render direction-only cues, as do the minimal and badge compositions.
+  This is not certified routing: node barriers and endpoint access are unverified.
+- A pedestrian-network fixture expands visual auditing to 60 combinations and
+  checks the visible distinction between connected approaches and direction cues.
 - Chat-first iterative editing: `generate_map` now returns its
   `DiagramDocument`, and the new stateless `render_document` MCP tool applies
   validated patches, including explicit start-landmark selection, and returns

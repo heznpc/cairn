@@ -162,7 +162,7 @@ describe("renderSVG", () => {
     const svg = renderSVG(layout);
     expect(svg).toContain('data-approach-arrow="core"');
     expect(svg).toContain('data-route-mode="direct"');
-    expect(svg).toContain('marker-end="url(#cairn-approach-arrowhead)"');
+    expect(svg).toContain('marker-end="url(#cairn-direction-arrowhead)"');
   });
 
   it("omits the approach arrow in geographic mode", () => {

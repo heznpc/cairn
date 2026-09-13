@@ -37,6 +37,10 @@ export interface Road {
   class: RoadClass;
   // Simplified polyline in geographic coordinates (Douglas-Peucker applied).
   points: Array<{ lat: number; lon: number }>;
+  /** Original OSM nodes, in way order, before display simplification. */
+  nodes?: Array<{ id: string; lat: number; lon: number }>;
+  /** Original way tags, including highway, foot/access, layer, bridge and tunnel. */
+  tags?: Record<string, string>;
 }
 
 export interface MapLayout {

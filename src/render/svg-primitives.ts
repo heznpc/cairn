@@ -21,6 +21,7 @@ export function svgDocumentStart(options: SvgDocumentFrameOptions): string[] {
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" data-preset="${templateName}" data-template="${templateName}" data-theme="${themeName}"${svgDataAttributes(data)} font-family="${theme.fontFamily}">`,
     `<defs><marker id="cairn-approach-arrowhead" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1,1 L9,5 L1,9 Z" fill="${theme.destination}"/></marker></defs>`,
+    `<defs><marker id="cairn-direction-arrowhead" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M1,1 L9,5 L1,9" fill="none" stroke="${theme.destination}" stroke-width="1.5"/></marker></defs>`,
     `<metadata>Map data © OpenStreetMap contributors, ODbL.</metadata>`,
     `<rect width="${width}" height="${height}" fill="${theme.background}"/>`,
   ];
@@ -31,6 +32,10 @@ export interface ApproachPathOptions {
   coreWidth: number;
   layerDataName?: string;
   lineJoin?: boolean;
+  /** Unverified direction/schematic cue: dashed line and open arrowhead. */
+  directional?: boolean;
+  /** Solid overlay for the connected portion; endpoint connectors stay dashed. */
+  networkPath?: string;
   data?: Readonly<Record<string, string | number | boolean>>;
 }
 
@@ -39,14 +44,19 @@ export function renderApproachPath(
   theme: ThemeSpec,
   options: ApproachPathOptions,
 ): string[] {
-  const { casingWidth, coreWidth, layerDataName, lineJoin = false, data } = options;
+  const { casingWidth, coreWidth, layerDataName, lineJoin = false, directional = true, networkPath, data } = options;
   const casingLayer = layerDataName ? ` data-${layerDataName}="casing"` : "";
   const coreLayer = layerDataName ? ` data-${layerDataName}="core"` : "";
   const sharedData = svgDataAttributes(data);
   const join = lineJoin ? ` stroke-linejoin="round"` : "";
+  const dash = directional || networkPath ? ` stroke-dasharray="7 6"` : "";
+  const arrow = directional ? "cairn-direction-arrowhead" : "cairn-approach-arrowhead";
   return [
     `<path data-approach-arrow="casing"${casingLayer}${sharedData} d="${path}" fill="none" stroke="${theme.background}" stroke-width="${casingWidth}" stroke-linecap="round"${join}/>`,
-    `<path data-approach-arrow="core"${coreLayer}${sharedData} d="${path}" fill="none" stroke="${theme.destination}" stroke-width="${coreWidth}" stroke-linecap="round"${join} marker-end="url(#cairn-approach-arrowhead)"/>`,
+    `<path data-approach-arrow="core"${coreLayer}${sharedData} d="${path}" fill="none" stroke="${theme.destination}" stroke-width="${coreWidth}" stroke-linecap="round"${join}${dash} marker-end="url(#${arrow})"><title>${networkPath ? "OSM node-connected approach; dashed endpoint connectors and walkability are unverified." : "Direction only; no connected walking route established."}</title></path>`,
+    ...(networkPath ? [
+      `<path data-approach-network="true" d="${networkPath}" fill="none" stroke="${theme.destination}" stroke-width="${coreWidth}" stroke-linecap="round" stroke-linejoin="round"/>`,
+    ] : []),
   ];
 }
 
